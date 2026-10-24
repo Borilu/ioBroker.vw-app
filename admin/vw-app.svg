@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Android app connection">
+  <rect width="64" height="64" rx="14" fill="#123341"/>
+  <rect x="17" y="7" width="30" height="50" rx="7" fill="#f4fbfc"/>
+  <path d="M27 12h10" stroke="#123341" stroke-width="3" stroke-linecap="round"/>
+  <circle cx="32" cy="51" r="2" fill="#123341"/>
+  <path d="m23 37 3-8h12l3 8v6H23z" fill="#15b8a6"/>
+  <path d="M26 30h12l2 7H24z" fill="#123341"/>
+  <path d="M25 40h3m8 0h3" stroke="#f4fbfc" stroke-width="2" stroke-linecap="round"/>
+  <path d="M25 24a11 11 0 0 1 14 0m-10-3a6 6 0 0 1 6 0" fill="none" stroke="#15b8a6" stroke-width="2" stroke-linecap="round"/>
+</svg>
