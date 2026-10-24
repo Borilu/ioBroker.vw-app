@@ -1,0 +1,38 @@
+{
+  "common": {
+    "name": "vw-app",
+    "version": "0.1.0",
+    "news": { "0.1.0": { "en": "Initial experimental adapter: manage Android Wi-Fi pairing and Volkswagen climate controls inside ioBroker.", "de": "Erster experimenteller Adapter: Android-WLAN-Kopplung und VW-Klimatisierung direkt in ioBroker verwalten." } },
+    "titleLang": { "en": "Volkswagen App Control", "de": "Volkswagen App-Steuerung" },
+    "desc": { "en": "Operate the official Volkswagen Android app over Wi-Fi using an adapter-managed ADB runtime.", "de": "Die offizielle Volkswagen-Android-App über WLAN mit einer vom Adapter verwalteten ADB-Laufzeit bedienen." },
+    "authors": ["Borilu"],
+    "keywords": ["volkswagen", "android", "climate", "wifi"],
+    "license": "MIT",
+    "platform": "Javascript/Node.js",
+    "mode": "daemon",
+    "type": "vehicle",
+    "compact": false,
+    "connectionType": "local",
+    "dataSource": "poll",
+    "messagebox": true,
+    "enabled": true,
+    "loglevel": "info",
+    "icon": "vw-app.svg",
+    "extIcon": "https://raw.githubusercontent.com/Borilu/ioBroker.vw-app/main/admin/vw-app.svg",
+    "readme": "https://github.com/Borilu/ioBroker.vw-app/blob/main/README.md",
+    "adminUI": { "config": "json" },
+    "dataFolder": "vw-app.%INSTANCE%",
+    "os": ["linux"],
+    "dependencies": [{ "js-controller": ">=6.0.0" }],
+    "globalDependencies": [{ "admin": ">=7.0.0" }]
+  },
+  "native": {
+    "hostIp": "", "connectPort": 0, "approvedAppVersion": "", "vehicleMarker": "",
+    "modeTitles": "Klimatisierung|Air conditioning", "allowWrites": false,
+    "adbPath": "", "useBundledAdb": true, "commandTimeoutSeconds": 125,
+    "cooldownSeconds": 60, "pollIntervalSeconds": 0, "stayAwakeOnCharge": false,
+    "legacyStatePrefix": ""
+  },
+  "objects": [],
+  "instanceObjects": []
+}

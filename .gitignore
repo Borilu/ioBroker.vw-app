@@ -1,0 +1,14 @@
+node_modules/
+*.tgz
+*.zip
+coverage/
+test-results/
+.env
+.env.*
+runtime/
+adb-home/
+adbkey*
+enrollment.json
+command-journal.json
+*.log
+.DS_Store
