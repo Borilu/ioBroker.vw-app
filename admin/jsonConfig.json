@@ -180,7 +180,7 @@
       "disabled": "!data.hostIp || !(data.connectPort >= 1 && data.connectPort <= 65535)",
       "useNative": true,
       "showProcess": true,
-      "timeout": 150000,
+      "timeout": 210000,
       "variant": "contained",
       "result": { "calibration_success": "Profil gelesen. Vorgeschlagene App-Version und Fahrzeugtext prüfen und speichern." },
       "sm": 12
@@ -259,12 +259,23 @@
     "commandTimeoutSeconds": {
       "type": "number",
       "label": "Zeitlimit je Auftrag (Sekunden)",
-      "default": 125,
+      "default": 180,
       "min": 30,
       "max": 180,
       "step": 1,
       "expertMode": true,
-      "help": "Gilt für den gesamten Auftrag. Bei unklarer Rückmeldung wird kein Schaltbefehl wiederholt.",
+      "help": "Begrenzt den gesamten Auftrag einschließlich der Wartezeit auf die App-Rückmeldung. Bei unklarer Rückmeldung wird kein Schaltbefehl wiederholt.",
+      "sm": 6
+    },
+    "outcomeTimeoutSeconds": {
+      "type": "number",
+      "label": "Wartezeit auf Bestätigung in der App (Sekunden)",
+      "default": 120,
+      "min": 30,
+      "max": 150,
+      "step": 1,
+      "expertMode": true,
+      "help": "Die Volkswagen-App kann verzögert antworten. Nach einem Schaltversuch bis zu diesem Wert auf ihre Bestätigung warten; ein kleineres verbleibendes Gesamtlimit beendet den Auftrag früher.",
       "sm": 6
     },
     "legacyStatePrefix": {
