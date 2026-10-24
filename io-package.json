@@ -1,8 +1,9 @@
 {
   "common": {
     "name": "vw-app",
-    "version": "0.2.0",
+    "version": "0.3.0",
     "news": {
+      "0.3.0": { "en": "Select climate or window-heating mode, climate on unlock, automatic window heating and front comfort zones.", "de": "Klimatisierung oder Scheibenheizung, Standklimatisierung bei Entriegelung, automatische Scheibenheizung und vordere Komfortzonen einstellen." },
       "0.2.0": { "en": "Choose and persist a preconditioning target temperature, apply it without starting climate control, and read the app setting.", "de": "Zieltemperatur für die Vorklimatisierung auswählen, speichern, ohne Klimastart einstellen und den App-Wert auslesen." },
       "0.1.1": { "en": "Allow normal vehicle response delays and report additional climate-tile confirmation from the app overview.", "de": "Normale Fahrzeug-Verzögerungen abwarten und die Bestätigungsquelle aus der Klima-Kachel zusätzlich anzeigen." },
       "0.1.0": { "en": "Initial experimental adapter: manage Android Wi-Fi pairing and Volkswagen climate controls inside ioBroker.", "de": "Erster experimenteller Adapter: Android-WLAN-Kopplung und VW-Klimatisierung direkt in ioBroker verwalten." }

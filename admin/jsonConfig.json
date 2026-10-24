@@ -217,7 +217,7 @@
     },
     "allowWrites": {
       "type": "checkbox",
-      "label": "Klimastart, Stopp und Temperaturänderungen erlauben",
+      "label": "Klimastart, Stopp und Änderungen der Klimaeinstellungen erlauben",
       "default": false,
       "disabled": "!data.approvedAppVersion || !data.vehicleMarker",
       "help": "Erst nach erfolgreicher Einrichtung aktivieren und speichern. Ohne Freigabe sind nur Statusabfragen möglich.",
@@ -232,7 +232,7 @@
     },
     "_temperatureHint": {
       "type": "staticText",
-      "text": "Temperaturwahl: In climate.targetTemperature 16 bis 29.5 °C in 0.5-°C-Schritten vormerken, zum Beispiel 22.5. Ein Start übernimmt den Sollwert; commands.setTemperature stellt ihn ohne Klimastart ein. commands.clearTemperature wählt App-Temperatur beibehalten. climate.temperature zeigt den ausgelesenen App-Wert; climate.targetTemperatureError meldet Auswahlfehler. Eine bestätigte Auswahl bedeutet zunächst nur gespeichert. LO und HI werden nicht unterstützt.",
+      "text": "Unter climate speichern targetTemperature, targetMode, targetClimateOnUnlock, targetAutoWindowHeating und targetZones Wünsche für den nächsten Auftrag. Eine Bestätigung bedeutet nur gespeichert; die App-Werte stehen im selben Zweig getrennt in temperature, mode, climateOnUnlock, autoWindowHeating und zones. Temperatur: 16 bis 29.5 °C in 0.5-°C-Schritten, nur im Modus climate; LO und HI sind ausgeschlossen. commands.setTemperature übernimmt nur die Temperatur ohne Start. commands.applySettings übernimmt nur Modus, beide Schalter und Zonen, ohne Temperatur oder Start/Stopp. commands.clearSettings löscht nur diese vier Wünsche; commands.clearTemperature behält die App-Temperatur bei. Start übernimmt den gespeicherten Schnappschuss; windowHeating ignoriert den Temperaturwunsch. Ohne Moduswunsch bleibt das bisherige Klimatisierungsverhalten erhalten. Moduswechsel bei laufendem Betrieb werden abgewiesen; es gibt dafür keinen automatischen Stopp/Neustart. Zonen wählen zusätzliche temperaturbeeinflussende Funktionen vorne links, rechts oder beidseitig, keine getrennten Solltemperaturen oder Luftverteilung.",
       "sm": 12
     },
     "_keepAwake": {
@@ -269,7 +269,7 @@
       "max": 360,
       "step": 1,
       "expertMode": true,
-      "help": "Begrenzt Temperaturwahl, Verbindung und Wartezeit auf die App-Rückmeldung zusammen. Große Temperatursprünge brauchen zusätzliche Zeit. Bei unklarer Rückmeldung wird kein Schaltbefehl wiederholt.",
+      "help": "Begrenzt die Übernahme der Klimaeinstellungen, Temperaturwahl, Verbindung und Wartezeit auf die App-Rückmeldung zusammen. Umfangreiche Änderungen brauchen zusätzliche Zeit. Bei unklarer Rückmeldung wird kein Schaltbefehl wiederholt.",
       "sm": 6
     },
     "outcomeTimeoutSeconds": {

@@ -11,5 +11,6 @@ adbkey*
 enrollment.json
 command-journal.json
 temperature-preference.json
+settings-preference.json
 *.log
 .DS_Store

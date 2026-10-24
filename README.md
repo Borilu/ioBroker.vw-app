@@ -66,10 +66,21 @@ All IDs are relative to `vw-app.0` (replace `0` with the instance number).
 | `commands.refresh` | Write `true`, `ack=false` to read the app state |
 | `commands.setTemperature` | Write `true`, `ack=false` to apply the saved target temperature without starting climate control |
 | `commands.clearTemperature` | Write `true`, `ack=false` to select “keep the app temperature”, without operating the phone |
+| `commands.applySettings` | Apply the four saved mode, unlock, automatic window-heating and zone preferences; does not apply temperature or press Start/Stop |
+| `commands.clearSettings` | Clear only those four preferences to `null`, without operating the phone |
 | `climate.appState` | `on`, `off` or `unknown` as observed in the VW app |
 | `climate.targetTemperature` | Writable saved target in °C; `null` keeps the existing app temperature. Acknowledgment means saved, not applied |
 | `climate.targetTemperatureError` | Fixed feedback about an invalid or unsaved target selection; separate from the current phone job |
 | `climate.temperature` | Read-only temperature observed in the app, or `null` with invalid quality if unreadable |
+| `climate.targetMode` | Saved preference: `null`, `climate` or `windowHeating` |
+| `climate.targetClimateOnUnlock` | Saved preference: `null`, `true` or `false` for climate control on unlocking |
+| `climate.targetAutoWindowHeating` | Saved preference: `null`, `true` or `false` for automatic window heating |
+| `climate.targetZones` | Saved preference: `null`, `frontLeft`, `frontRight` or `both` for additional temperature-related functions in the front zones |
+| `climate.targetSettingsError` | Per-field feedback about an invalid or unsaved climate preference; separate from the current phone job |
+| `climate.mode` | Mode last read from the app |
+| `climate.climateOnUnlock` | Climate-on-unlock setting last read from the app |
+| `climate.autoWindowHeating` | Automatic window-heating setting last read from the app |
+| `climate.zones` | `frontLeft`, `frontRight`, `both` or the observed empty selection `none`; `null` with invalid quality when unreadable |
 | `climate.confirmationSource` | `none`, `app_controls` (climate controls) or `app_overview` (the exact active-climate description in the vehicle overview) |
 | `climate.active` | Boolean observation; invalid quality on a failed read |
 | `climate.vehicleConfirmed` | Always `false`; no independent vehicle telemetry confirmation |
@@ -83,7 +94,7 @@ All IDs are relative to `vw-app.0` (replace `0` with the instance number).
 | `info.appVersion` | Observed Volkswagen app version |
 | `info.status` | Setup/runtime/operation status |
 
-Buttons reset automatically. Without a selected target temperature, the app's existing temperature is preserved. Stop ends the climate operation exposed by the app's single Stop button, which may include window heating. Start requires a recognized air-conditioning mode.
+Buttons reset automatically. Without a selected target temperature, the app's existing temperature is preserved. Stop ends the climate operation exposed by the app's single Stop button, which may include window heating. With `climate.targetMode=null`, Start keeps the existing requirement for a recognized air-conditioning mode. An explicit `windowHeating` preference selects the separate window-heating operation; a staged temperature is ignored for that mode.
 
 Status is read on request by default. Optional automatic polling is limited to one read every five minutes or slower. Status can become stale between reads; check `operation.lastUpdated`.
 
@@ -111,13 +122,33 @@ These checks cannot guarantee compatibility with a future app UI. Check the offi
 
 Write a supported numeric °C value, for example `22.5`, to `climate.targetTemperature` with `ack=false`. The verified numeric range is **16.0 to 29.5 °C in 0.5 °C steps**; the adjacent `LO` and `HI` modes are not supported. Numeric strings such as `"22.5"` are rejected. A successful `ack=true` means the selection was saved privately for future use; this write does not touch the phone. Invalid input restores the last accepted selection and reports `invalid_temperature` in `climate.targetTemperatureError`. A valid selection clears that selection error without changing a concurrent phone job's error or result.
 
-After an invalid or unsaved selection, a new Start or Apply is blocked with `temperature_selection_failed`, even though the previous value is displayed again. Explicitly select a valid value again or press `commands.clearTemperature` to resolve it. Status and Stop remain available. A failed selection made after a job was accepted does not alter that job's saved target.
+After an invalid or unsaved temperature selection, a new temperature-applying job is blocked with `temperature_selection_failed`, even though the previous value is displayed again. Explicitly select a valid value again or press `commands.clearTemperature` to resolve it. `commands.applySettings` does not apply temperature. Status and Stop remain available. A failed selection made after a job was accepted does not alter that job's saved target.
 
-Use `commands.setTemperature` to apply the saved selection without pressing Start or Stop, or use `commands.start` to set it before the climate start. Write permission must be enabled for either operation to change the app temperature. `climate.temperature` is updated only from an actual app reading and remains separate from the saved target. An app reading still does not set `climate.vehicleConfirmed` to `true`.
+Use `commands.setTemperature` to apply the saved selection in air-conditioning mode without pressing Start or Stop, or use `commands.start` to set it before an air-conditioning start. Temperature selection is supported only for `climate`; a `windowHeating` start ignores the saved temperature and leaves that preference available for a later air-conditioning job. Write permission must be enabled for either operation to change the app temperature. `climate.temperature` is updated only from an actual app reading and remains separate from the saved target. An app reading still does not set `climate.vehicleConfirmed` to `true`.
 
 The saved selection survives adapter restarts. Press `commands.clearTemperature` to keep the existing app temperature on later starts. Alternatively, write the actual null value (`null`, not the text `"null"`) to the target. This choice only changes the saved preference. Applying a null selection with `commands.setTemperature` is rejected before any phone access. A new selection made during a running job is saved for the next job; it does not alter the target already chosen for the active job.
 
 The app picker is operated through freshly read individual 0.5 °C steps, so a large temperature change can take additional time. Check the resulting `climate.temperature`; if feedback is uncertain, inspect the Volkswagen app before issuing another command.
+
+## Select mode and additional climate settings
+
+Write the four `climate.target…` preferences listed above with `ack=false`. A successful acknowledgment means the value was **saved**, not applied to the phone. All four preferences survive adapter restarts. `null` keeps the corresponding app setting; Boolean `false` explicitly requests that the option be switched off. A later preference change applies to the next accepted job and does not change a running job's snapshot.
+
+An invalid or unsaved preference restores its last accepted value and identifies the affected field in `climate.targetSettingsError`. A new Start or Apply Settings is then blocked with `settings_selection_failed` until that field is explicitly selected again with a valid value, or `commands.clearSettings` clears all four wishes. Successfully editing another field does not clear the failed field's error. Selection errors do not overwrite a concurrent phone job's result or diagnostic messages, and Status and Stop remain available.
+
+Press `commands.applySettings` with `true`, `ack=false` to apply only these four preferences. Write permission must be enabled before changing app settings. This command does not apply a staged temperature and does not press Start or Stop. Press `commands.clearSettings` to set only these four preferences back to `null`, without phone access; the separate temperature preference is retained.
+
+When the Volkswagen app offers **Save** after changes, the adapter presses it once and reopens the settings to verify the saved values before reporting success. It does not save or discard a preexisting manual draft. If a job reports `unsaved_settings`, open the phone and explicitly save or discard the unfinished changes, leave the zone editor, then retry. Android Back is not a substitute for saving: it can discard an app draft.
+
+Start uses the saved preferences before starting the selected operation. Mode changes require an explicit `climate.targetMode` and an inactive climate operation. The adapter rejects a requested mode change while climate control is active; it does not stop and restart the operation to force the change. With `targetMode=null`, Start does not select another mode and retains its previous air-conditioning-only behavior.
+
+The two Boolean options and the zone selection are also available in the app's window-heating settings. The app describes zones as: “Zonen im Innenraum Ihres Fahrzeugs, in denen zusätzliche temperaturbeeinflussende Funktionen während der Klimatisierung aktiviert werden sollen.” `frontLeft`, `frontRight` and `both` therefore select the front zones for these additional functions. They do not represent separate temperature targets or independent air-distribution controls.
+
+The read-only `climate.zones` may report `none` when neither front zone is selected in the app. This is a valid observation, not a supported desired selection: writing `none` to `climate.targetZones` is rejected. An unreadable setting is represented separately as `null` with invalid quality.
+
+The reference app can return its mode picker to air conditioning when the vehicle overview or settings are reopened. The adapter's saved mode preference remains unchanged. It saves and verifies the other preferences first, then selects the requested mode, and checks it again before Start. `climate.mode` describes the current app view, not independent vehicle telemetry.
+
+Version 0.3.0 passed 220 automated tests on Linux. Live checks on the reference Galaxy A31 covered both modes, both Boolean options in each position, all three front-zone choices, saving and reopening the app settings, a combined four-preference job, persistence across an adapter restart, and clearing the preferences. The original app settings were restored afterward. No physical climate start was issued for these settings checks; climate remained off. Start integration is covered by regression tests; the earlier real start/stop confirmations apply to version 0.1.1.
 
 ## Migration from the Python prototype
 
@@ -145,6 +176,14 @@ Adapter source: [MIT](LICENSE). Third-party components retain their licenses; se
 Independent community project, not provided or endorsed by Volkswagen, Google or ioBroker. Volkswagen and Android are trademarks of their respective owners.
 
 ### Changelog
+
+#### 0.3.0
+
+- Stage and persist mode, climate-on-unlock, automatic window heating and front-zone preferences separately from observed app settings.
+- Apply or clear those four preferences without pressing Start/Stop or applying temperature.
+- Use the accepted preferences for Start, preserve the previous air-conditioning-only behavior when no mode is selected, and reject mode changes during an active operation.
+- Save app drafts once, verify them after reopening, then select the final mode using its exact label.
+- Verify the settings flow with 220 Linux tests and real-device app checks while climate remains off.
 
 #### 0.2.0
 
