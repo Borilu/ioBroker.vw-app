@@ -55,13 +55,42 @@ Im Datenpunkt `vw-app.0.climate.targetTemperature` einen unterstützten numerisc
 
 Der Adapter speichert den Sollwert privat und bestätigt ihn mit `ack=true`. Das bedeutet ausschließlich **gespeichert**: Diese Auswahl allein bedient das Handy noch nicht. Ein ungültiger Wert wird durch den letzten akzeptierten Sollwert ersetzt; der feste Fehlercode `invalid_temperature` erscheint dazu in `climate.targetTemperatureError`. Eine gültige Auswahl löscht diesen Auswahlfehler. Rückmeldung und Fehler eines gleichzeitig laufenden Handyauftrags werden dadurch nicht überschrieben.
 
-Nach einer ungültigen oder nicht gespeicherten Auswahl bleiben neue Start- und Temperaturübernahme-Aufträge mit `temperature_selection_failed` gesperrt. Obwohl der frühere Sollwert wieder angezeigt wird, muss zuerst ausdrücklich ein gültiger Wert neu gewählt oder **App-Temperatur beibehalten** betätigt werden. Status und Stopp bleiben verfügbar. Ein bereits angenommener Auftrag behält seinen ursprünglichen Sollwert auch dann, wenn eine spätere Auswahl fehlschlägt.
+Nach einer ungültigen oder nicht gespeicherten Temperaturauswahl bleiben neue Aufträge, die diese Temperatur übernehmen sollen, mit `temperature_selection_failed` gesperrt. Obwohl der frühere Sollwert wieder angezeigt wird, muss zuerst ausdrücklich ein gültiger Wert neu gewählt oder **App-Temperatur beibehalten** betätigt werden. `commands.applySettings` übernimmt keine Temperatur. Status und Stopp bleiben verfügbar. Ein bereits angenommener Auftrag behält seinen ursprünglichen Sollwert auch dann, wenn eine spätere Auswahl fehlschlägt.
 
-`commands.setTemperature` mit `true` und `ack=false` stellt den gespeicherten Sollwert in der App ein, ohne Start oder Stopp zu drücken. `commands.start` übernimmt ihn vor dem Klimastart. Für tatsächliche Temperaturänderungen muss die Schaltfreigabe aktiviert sein. Der getrennte Datenpunkt `climate.temperature` zeigt den zuletzt aus der App ausgelesenen Wert; wenn dieser nicht lesbar ist, enthält er `null` mit ungültiger Qualität.
+`commands.setTemperature` mit `true` und `ack=false` stellt den gespeicherten Sollwert im Modus Klimatisierung ein, ohne Start oder Stopp zu drücken. `commands.start` übernimmt ihn vor einem Start der Klimatisierung. Die Temperaturwahl gilt nur für `climate`; bei einem ausdrücklich gewählten Start mit `windowHeating` wird die vorgemerkte Temperatur ignoriert und für eine spätere Klimatisierung behalten. Für tatsächliche Temperaturänderungen muss die Schaltfreigabe aktiviert sein. Der getrennte Datenpunkt `climate.temperature` zeigt den zuletzt aus der App ausgelesenen Wert; wenn dieser nicht lesbar ist, enthält er `null` mit ungültiger Qualität.
 
 Der Sollwert bleibt über Adapterneustarts erhalten. Der Knopf `commands.clearTemperature` (**App-Temperatur beibehalten**) wählt, bei späteren Starts die vorhandene App-Temperatur zu verwenden. Alternativ lässt sich ein echter Nullwert (`null`, nicht der Text `"null"`) an den Sollwert schreiben. Beides ändert nur die gespeicherte Auswahl und bedient das Handy nicht. `commands.setTemperature` ohne ausgewählten Sollwert wird vor einem Handyzugriff abgewiesen.
 
 Eine Auswahl während eines laufenden Auftrags gilt für den nächsten Auftrag. Der bereits gestartete Vorgang behält seinen ursprünglichen Sollwert. Bei unklarer Rückmeldung den tatsächlichen App-Wert prüfen; eine gespeicherte Auswahl bestätigt keine Temperaturmessung am Fahrzeug.
+
+## 6. Modus und weitere Klimaeinstellungen vormerken
+
+Die folgenden Datenpunkte unter `vw-app.0` speichern zusätzliche Wünsche. Werte mit `ack=false` schreiben; die Bestätigung `ack=true` bedeutet zunächst nur **gespeichert**, nicht bereits in der App eingestellt. Alle vier Wünsche bleiben über einen Adapterneustart erhalten. `null` behält die betreffende App-Einstellung bei, während `false` einen Schalter ausdrücklich ausschalten soll.
+
+| Vorgemerkter Wunsch | Erlaubte Werte | Getrennte App-Rückmeldung |
+| --- | --- | --- |
+| `climate.targetMode` | `null`, `climate`, `windowHeating` | `climate.mode` |
+| `climate.targetClimateOnUnlock` | `null`, `true`, `false` | `climate.climateOnUnlock` |
+| `climate.targetAutoWindowHeating` | `null`, `true`, `false` | `climate.autoWindowHeating` |
+| `climate.targetZones` | `null`, `frontLeft`, `frontRight`, `both` | `climate.zones` |
+
+`climate` bedeutet Klimatisierung, `windowHeating` Scheibenheizung. **`commands.applySettings`** mit `true` und `ack=false` übernimmt ausschließlich diese vier vorgemerkten Wünsche in die App. Für Änderungen an den App-Einstellungen muss die Schaltfreigabe aktiviert sein. Dabei wird weder eine vorgemerkte Temperatur übernommen noch Start oder Stopp gedrückt. Die tatsächlichen App-Werte erscheinen getrennt in den Rückmeldedatenpunkten.
+
+Bietet die Volkswagen-App nach Änderungen **Speichern** an, betätigt der Adapter diese Schaltfläche einmal und liest die Werte nach erneutem Öffnen der Einstellungen zurück. Erst diese Prüfung bestätigt die Übernahme. Bereits vorher offene, manuell bearbeitete Entwürfe werden weder gespeichert noch verworfen. Bei `unsaved_settings` die Änderungen zuerst direkt am Handy ausdrücklich speichern oder verwerfen, den Zoneneditor verlassen und anschließend erneut versuchen. Die Android-Zurück-Funktion ersetzt das Speichern nicht; sie kann einen App-Entwurf verwerfen.
+
+Bei einer ungültigen oder nicht gespeicherten Auswahl stellt der Adapter den zuletzt akzeptierten Wert wieder her. `climate.targetSettingsError` nennt das betroffene Feld. Neue Start- und Einstellungsübernahme-Aufträge werden dann mit `settings_selection_failed` abgewiesen, bis genau dieses Feld erneut gültig gewählt oder **`commands.clearSettings`** betätigt wurde. Eine erfolgreiche Auswahl an einem anderen Feld löscht den Fehler nicht. Ein gleichzeitig laufender Handyauftrag behält seine eigene Rückmeldung; Status und Stopp bleiben verfügbar.
+
+**`commands.clearSettings`** setzt nur diese vier Wünsche auf `null`, ohne das Handy zu bedienen. Der Temperaturwunsch in `climate.targetTemperature` bleibt dabei erhalten. Für dessen Rücknahme weiterhin `commands.clearTemperature` verwenden.
+
+Start übernimmt einen festen Schnappschuss der vorgemerkten Wünsche. Eine spätere Auswahl gilt für den nächsten Auftrag. Wenn `climate.targetMode=null` ist, behält Start das bisherige Verhalten bei: Es wird kein anderer Modus gewählt, und ein geprüfter Klimatisierungsmodus ist weiterhin erforderlich. Ein ausdrücklich gewünschter Moduswechsel ist nur bei ausgeschalteter Klimatisierung möglich. Bei laufendem Betrieb wird der Wechsel abgewiesen; der Adapter stoppt oder startet die Klimatisierung dafür nicht automatisch neu.
+
+Die Schalter für Klimatisierung beim Entriegeln und automatische Scheibenheizung sowie die Zonenauswahl sind auch in den Einstellungen des Scheibenheizungsmodus sichtbar. Zur Bedeutung der Zonen verwendet die App folgenden Text: „Zonen im Innenraum Ihres Fahrzeugs, in denen zusätzliche temperaturbeeinflussende Funktionen während der Klimatisierung aktiviert werden sollen.“ `frontLeft` wählt vorne links, `frontRight` vorne rechts und `both` beide vorderen Zonen für diese Zusatzfunktionen. Damit werden keine unterschiedlichen Solltemperaturen oder eine getrennte Luftverteilung eingestellt.
+
+Der nur lesbare Rückmeldepunkt `climate.zones` kann außerdem `none` melden: In der App ist dann keine der beiden vorderen Zonen ausgewählt. Als Wunschwert für `climate.targetZones` ist `none` nicht erlaubt. Davon zu unterscheiden ist `null` mit ungültiger Qualität: Dieser Wert bedeutet, dass die Einstellung nicht eindeutig ausgelesen werden konnte.
+
+Die Referenz-App kann beim erneuten Öffnen der Fahrzeugübersicht oder Einstellungen wieder Klimatisierung anzeigen. Der gespeicherte Moduswunsch des Adapters bleibt erhalten. Der Adapter speichert und prüft zuerst die übrigen Einstellungen und wählt danach den gewünschten Modus für den Auftrag. `climate.mode` beschreibt die aktuelle App-Ansicht und keine unabhängige Fahrzeugmessung.
+
+Version 0.3.0 bestand 220 automatisierte Tests auf Linux. Auf dem Galaxy A31 wurden beide Modi, beide Stellungen der Automatikschalter, alle drei Zonenauswahlen sowie Speichern, erneutes Auslesen und ein gemeinsamer Auftrag mit allen vier Wünschen geprüft. Die Wünsche blieben nach einem Adapterneustart erhalten und konnten anschließend gelöscht werden. Die ursprünglichen App-Werte wurden wiederhergestellt; die Klimatisierung blieb aus. Die Verbindung zum Startablauf ist durch Regressionstests abgedeckt; ein zusätzlicher physischer Klimastart wurde für diese Einstellungsprüfung nicht ausgelöst.
 
 ## Schnittstelle der Einrichtungsschaltflächen
 
