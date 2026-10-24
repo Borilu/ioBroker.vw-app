@@ -1,0 +1,289 @@
+{
+  "$schema": "https://raw.githubusercontent.com/ioBroker/ioBroker.admin/master/packages/jsonConfig/schemas/jsonConfig.json",
+  "i18n": false,
+  "type": "panel",
+  "items": {
+    "_intro": {
+      "type": "staticText",
+      "text": "Verbinde dein Android-Handy und prüfe die Volkswagen-App. Danach kannst du ihre Klimatisierung aus ioBroker bedienen. Die Anmeldung bei Volkswagen bleibt auf dem Handy.",
+      "newLine": true,
+      "sm": 12
+    },
+    "_alive": {
+      "type": "alive",
+      "textAlive": "Adapter läuft – Einrichtung verfügbar",
+      "textNotAlive": "Adapter starten, damit die Einrichtungsschaltflächen funktionieren",
+      "sm": 12
+    },
+    "_saveHint": {
+      "type": "staticText",
+      "text": "Dauerhafte Einstellungen zuerst speichern und den Adapter laufen lassen. Die Schaltflächen koppeln das Handy oder lesen dessen App aus; sie starten keine Klimatisierung.",
+      "sm": 12
+    },
+    "_runtimeHeader": {
+      "type": "header",
+      "text": "1. Android-Verbindung vorbereiten",
+      "size": 3,
+      "sm": 12
+    },
+    "useBundledAdb": {
+      "type": "checkbox",
+      "label": "Android-Werkzeuge für diese Instanz verwenden",
+      "default": true,
+      "help": "Einmal über die Schaltfläche unten installieren. Diese Auswahl allein lädt nichts herunter.",
+      "sm": 12
+    },
+    "adbPath": {
+      "type": "text",
+      "label": "Pfad zu vorhandenem adb",
+      "default": "",
+      "hidden": "data.useBundledAdb !== false",
+      "help": "Alternativ den vollständigen Pfad einer vorhandenen Installation eintragen, zum Beispiel /usr/bin/adb.",
+      "sm": 12
+    },
+    "_runtimeLicense": {
+      "type": "staticLink",
+      "label": "Google-Lizenz für die Android SDK Platform-Tools lesen",
+      "href": "https://developer.android.com/studio/terms",
+      "target": "_blank",
+      "hidden": "data.useBundledAdb === false",
+      "sm": 12
+    },
+    "_runtimeSource": {
+      "type": "staticLink",
+      "label": "Offizielle Beschreibung und Downloads der Android-Werkzeuge",
+      "href": "https://developer.android.com/tools/releases/platform-tools",
+      "target": "_blank",
+      "hidden": "data.useBundledAdb === false",
+      "sm": 12
+    },
+    "_acceptRuntimeLicense": {
+      "type": "checkbox",
+      "label": "Ich habe die Google-SDK-Lizenz gelesen und akzeptiere sie",
+      "default": false,
+      "doNotSave": true,
+      "hidden": "data.useBundledAdb === false",
+      "sm": 12
+    },
+    "_installRuntime": {
+      "type": "sendTo",
+      "label": "Android-Werkzeuge herunterladen und installieren",
+      "command": "installRuntime",
+      "data": { "acceptLicense": true },
+      "useNative": true,
+      "disabled": "data._acceptRuntimeLicense !== true",
+      "hidden": "data.useBundledAdb === false",
+      "showProcess": true,
+      "timeout": 180000,
+      "variant": "outlined",
+      "result": { "runtime_installed": "Android-Werkzeuge sind installiert." },
+      "sm": 12
+    },
+    "_pairingHeader": {
+      "type": "header",
+      "text": "2. Handy über WLAN koppeln",
+      "size": 3,
+      "sm": 12
+    },
+    "_pairingHint": {
+      "type": "staticText",
+      "text": "Auf dem Handy Entwickleroptionen → Drahtloses Debugging einschalten und Gerät mit Kopplungscode koppeln öffnen. Handy und ioBroker müssen sich erreichen können. Kopplungsport und Verbindungsport sind zwei unterschiedliche Angaben.",
+      "sm": 12
+    },
+    "hostIp": {
+      "type": "text",
+      "label": "IP-Adresse des Android-Handys",
+      "default": "",
+      "maxLength": 45,
+      "validator": "data.hostIp === '' || /^[0-9a-fA-F:.]+$/.test(data.hostIp)",
+      "validatorNoSaveOnError": true,
+      "validatorErrorText": "Numerische IP-Adresse ohne Leerzeichen oder Port eintragen.",
+      "help": "Die im Android-Menü angezeigte IP-Adresse ohne Port eintragen.",
+      "sm": 6
+    },
+    "connectPort": {
+      "type": "number",
+      "label": "Verbindungsport auf der Hauptseite",
+      "default": 0,
+      "min": 0,
+      "max": 65535,
+      "step": 1,
+      "help": "Steht auf der Hauptseite Drahtloses Debugging. Nicht den Port aus dem Kopplungsdialog verwenden. 0 bedeutet noch nicht eingerichtet.",
+      "sm": 6
+    },
+    "_pairPort": {
+      "type": "number",
+      "label": "Kopplungsport aus dem Code-Dialog",
+      "default": 0,
+      "min": 0,
+      "max": 65535,
+      "step": 1,
+      "doNotSave": true,
+      "help": "Nur für die aktuelle Kopplung. Wird nicht in der Instanzkonfiguration gespeichert.",
+      "sm": 6
+    },
+    "_pairCode": {
+      "type": "password",
+      "label": "Sechsstelliger Kopplungscode",
+      "default": "",
+      "maxLength": 6,
+      "visible": false,
+      "doNotSave": true,
+      "validator": "!data._pairCode || /^[0-9]{6}$/.test(data._pairCode)",
+      "validatorNoSaveOnError": true,
+      "validatorErrorText": "Alle sechs Ziffern ohne Leerzeichen eingeben.",
+      "help": "Nur zum Koppeln gesendet. Nach Abschluss das Eingabefeld leeren oder die Konfiguration schließen.",
+      "sm": 6
+    },
+    "_pair": {
+      "type": "sendTo",
+      "label": "Jetzt mit dem Handy koppeln",
+      "command": "pair",
+      "jsonData": "{\"hostIp\":\"${data.hostIp}\",\"pairPort\":\"${data._pairPort}\",\"code\":\"${data._pairCode}\"}",
+      "useNative": true,
+      "disabled": "!data.hostIp || !(data._pairPort >= 1 && data._pairPort <= 65535) || !/^[0-9]{6}$/.test(data._pairCode || '')",
+      "showProcess": true,
+      "timeout": 40000,
+      "variant": "contained",
+      "result": { "pair_success": "Handy gekoppelt. Jetzt den Verbindungsport prüfen und die Verbindung testen." },
+      "sm": 12
+    },
+    "_probe": {
+      "type": "sendTo",
+      "label": "Verbindung und App-Version prüfen",
+      "command": "probe",
+      "jsonData": "{\"hostIp\":\"${data.hostIp}\",\"connectPort\":\"${data.connectPort}\"}",
+      "disabled": "!data.hostIp || !(data.connectPort >= 1 && data.connectPort <= 65535)",
+      "useNative": true,
+      "showProcess": true,
+      "timeout": 150000,
+      "variant": "outlined",
+      "result": { "probe_success": "Verbindung geprüft. Die App-Version ist noch nicht zur Steuerung freigegeben; dafür anschließend App und Fahrzeug übernehmen." },
+      "sm": 12
+    },
+    "_profileHeader": {
+      "type": "header",
+      "text": "3. App und Fahrzeug prüfen",
+      "size": 3,
+      "sm": 12
+    },
+    "_calibrateHint": {
+      "type": "staticText",
+      "text": "Das Handy entsperren, die Volkswagen-App anmelden und die Übersicht des gewünschten Fahrzeugs öffnen. App und Fahrzeug übernehmen liest die Ansicht und schlägt die aktuelle App-Version sowie den vollständigen Fahrzeugtext vor. Diese Werte anschließend prüfen und speichern.",
+      "sm": 12
+    },
+    "_calibrate": {
+      "type": "sendTo",
+      "label": "App und Fahrzeug übernehmen",
+      "command": "calibrate",
+      "jsonData": "{\"hostIp\":\"${data.hostIp}\",\"connectPort\":\"${data.connectPort}\"}",
+      "disabled": "!data.hostIp || !(data.connectPort >= 1 && data.connectPort <= 65535)",
+      "useNative": true,
+      "showProcess": true,
+      "timeout": 150000,
+      "variant": "contained",
+      "result": { "calibration_success": "Profil gelesen. Vorgeschlagene App-Version und Fahrzeugtext prüfen und speichern." },
+      "sm": 12
+    },
+    "approvedAppVersion": {
+      "type": "text",
+      "label": "Geprüfte Volkswagen-App-Version",
+      "default": "",
+      "maxLength": 80,
+      "help": "Wird durch App und Fahrzeug übernehmen vorgeschlagen. Nach einem App-Update erneut prüfen.",
+      "sm": 6
+    },
+    "vehicleMarker": {
+      "type": "text",
+      "label": "Vollständiger Fahrzeugtext aus der App",
+      "default": "",
+      "maxLength": 300,
+      "help": "Den vollständigen festen Text einschließlich Fahrzeugbezeichnung übernehmen. Ein allgemeiner Text wie Fahrzeug reicht nicht aus.",
+      "sm": 6
+    },
+    "modeTitles": {
+      "type": "text",
+      "label": "Erlaubte Bezeichnungen der Klimafunktion",
+      "default": "Klimatisierung|Air conditioning",
+      "help": "Exakte Bezeichnungen; mehrere mit | trennen. Änderungen nur nach Prüfung der tatsächlichen App-Ansicht.",
+      "expertMode": true,
+      "sm": 12
+    },
+    "_operationHeader": {
+      "type": "header",
+      "text": "4. Betrieb freigeben",
+      "size": 3,
+      "sm": 12
+    },
+    "allowWrites": {
+      "type": "checkbox",
+      "label": "Klimatisierung über ioBroker starten und stoppen erlauben",
+      "default": false,
+      "disabled": "!data.approvedAppVersion || !data.vehicleMarker",
+      "help": "Erst nach erfolgreicher Einrichtung aktivieren und speichern. Ohne Freigabe sind nur Statusabfragen möglich.",
+      "sm": 12
+    },
+    "stayAwakeOnCharge": {
+      "type": "checkbox",
+      "label": "Handy bei Verbindung am Ladekabel wachhalten",
+      "default": false,
+      "help": "Optional. Der Adapter darf beim Verbinden die entsprechende Android-Einstellung aktivieren. Eine vorhandene Bildschirmsperre wird dadurch nicht entsperrt.",
+      "sm": 12
+    },
+    "_keepAwake": {
+      "type": "sendTo",
+      "label": "Beim Laden wachhalten jetzt aktivieren",
+      "command": "keepAwake",
+      "jsonData": "{\"hostIp\":\"${data.hostIp}\",\"connectPort\":\"${data.connectPort}\"}",
+      "useNative": true,
+      "disabled": "!data.hostIp || !(data.connectPort >= 1 && data.connectPort <= 65535)",
+      "showProcess": true,
+      "timeout": 150000,
+      "variant": "outlined",
+      "result": { "keep_awake_applied": "Wachhalten am Ladekabel auf dem Android-Handy aktiviert." },
+      "sm": 12
+    },
+    "pollIntervalSeconds": {
+      "type": "number",
+      "label": "Status automatisch abfragen (Sekunden, 0 = aus)",
+      "default": 0,
+      "min": 0,
+      "max": 86400,
+      "step": 1,
+      "validator": "data.pollIntervalSeconds === 0 || data.pollIntervalSeconds >= 300",
+      "validatorNoSaveOnError": true,
+      "validatorErrorText": "0 zum Ausschalten oder mindestens 300 Sekunden wählen.",
+      "help": "Jede Abfrage öffnet die VW-App auf dem Handy. Mit 0 wird nur auf Anforderung abgefragt.",
+      "sm": 12
+    },
+    "commandTimeoutSeconds": {
+      "type": "number",
+      "label": "Zeitlimit je Auftrag (Sekunden)",
+      "default": 125,
+      "min": 30,
+      "max": 180,
+      "step": 1,
+      "expertMode": true,
+      "help": "Gilt für den gesamten Auftrag. Bei unklarer Rückmeldung wird kein Schaltbefehl wiederholt.",
+      "sm": 6
+    },
+    "legacyStatePrefix": {
+      "type": "text",
+      "label": "Vorhandene Datenpunkte des Prototyps weiterverwenden (optional)",
+      "default": "",
+      "expertMode": true,
+      "help": "Nur bei einer Migration: vorhandener Zweig unter 0_userdata.0. Der bisherige Steuerdienst und sein Skript müssen abgeschaltet sein.",
+      "sm": 12
+    },
+    "cooldownSeconds": {
+      "type": "number",
+      "label": "Mindestabstand zwischen Schaltversuchen (Sekunden)",
+      "default": 60,
+      "min": 60,
+      "max": 3600,
+      "step": 1,
+      "expertMode": true,
+      "sm": 6
+    }
+  }
+}
