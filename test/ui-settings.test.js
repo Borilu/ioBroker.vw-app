@@ -194,6 +194,19 @@ test('mode radios require exactly one checked option and complete exact labels',
     }
 });
 
+test('mode choices target the exact title subregion instead of the descriptive card center', () => {
+    const screen = new Screen(modeScreen());
+    const climate = screen.modeChoice('climate');
+    const windows = screen.modeChoice('windowHeating');
+    assert.deepEqual(climate, { x: 450, y: 205, value: 'climate' });
+    assert.deepEqual(windows, { x: 450, y: 605, value: 'windowHeating' });
+    assert.notDeepEqual({ x: climate.x, y: climate.y }, { x: 500, y: 300 });
+    assert.notDeepEqual({ x: windows.x, y: windows.y }, { x: 500, y: 700 });
+    const disabledLabel = editTag(modeScreen(), tag => attribute(tag, 'text') === 'Scheibenheizung', { enabled: 'false' });
+    assert.equal(new Screen(disabledLabel).climateMode(), 'climate');
+    code('target_unavailable', () => new Screen(disabledLabel).modeChoice('windowHeating'));
+});
+
 test('overlapping mode choices cannot expose identical coordinates for different modes', () => {
     const xml = modeScreen().replace('bounds="[50,550][950,850]"', 'bounds="[50,150][950,450]"')
         .replace('bounds="[200,580][700,630]"', 'bounds="[200,180][700,230]"');

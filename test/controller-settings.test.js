@@ -3,7 +3,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { Controller } = require('../lib/controller');
 const { BridgeError } = require('../lib/errors');
-const { completeDemoClimate, modeScreen, settingsScreen, zonesScreen, node, hierarchy } = require('./support/settings-fixtures.cjs');
+const { completeDemoClimate, modeScreen, settingsScreen, zonesScreen, node, hierarchy, POINTS } = require('./support/settings-fixtures.cjs');
 
 const VEHICLE = 'Ihr Fahrzeug: Testwagen. ';
 class AppPhone {
@@ -82,8 +82,9 @@ class AppPhone {
             if (y === 240 && [100, 900].includes(x)) { await this._change('temperature', this.temperature + (x === 900 ? 0.5 : -0.5)); return; }
             if (y === 1200) { this.ctas++; await this._change('state', this.state === 'off' ? 'on' : 'off'); return; }
         }
-        if (this.page === 'mode' && [300, 700].includes(y)) {
-            const mode = y === 300 ? 'climate' : 'windowHeating';
+        const modeTarget = ['climate', 'windowHeating'].find(key => POINTS[key].x === x && POINTS[key].y === y);
+        if (this.page === 'mode' && modeTarget) {
+            const mode = modeTarget;
             if (this.modeLag) this.pendingMode = mode;
             else { await this._change('mode', mode); this.page = 'climate'; }
             return;
@@ -139,7 +140,7 @@ test('all four settings apply with per-control readback and without any Start or
     assert.equal(phone.ctas, 0); assert.equal(store.reservations, 0);
     assert.equal(phone.saves, 1);
     assert.deepEqual(phone.savedSettings, { climateOnUnlock: false, autoWindowHeating: false, frontLeft: true, frontRight: false });
-    assert.deepEqual(phone.mutations, [['mode', 'windowHeating'], ['climateOnUnlock', false], ['autoWindowHeating', false], ['frontRight', false]]);
+    assert.deepEqual(phone.mutations, [['climateOnUnlock', false], ['autoWindowHeating', false], ['frontRight', false], ['mode', 'windowHeating']]);
 });
 
 test('left-to-right and right-to-left transitions enable the destination before disabling the other zone', async () => {
@@ -237,7 +238,7 @@ test('partial setting failure never claims success and does not start the climat
     await rejectsCode(controller.execute('applySettings', { targetSettings: {
         mode: 'windowHeating', climateOnUnlock: false, autoWindowHeating: false, zones: 'frontLeft',
     } }), 'settings_outcome_unknown');
-    assert.equal(phone.mode, 'windowHeating'); assert.equal(phone.climateOnUnlock, false);
+    assert.equal(phone.mode, 'climate'); assert.equal(phone.climateOnUnlock, false);
     assert.equal(phone.frontRight, true); assert.equal(phone.ctas, 0);
 });
 
@@ -245,7 +246,7 @@ test('a delayed mode transition is observed without a repeated selection', async
     const { controller, phone } = setup({ modeLag: 2 });
     const result = await controller.execute('applySettings', { targetSettings: { mode: 'windowHeating' } });
     assert.equal(result.settings.mode, 'windowHeating');
-    assert.equal(phone.calls.filter(call => Array.isArray(call) && call[1] === 'mode' && call[3] === 700).length, 1);
+    assert.equal(phone.calls.filter(call => Array.isArray(call) && call[1] === 'mode' && call[3] === POINTS.windowHeating.y).length, 1);
 });
 
 test('a confirmed setting followed by a version failure retains that failure code', async () => {
@@ -344,4 +345,14 @@ test('an explicitly requested mode is restored if saving the global preferences 
     const result = await controller.execute('start', { targetSettings: { mode: 'windowHeating', autoWindowHeating: false } });
     assert.equal(result.settings.mode, 'windowHeating'); assert.equal(result.settings.autoWindowHeating, false);
     assert.equal(phone.saves, 1); assert.equal(phone.ctas, 1);
+});
+
+test('global settings are saved before the sole final mode selection', async () => {
+    const { controller, phone } = setup({ resetModeOnSave: true });
+    await controller.execute('applySettings', { targetSettings: { mode: 'windowHeating', autoWindowHeating: false, zones: 'frontLeft' } });
+    const save = phone.calls.findIndex(call => Array.isArray(call) && call[1] === 'settings' && call[2] === POINTS.saveSettings.x && call[3] === POINTS.saveSettings.y);
+    const mode = phone.calls.findIndex(call => Array.isArray(call) && call[1] === 'mode' && call[3] === POINTS.windowHeating.y);
+    assert.ok(save >= 0 && mode > save);
+    assert.equal(phone.calls.filter(call => Array.isArray(call) && call[1] === 'mode' && call[3] === POINTS.windowHeating.y).length, 1);
+    assert.equal(phone.mode, 'windowHeating'); assert.equal(phone.ctas, 0);
 });
