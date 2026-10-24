@@ -4,11 +4,11 @@ Control the **official Volkswagen Android app over Wi-Fi** from ioBroker.
 
 **Experimental community adapter.** The source has been tested with synthetic Android views. The initial real-device reference is a Galaxy A31 with Android 12, Volkswagen app 4.8.1 and an ID.7 GTX Tourer. This does not establish compatibility with every Volkswagen model, region or future app version. Only the selected vehicle in one phone app is controlled by an instance.
 
-Der Adapter bedient die offizielle Volkswagen-App auf einem Android-Handy. Kopplung, Einrichtung und Klimabefehle werden direkt im ioBroker-Adapter verwaltet. Die Volkswagen-Anmeldung bleibt auf dem Handy.
+Der Adapter bedient die offizielle Volkswagen-App auf einem Android-Handy. Kopplung, Einrichtung, Klimabefehle und Ladeeinstellungen werden direkt im ioBroker-Adapter verwaltet. Die Volkswagen-Anmeldung bleibt auf dem Handy.
 
 ## What runs where
 
-- One ioBroker adapter handles configuration, pairing, device verification and climate controls.
+- One ioBroker adapter handles configuration, pairing, device verification, climate controls and charging settings.
 - No Python bridge, separate HTTP server, systemd service or JavaScript-adapter script is needed.
 - The adapter manages a private native ADB child process. It starts and stops that process with the adapter instance. ADB remains a technical runtime requirement, not an additional service users must configure.
 - No VW cloud password or cloud token is entered in ioBroker.
@@ -49,7 +49,7 @@ Detailed German instructions: [Einrichtung im Admin](docs/ADMIN-SETUP.md).
 4. Close only the pairing-code dialog. Enter the **connection port** shown on the main Wireless debugging page. It differs from the pairing port. Save the configuration.
 5. Run **Check connection and app version**. The phone identity is stored privately by the adapter.
 6. Open the vehicle overview in the Volkswagen app, then run **Adopt app and vehicle**. Review the detected app version and complete fixed vehicle label; save.
-7. Read status and compare it with the app. Enable **Allow climate start and stop** when ready.
+7. Read the climate and charging status and compare them with the app. Enable **Klimastart, Stopp und Änderungen der Fahrzeugeinstellungen erlauben** when ready to change app settings.
 
 Pairing code and pairing port are temporary setup inputs and are not saved in the native instance configuration. The adapter never logs the code or puts it in a state. Clear the input or close the configuration page after pairing.
 
@@ -63,7 +63,7 @@ All IDs are relative to `vw-app.0` (replace `0` with the instance number).
 |---|---|
 | `commands.start` | Write `true`, `ack=false` to start climate control |
 | `commands.stop` | Write `true`, `ack=false` to stop the shown climate operation |
-| `commands.refresh` | Write `true`, `ack=false` to read the app state |
+| `commands.refresh` | Write `true`, `ack=false` to read climate status only |
 | `commands.setTemperature` | Write `true`, `ack=false` to apply the saved target temperature without starting climate control |
 | `commands.clearTemperature` | Write `true`, `ack=false` to select “keep the app temperature”, without operating the phone |
 | `commands.applySettings` | Apply the four saved mode, unlock, automatic window-heating and zone preferences; does not apply temperature or press Start/Stop |
@@ -88,7 +88,7 @@ All IDs are relative to `vw-app.0` (replace `0` with the instance number).
 | `operation.lastResult` | `running`, `succeeded` or `failed` |
 | `operation.lastError` | Fixed diagnostic guidance |
 | `operation.lastErrorCode` | Machine-readable error code |
-| `operation.lastUpdated` | Last successful app-state observation |
+| `operation.lastUpdated` | Last successful climate app-state observation; charging has a separate timestamp |
 | `info.connection` | Last operation could reach and verify the configured phone/app |
 | `info.runtimeReady` | Private ADB runtime is running |
 | `info.appVersion` | Observed Volkswagen app version |
@@ -96,7 +96,7 @@ All IDs are relative to `vw-app.0` (replace `0` with the instance number).
 
 Buttons reset automatically. Without a selected target temperature, the app's existing temperature is preserved. Stop ends the climate operation exposed by the app's single Stop button, which may include window heating. With `climate.targetMode=null`, Start keeps the existing requirement for a recognized air-conditioning mode. An explicit `windowHeating` preference selects the separate window-heating operation; a staged temperature is ignored for that mode.
 
-Status is read on request by default. Optional automatic polling is limited to one read every five minutes or slower. Status can become stale between reads; check `operation.lastUpdated`.
+Status is read on request by default: `commands.refresh` reads climate status only, while `commands.refreshCharging` separately reads battery and charging values. Optional automatic polling is disabled with `pollIntervalSeconds=0`; when enabled, its minimum interval is 300 seconds. Each cycle reads climate status first and then battery/charging status only if the phone is still free between jobs. It does not queue a charging read behind another accepted phone operation and never requests synchronization automatically. Values can become stale between reads; `operation.lastUpdated` and `battery.observedAt` record app-reading times.
 
 The confirmation source describes evidence from the app. Both `app_controls` and `app_overview` remain app observations; `climate.vehicleConfirmed` stays `false`. The inspected Android UI hierarchy did not expose the visible 30-minute countdown, so the adapter does not estimate or publish remaining minutes.
 
@@ -150,6 +150,50 @@ The reference app can return its mode picker to air conditioning when the vehicl
 
 Version 0.3.0 passed 220 automated tests on Linux. Live checks on the reference Galaxy A31 covered both modes, both Boolean options in each position, all three front-zone choices, saving and reopening the app settings, a combined four-preference job, persistence across an adapter restart, and clearing the preferences. The original app settings were restored afterward. No physical climate start was issued for these settings checks; climate remained off. Start integration is covered by regression tests; the earlier real start/stop confirmations apply to version 0.1.1.
 
+## Battery and charging settings
+
+All IDs below are relative to `vw-app.0`. Read the displayed or cached app values with `commands.refreshCharging`; this command does not change charging settings or explicitly request vehicle synchronization.
+
+| State | Meaning |
+|---|---|
+| `commands.refreshCharging` | Write `true`, `ack=false` to read battery and charging settings |
+| `commands.synchronize` | Write `true`, `ack=false` to request synchronization through the app once, then read the displayed battery/charging values; does not confirm completed vehicle synchronization |
+| `commands.applyChargingSettings` | Apply only the four saved charging wishes, then read back the saved app values |
+| `commands.clearChargingSettings` | Set only the four charging wishes to `null`, without phone access |
+| `battery.soc` | Battery charge level read from the app, in %; `null` with invalid quality when unreadable |
+| `battery.rangeKm` | Remaining range shown by the app in km; `null` with invalid quality when no unambiguous km reading is available |
+| `battery.observedAt` | Time the adapter read the battery values from the app; not a vehicle telemetry timestamp |
+| `battery.lastSyncRequestAt` | Read-only ISO timestamp of the last evidenced synchronization request sent to the app; not a completed-sync or vehicle measurement time |
+| `charging.socLimit` | Charge limit read from the app, in % |
+| `charging.reducedAcCurrent` | Reduced AC charging current setting read from the app |
+| `charging.autoUnlockAc` | Automatic AC charging-plug unlocking setting read from the app |
+| `charging.optimizedBatteryUse` | Optimized battery use setting read from the app |
+| `charging.targetSoc` | Saved desired charge limit: `null` or numeric `50`, `60`, `70`, `80`, `90`, `100` % |
+| `charging.targetReducedAcCurrent` | Saved desired reduced AC current setting: `null`, `true` or `false` |
+| `charging.targetAutoUnlockAc` | Saved desired automatic AC plug unlocking setting: `null`, `true` or `false` |
+| `charging.targetOptimizedBatteryUse` | Saved desired optimized battery use setting: `null`, `true` or `false` |
+| `charging.targetSettingsError` | Per-field feedback about an invalid or unsaved charging wish |
+
+Battery charge level is read from the app's range details. A fallback to the vehicle overview provides only an explicitly labelled km range; it does not invent a battery percentage. Unreadable values are `null` with invalid quality. `battery.observedAt` records an app read, not when the vehicle measured or transmitted the values. The app itself may still show older data.
+
+Use `commands.synchronize` explicitly when you want the adapter to request **Jetzt synchronisieren** in the Volkswagen app. It taps the recognized link once and uses the subsequently disabled app link to acknowledge the request. The command then reads the displayed battery and charging settings; these can still be older values. The app says synchronization may take a few minutes. The adapter does not automatically wait for a proven new vehicle value or report the vehicle synchronization as completed. Read the app again later with `commands.refreshCharging` if needed.
+
+This synchronization request is available without the permission to change vehicle settings. It does not apply staged wishes or wait for the temperature, climate or charging preference queues. The same single-phone-operation rule still applies. Normal refreshes and automatic polling never press **Jetzt synchronisieren**.
+
+`battery.lastSyncRequestAt` is updated only when a valid request timestamp is available in the result. A subsequent read with no valid new request timestamp preserves that history. It records an explicit app request; `battery.observedAt` instead records the time of the latest battery read. Neither timestamp establishes when the vehicle measured its values.
+
+Stage a charging wish with `ack=false`. An `ack=true` response means **saved privately**, not applied to the app. The wishes survive adapter restarts. `null` keeps the corresponding app setting; Boolean `false` explicitly switches an option off. The verified charge-limit slider supports **50 to 100 % in 10-% steps**. Intermediate values such as `55`, numeric strings such as `"80"` and text Boolean values are rejected without operating the phone.
+
+Press `commands.applyChargingSettings` with `true`, `ack=false` to apply only the charging wishes. The write permission must be enabled, and at least one wish must be selected. The adapter derives a charge-limit tap from the current native slider geometry and verifies the exact resulting value. It presses **Save** once when offered and reopens the settings to verify the saved values before reporting success. It does not save or discard a manual draft that was already open; finish that draft directly on the phone first. A visible Volkswagen activity is reused so a draft is not bypassed by launching another app view.
+
+Charging preferences have their own persistence queue and errors. An invalid or unsaved field restores its last accepted value and is named in `charging.targetSettingsError`; a new Apply Charging Settings is blocked until that field is explicitly selected again with a valid value or `commands.clearChargingSettings` clears all four wishes. A successful selection of another field does not clear that error. A running job keeps the snapshot accepted for that job; later wishes apply to the next job. Climate commands and charging refresh do not wait for a pending charging preference save, and applying charging settings does not wait for climate or temperature preference saves. The phone still handles only one operation at a time.
+
+Charging reads and failures leave the climate observations intact. Climate reads and failures likewise leave battery and charging observations intact. Clearing charging wishes changes neither climate wishes nor the separate temperature wish. These commands do not start or stop charging or climate control.
+
+According to the app, **optimized battery use** permits use of the high-voltage battery for app remote functions and can affect range. This option is separate from an 80-% battery-care charging limit. The app also states that the selected charge limit does not apply at predefined charging locations. Check the descriptions in the app for the selected vehicle.
+
+Version 0.4.0 passed **332 automated tests on Linux**. Live checks read battery percentage and km range from the real app, saved charge limits of 50 and 100 % and verified them after reopening, and exercised all three Boolean options in both positions. Charging wishes survived an adapter restart. The original app settings were restored and all four wishes were cleared; climate control remained off and unchanged. A live `commands.synchronize` check sent exactly one request, observed the disabled app link, recorded `battery.lastSyncRequestAt` and then read battery/charging values without changing settings. This confirms the app request, not a completed vehicle synchronization. These new battery and charging functions have only been checked with the **German Volkswagen app 4.8.1 on a Galaxy A31 running Android 12**.
+
 ## Migration from the Python prototype
 
 Stop and disable the previous Python bridge service and its JavaScript-adapter script before this adapter operates the phone. Do not run two app controllers against the same phone.
@@ -176,6 +220,15 @@ Adapter source: [MIT](LICENSE). Third-party components retain their licenses; se
 Independent community project, not provided or endorsed by Volkswagen, Google or ioBroker. Volkswagen and Android are trademarks of their respective owners.
 
 ### Changelog
+
+#### 0.4.0
+
+- Read the battery percentage and remaining range in km from the app, with an explicit app-reading timestamp.
+- Explicitly request app synchronization once and retain its request timestamp separately from app reads; no completed vehicle synchronization is claimed.
+- When optional polling is enabled, read climate first and charging only if the phone remains free; never synchronize automatically.
+- Stage, persist, apply or clear the charge limit, reduced AC charging current, automatic AC plug unlocking and optimized battery use preferences.
+- Validate the charge limit against the six native slider positions from 50 to 100 %, save changes once and verify the saved app settings after reopening.
+- Keep charging preferences, selection errors and observations separate from climate control; no charging Start/Stop command is provided.
 
 #### 0.3.0
 
