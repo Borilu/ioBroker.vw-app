@@ -12,7 +12,7 @@ const { StateStore } = require('../lib/store');
 const { DeviceLease } = require('../lib/lease');
 const { BridgeError } = require('../lib/errors');
 
-const ENDPOINT = '192.168.1.14:36111';
+const ENDPOINT = '192.0.2.14:37123';
 const SERIAL = 'serial:A31-TEST';
 const ANDROID = 'android_id:001122334455aabb';
 const FOCUS = 'mCurrentFocus=Window{18ab u0 ' + PACKAGE + '/.MainActivity}\n';
@@ -69,25 +69,25 @@ async function temporaryDirectory(t) {
 }
 
 test('numeric endpoints accept only explicit valid IP addresses and ports', () => {
-    assert.equal(endpoint('192.168.1.14', '36111'), ENDPOINT);
-    assert.equal(endpoint('fd00::14', 36111), '[fd00::14]:36111');
+    assert.equal(endpoint('192.0.2.14', '37123'), ENDPOINT);
+    assert.equal(endpoint('fd00::14', 37123), '[fd00::14]:37123');
     assert.equal(validateEndpoint(ENDPOINT), ENDPOINT);
-    assert.equal(validateEndpoint('[FD00:0000::14]:36111'), '[FD00:0000::14]:36111');
-    for (const invalid of [null, {}, '', 'phone.local:36111', '192.168.1.14', '192.168.1.14:0',
-        '192.168.1.14:65536', '192.168.1.14:36111;id', '192.168.1.14:36111\n',
-        '192.168.1.14:036111', 'fd00::14:36111', '[fe80::14%eth0]:36111',
-        '[::]:36111', '0.0.0.0:36111', '224.0.0.1:36111', '[ff02::1]:36111']) {
+    assert.equal(validateEndpoint('[FD00:0000::14]:37123'), '[FD00:0000::14]:37123');
+    for (const invalid of [null, {}, '', 'phone.local:37123', '192.0.2.14', '192.0.2.14:0',
+        '192.0.2.14:65536', '192.0.2.14:37123;id', '192.0.2.14:37123\n',
+        '192.0.2.14:037123', 'fd00::14:37123', '[fe80::14%eth0]:37123',
+        '[::]:37123', '0.0.0.0:37123', '224.0.0.1:37123', '[ff02::1]:37123']) {
         throwsCode('invalid_wifi_endpoint', () => validateEndpoint(invalid));
     }
-    for (const host of ['phone.local', '127.0.0.1:36111', '[fd00::14]', ' 192.168.1.14',
-        '192.168.1.14\n', '0.0.0.0', '::', 'fe80::14%eth0', '224.0.0.1', 'ff02::1']) {
+    for (const host of ['phone.local', '127.0.0.1:37123', '[fd00::14]', ' 192.0.2.14',
+        '192.0.2.14\n', '0.0.0.0', '::', 'fe80::14%eth0', '224.0.0.1', 'ff02::1']) {
         throwsCode('invalid_wifi_endpoint', () => validateHost(host));
     }
 });
 
 test('numeric configuration rejects booleans, NaN, out-of-range and non-decimal strings', () => {
-    assert.equal(integer('36111', 1, 65535), 36111);
-    assert.equal(integer(36111, 1, 65535), 36111);
+    assert.equal(integer('37123', 1, 65535), 37123);
+    assert.equal(integer(37123, 1, 65535), 37123);
     for (const value of [true, false, NaN, Infinity, -1, 65536, 1.5, '', 'NaN', 'Infinity',
         '1e3', '0x123', '+123', '123.0', '123 ', ' 123', '123\n', '123\r\n']) {
         throwsCode('invalid_config', () => integer(value, 1, 65535));
@@ -102,10 +102,10 @@ test('numeric configuration rejects booleans, NaN, out-of-range and non-decimal 
 
 test('configuration preserves the complete vehicle prefix and its trailing delimiter', () => {
     const marker = 'Ihr Fahrzeug: ID.7 GTX Tourer. ';
-    const cfg = normalizeConfig({ hostIp: '192.168.1.14', connectPort: '36111', vehicleMarker: marker,
+    const cfg = normalizeConfig({ hostIp: '192.0.2.14', connectPort: '37123', vehicleMarker: marker,
         commandTimeoutSeconds: '125', cooldownSeconds: '60', modeTitles: ' Klimatisierung | Air conditioning ' });
     assert.equal(cfg.vehicleMarker, marker);
-    assert.equal(cfg.connectPort, 36111);
+    assert.equal(cfg.connectPort, 37123);
     assert.equal(cfg.commandTimeoutSeconds, 125);
     assert.equal(cfg.cooldownSeconds, 60);
     assert.deepEqual(cfg.modeTitles, ['Klimatisierung', 'Air conditioning']);
