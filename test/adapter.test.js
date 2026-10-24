@@ -551,6 +551,7 @@ test('a start waits for previous preference persistence but later staging cannot
     const start = f.adapter.command('start');
     const nextSelection = f.adapter.stageTemperature(23);
     assert.equal(f.records.controllerCalls.length, 0);
+    assert.equal(f.records.phones.length, 0);
     save.resolve(); await firstSelection; await nextSelection; await executing.promise;
     assert.equal(f.value('climate.targetTemperature'), 23);
     assert.equal(f.value('operation.busy'), true);
@@ -567,6 +568,29 @@ test('a start waits for previous preference persistence but later staging cannot
     finish.resolve(); await start;
     assert.equal(f.value('climate.temperature'), 22.5);
     assert.equal(f.value('climate.targetTemperature'), null);
+});
+
+test('status and stop complete real simulated phone operations while a preference write is still blocked', { timeout: 2000 }, async t => {
+    const writing = deferred(); const save = deferred();
+    const f = await fixture(t, { enrollment: enrolled(), appState: 'on', config: { allowWrites: true },
+        storeWrite: async name => {
+            if (name === 'temperature-preference') { writing.resolve(); await save.promise; }
+        },
+    });
+    t.after(() => save.resolve());
+    const selection = f.adapter.stageTemperature(22.5);
+    await writing.promise;
+    const status = await f.adapter.command('status');
+    assert.equal(status.appState, 'on');
+    assert.ok(f.records.phones[0].calls.some(call => call[0] === 'connect'));
+    const stopped = await f.adapter.command('stop');
+    assert.equal(stopped.appState, 'off');
+    assert.ok(f.records.phones[1].calls.some(call => call[0] === 'connect'));
+    assert.equal(f.ctas().length, 1);
+    assert.equal(f.memory['temperature-preference'], undefined);
+    assert.equal(f.adapter.targetTemperature, null);
+    save.resolve(); await selection;
+    assert.deepEqual(f.memory['temperature-preference'], { targetCelsius: 22.5 });
 });
 
 test('unload waits for an in-flight preference write so restart restores the saved selection', async t => {
