@@ -4,7 +4,7 @@ Control the **official Volkswagen Android app over Wi-Fi** from ioBroker.
 
 **Experimental community adapter.** The source has been tested with synthetic Android views. The initial real-device reference is a Galaxy A31 with Android 12, Volkswagen app 4.8.1 and an ID.7 GTX Tourer. This does not establish compatibility with every Volkswagen model, region or future app version. Only the selected vehicle in one phone app is controlled by an instance.
 
-Der Adapter bedient die offizielle Volkswagen-App auf einem Android-Handy. Kopplung, Einrichtung, Klimabefehle und Ladeeinstellungen werden direkt im ioBroker-Adapter verwaltet. Die Volkswagen-Anmeldung bleibt auf dem Handy.
+Der Adapter bedient die offizielle Volkswagen-App auf einem Android-Handy. Kopplung, Einrichtung, Klimabefehle und Ladeeinstellungen werden direkt im ioBroker-Adapter verwaltet. Den Fahrzeugzustandsbericht liest er auf Anforderung aus. Die Volkswagen-Anmeldung bleibt auf dem Handy.
 
 ## What runs where
 
@@ -194,6 +194,48 @@ According to the app, **optimized battery use** permits use of the high-voltage 
 
 Version 0.4.0 passed **332 automated tests on Linux**. Live checks read battery percentage and km range from the real app, saved charge limits of 50 and 100 % and verified them after reopening, and exercised all three Boolean options in both positions. Charging wishes survived an adapter restart. The original app settings were restored and all four wishes were cleared; climate control remained off and unchanged. A live `commands.synchronize` check sent exactly one request, observed the disabled app link, recorded `battery.lastSyncRequestAt` and then read battery/charging values without changing settings. This confirms the app request, not a completed vehicle synchronization. These new battery and charging functions have only been checked with the **German Volkswagen app 4.8.1 on a Galaxy A31 running Android 12**.
 
+## Read the vehicle status report
+
+Write `true` with `ack=false` to **`commands.refreshVehicleReport`** to read the Volkswagen app's **Fahrzeugzustandsbericht**. The button resets automatically. This is the only report control: every state under `vehicleReport` is read-only. There are no report wishes or apply/save commands, and reading the report does not request synchronization or start or stop a vehicle function. The permission to change vehicle settings is not needed; the calibrated phone, vehicle and app checks still apply.
+
+The report is read only on request. Existing automatic climate and charging polling is unchanged, and `commands.refresh` remains a climate read. A report read does not wait for temperature, climate or charging preference saves; only one phone operation can run at a time.
+
+All IDs below are relative to `vw-app.0`.
+
+| State | Meaning |
+|---|---|
+| `vehicleReport.odometerText` | Odometer text displayed by the app |
+| `vehicleReport.odometerKm` | Unambiguously derived odometer value in km, or `null` with invalid quality |
+| `vehicleReport.nextServiceText` | Service information displayed by the app |
+| `vehicleReport.nextServiceDays` | Unambiguously derived service interval in days, or `null` with invalid quality |
+| `vehicleReport.nextServiceKm` | Unambiguously derived service interval in km, or `null` with invalid quality |
+| `vehicleReport.summary` | Report summary text displayed by the app |
+| `vehicleReport.hasMessages` | Message indication derived from a recognized summary, or `null` with invalid quality |
+| `vehicleReport.messageCount` | Unambiguously derived message count, or `null` with invalid quality |
+| `vehicleReport.synchronizationText` | Unchanged synchronization hint displayed inside the app report |
+| `vehicleReport.notice` | Report notice text displayed by the app |
+| `vehicleReport.additionalTexts` | JSON array string containing additional captured report texts |
+| `vehicleReport.json` | Complete normalized report as a JSON string |
+| `vehicleReport.observedAt` | ISO timestamp when the adapter read the report from the app |
+
+Each category has `vehicleReport.<category>.status` and `vehicleReport.<category>.texts`. The latter is a JSON array string containing the captured category texts.
+
+| Category | App label |
+|---|---|
+| `engine` | Antrieb |
+| `assistance` | Assistenten |
+| `brakes` | Bremsen |
+| `lighting` | Fahrlicht |
+| `comfort` | Komfort |
+| `tires` | Reifen |
+| `other` | Sonstige |
+
+`no_messages` means the app reports no messages for that category. It is not a diagnosis or an independent statement that the vehicle is healthy. Unrecognized texts are preserved and reported as `unknown`; unnamed icons do not provide an invented color or severity. Warning configurations have not yet been checked live, so they are not promoted to a confirmed interpretation.
+
+`vehicleReport.synchronizationText` is the app's own displayed hint. It is separate from `vehicleReport.observedAt`, which records the adapter's app-reading time; neither creates a new synchronization request or independently establishes when the vehicle measured the values. If the full report cannot be read or validated, only the report states are cleared and marked with invalid quality. Climate and charging observations are retained.
+
+Version 0.5.0 passed **391 automated tests on Linux**. Real top and bottom report views were also merged locally into a complete validated model. Two live report reads on a **Galaxy A31 with Android 12 and the German Volkswagen app 4.8.1** correctly captured odometer, service information, summary, synchronization text, all seven categories, the footer and normalized JSON; the second read updated `observedAt`. All 27 actual ioBroker report objects were verified as read-only, matching the automated schema checks. On both reads, 23 monitored climate, charging, preference and synchronization-request values remained exactly unchanged. No vehicle action, Save or synchronization was triggered, and climate control remained off. Active warning configurations were neither created nor checked live.
+
 ## Migration from the Python prototype
 
 Stop and disable the previous Python bridge service and its JavaScript-adapter script before this adapter operates the phone. Do not run two app controllers against the same phone.
@@ -220,6 +262,13 @@ Adapter source: [MIT](LICENSE). Third-party components retain their licenses; se
 Independent community project, not provided or endorsed by Volkswagen, Google or ioBroker. Volkswagen and Android are trademarks of their respective owners.
 
 ### Changelog
+
+#### 0.5.0
+
+- Read the Volkswagen app's vehicle status report on request through one read-only report command.
+- Publish odometer and service texts, safely derived numeric values, the summary, all seven categories, notices and additional texts, plus the normalized JSON report.
+- Keep app synchronization hints separate from the report-reading timestamp and preserve unknown texts without inventing icon colors, severity or diagnoses.
+- Isolate report failures from climate and charging observations; no report writes or automatic synchronization are added.
 
 #### 0.4.0
 
