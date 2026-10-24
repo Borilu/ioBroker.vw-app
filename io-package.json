@@ -1,8 +1,9 @@
 {
   "common": {
     "name": "vw-app",
-    "version": "0.4.0",
+    "version": "0.5.0",
     "news": {
+      "0.5.0": { "en": "Read the vehicle health report, mileage, next service, app synchronization label and seven message categories without changing vehicle settings.", "de": "Fahrzeugzustandsbericht, Kilometerstand, nächsten Service, Synchronisationshinweis der App und sieben Meldungsbereiche auslesen, ohne Fahrzeugeinstellungen zu ändern." },
       "0.4.0": { "en": "Read app-reported battery charge and remaining range; stage and apply a 50–100% charge limit in 10% steps, reduced AC current, automatic AC plug unlocking and optimized battery use.", "de": "Ladezustand und Restreichweite aus der App lesen; Ladegrenze von 50–100 % in 10-%-Schritten, reduzierten AC-Ladestrom, automatische AC-Steckerentriegelung und optimierte Batterienutzung vormerken und übernehmen." },
       "0.3.0": { "en": "Select climate or window-heating mode, climate on unlock, automatic window heating and front comfort zones.", "de": "Klimatisierung oder Scheibenheizung, Standklimatisierung bei Entriegelung, automatische Scheibenheizung und vordere Komfortzonen einstellen." },
       "0.2.0": { "en": "Choose and persist a preconditioning target temperature, apply it without starting climate control, and read the app setting.", "de": "Zieltemperatur für die Vorklimatisierung auswählen, speichern, ohne Klimastart einstellen und den App-Wert auslesen." },

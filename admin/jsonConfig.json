@@ -5,7 +5,7 @@
   "items": {
     "_intro": {
       "type": "staticText",
-      "text": "Verbinde dein Android-Handy und prüfe die Volkswagen-App. Danach kannst du Klimatisierung und Ladeeinstellungen aus ioBroker bedienen sowie Batterie und Restreichweite auslesen. Die Anmeldung bei Volkswagen bleibt auf dem Handy.",
+      "text": "Verbinde dein Android-Handy und prüfe die Volkswagen-App. Danach kannst du Klimatisierung und Ladeeinstellungen aus ioBroker bedienen sowie Batterie, Restreichweite und den Fahrzeugzustandsbericht auslesen. Die Anmeldung bei Volkswagen bleibt auf dem Handy.",
       "newLine": true,
       "sm": 12
     },
@@ -251,6 +251,11 @@
     "_chargingHint": {
       "type": "staticText",
       "text": "commands.refreshCharging liest die in der App vorhandenen Batterie- und Ladeinformationen: battery.soc in %, battery.rangeKm in km. battery.observedAt ist die App-Auslesezeit, kein Fahrzeugtelemetrie-Zeitstempel. commands.synchronize fordert ausdrücklich eine Synchronisation in der App an; Erfolg bestätigt nur die Anfrage, nicht deren Abschluss am Fahrzeug. Das kann einige Minuten dauern. battery.lastSyncRequestAt protokolliert die letzte an die App gesendete Anfrage. Normales Lesen und automatische Abfragen synchronisieren nicht. Unter charging speichern targetSoc (50, 60, 70, 80, 90 oder 100), targetReducedAcCurrent, targetAutoUnlockAc und targetOptimizedBatteryUse Wünsche; null behält die App-Einstellung bei. Eine Bestätigung bedeutet nur gespeichert. commands.applyChargingSettings übernimmt nur diese vier Wünsche, speichert einmal und prüft die Werte nach erneutem Öffnen. commands.clearChargingSettings löscht nur diese vier Wünsche. Offene manuelle Entwürfe zuerst am Handy speichern oder verwerfen. Optimierte Batterienutzung erlaubt laut App die Hochvoltbatterie für App-Fernbedienung und kann die Reichweite beeinflussen; sie ist keine 80-%-Batteriepflegeautomatik. Die Ladegrenze gilt laut App nicht an festgelegten Ladeorten. Keine Lade-Start/Stopp-Funktion.",
+      "sm": 12
+    },
+    "_vehicleReportHint": {
+      "type": "staticText",
+      "text": "commands.refreshVehicleReport liest ausschließlich den Fahrzeugzustandsbericht auf Anforderung. Alle Werte unter vehicleReport sind nur lesbar; es gibt keine Wünsche, Schalt-, Speicher- oder Synchronisationsaktion. Eine Freigabe für Einstellungsänderungen ist zum Lesen nicht nötig. Kilometerstand, Service, Zusammenfassung und sieben Kategorien stehen getrennt bereit; additionalTexts und json enthalten zusätzliche Texte beziehungsweise den vollständigen normalisierten Bericht als JSON. synchronizationText ist der rohe App-Hinweis, observedAt nur die Auslesezeit. no_messages bedeutet laut App keine Meldungen, keine Diagnose. Unbekannte Texte bleiben unknown; Farben oder Warnstufen namenloser Symbole werden nicht erfunden. Warnkonstellationen sind noch nicht live geprüft. Das bestehende Klima-/Lade-Polling liest den Bericht nicht mit.",
       "sm": 12
     },
     "pollIntervalSeconds": {

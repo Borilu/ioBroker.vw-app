@@ -13,6 +13,7 @@ const ADMIN = require('../admin/jsonConfig.json');
 const { MIN_TEMPERATURE_CELSIUS, MAX_TEMPERATURE_CELSIUS, TEMPERATURE_STEP_CELSIUS } = require('../lib/temperature');
 const { DEFAULT_TARGET_SETTINGS, SETTINGS_KEYS } = require('../lib/settings');
 const { DEFAULT_TARGET_CHARGING, CHARGING_KEYS, MIN_TARGET_SOC, MAX_TARGET_SOC, TARGET_SOC_STEP } = require('../lib/charging');
+const { REPORT_CATEGORIES } = require('../lib/vehicle-report');
 
 const VEHICLE = 'Ihr Fahrzeug: ID.7 GTX Tourer. ';
 const DEVICE = 'serial:TEST-ADAPTER-42';
@@ -174,6 +175,7 @@ async function fixture(t, options = {}) {
             records.controllerCalls.push({ action, input: clone(input) });
             if (options.controllerExecute) return options.controllerExecute(action, input);
             if (['chargingStatus', 'applyChargingSettings', 'synchronize'].includes(action)) return chargingResult(input.targetCharging);
+            if (action === 'vehicleReportStatus') return vehicleReportResult();
             return { appState: environment.appState, appVersion: '4.8.1', vehicleConfirmed: false,
                 observedAt: new Date().toISOString(), temperature: input.targetTemperature,
                 confirmationSource: 'app_controls' };
@@ -215,6 +217,25 @@ function expectedChargingCall(action, targetCharging = DEFAULT_TARGET_CHARGING) 
 function chargingResult(charging = DEFAULT_TARGET_CHARGING) {
     return { domain: 'charging', appVersion: '4.8.1', observedAt: '2026-10-24T16:00:00.000Z',
         battery: { soc: 52, rangeKm: 205 }, charging: { ...charging } };
+}
+function vehicleReportModel() {
+    return { odometerText: '12.345 km', odometerKm: 12345,
+        nextServiceText: '123 Tage', nextServiceDays: 123, nextServiceKm: null,
+        summary: 'Keine Meldungen', hasMessages: false, messageCount: 0,
+        synchronizationText: 'Gerade synchronisiert', notice: 'Hinweise in der App beachten.',
+        additionalTexts: ['Zusätzlicher sichtbarer Berichttext'],
+        categories: Object.fromEntries(Object.entries(REPORT_CATEGORIES)
+            .map(([key, label]) => [key, { label, status: 'no_messages', texts: [] }])) };
+}
+function vehicleReportResult(vehicleReport = vehicleReportModel()) {
+    return { domain: 'vehicleReport', source: 'volkswagen_android_app', vehicleConfirmed: false,
+        appVersion: '4.8.1', observedAt: '2026-10-24T19:00:00.000Z', vehicleReport };
+}
+function reportStates(f) { return new Map([...f.adapter.states].filter(([id]) => id.startsWith('vehicleReport.'))); }
+function assertReportInvalid(f) {
+    for (const [id, definition] of Object.entries(DEFINITIONS).filter(([key]) => key.startsWith('vehicleReport.'))) {
+        assert.deepEqual(f.adapter.states.get(id), { val: definition[2], ack: true, q: 0x82 }, id);
+    }
 }
 
 test('ready keeps an unconfigured instance alive with runtime_missing and never downloads or touches a phone', async t => {
@@ -267,11 +288,11 @@ test('buttons accept only explicit ack=false and true values, reset acknowledged
     await f.adapter.onStateChange('other.0.commands.start', { val: true, ack: false });
     assert.deepEqual(actions, []);
     for (const name of ['start', 'stop', 'refresh', 'setTemperature', 'clearTemperature', 'applySettings', 'clearSettings',
-        'refreshCharging', 'applyChargingSettings', 'clearChargingSettings', 'synchronize']) {
+        'refreshCharging', 'applyChargingSettings', 'clearChargingSettings', 'synchronize', 'refreshVehicleReport']) {
         await f.adapter.onStateChange('vw-app.0.commands.' + name, { val: true, ack: false });
         assert.deepEqual(f.adapter.states.get('commands.' + name), { val: false, ack: true });
     }
-    assert.deepEqual(actions, ['start', 'stop', 'status', 'setTemperature', 'applySettings', 'chargingStatus', 'applyChargingSettings', 'synchronize']);
+    assert.deepEqual(actions, ['start', 'stop', 'status', 'setTemperature', 'applySettings', 'chargingStatus', 'applyChargingSettings', 'synchronize', 'vehicleReportStatus']);
 });
 
 test('legacy controls reset existing user states without creating or writing unrelated objects', async t => {
@@ -1212,6 +1233,7 @@ test('optional polling reads climate then charging without synchronization and m
     assert.deepEqual(f.records.controllerCalls.at(-1), expectedCall('status', null));
     assert.equal(f.records.controllerCalls.filter(row => row.action === 'chargingStatus').length, 1);
     assert.equal(f.records.controllerCalls.some(row => row.action === 'synchronize'), false);
+    assert.equal(f.records.controllerCalls.some(row => row.action === 'vehicleReportStatus'), false);
 });
 
 test('polling skips busy instances and rechecks availability between climate and charging jobs', async t => {
@@ -1241,6 +1263,206 @@ test('a failed climate poll does not trigger synchronization and the later charg
     assert.equal(f.value('climate.appState'), 'unknown');
     assert.equal(f.value('battery.soc'), 52);
     assert.equal(f.value('battery.lastSyncRequestAt'), '');
+});
+
+test('vehicle report data is read-only with explicit units, exact German category channels and qualified initial values', async t => {
+    const f = await fixture(t);
+    assert.equal(f.adapter.objects.get('vehicleReport').common.name, 'Fahrzeugzustandsbericht');
+    const reportDefinitions = Object.entries(DEFINITIONS).filter(([id]) => id.startsWith('vehicleReport.'));
+    assert.equal(reportDefinitions.length, 27);
+    for (const [id] of reportDefinitions) assert.equal(f.adapter.objects.get(id).common.write, false, id);
+    for (const [category, label] of Object.entries(REPORT_CATEGORIES)) {
+        assert.equal(f.adapter.objects.get('vehicleReport.' + category).type, 'channel');
+        assert.equal(f.adapter.objects.get('vehicleReport.' + category).common.name, label);
+        assert.deepEqual(f.adapter.objects.get('vehicleReport.' + category + '.status').common.states,
+            { no_messages: 'Keine Meldungen laut App', unknown: 'Unbekannt' });
+    }
+    assert.equal(f.adapter.objects.get('vehicleReport.odometerKm').common.unit, 'km');
+    assert.equal(f.adapter.objects.get('vehicleReport.nextServiceKm').common.unit, 'km');
+    assert.equal(f.adapter.objects.get('vehicleReport.nextServiceDays').common.unit, 'd');
+    assert.equal(f.adapter.objects.get('commands.refreshVehicleReport').common.write, true);
+    assertReportInvalid(f);
+    assert.equal(f.records.phones.length, 0);
+});
+
+test('vehicle report refresh is own-only, strictly ack=false, and performs only the read action without write permission', async t => {
+    const f = await fixture(t, { enrollment: enrolled(), fakeController: true,
+        config: { legacyStatePrefix: '0_userdata.0.old_vw' } });
+    for (const state of [null, { val: true }, { val: true, ack: true }, { val: true, ack: 0 },
+        { val: true, ack: 'false' }, { val: false, ack: false }, { val: 'true', ack: false }]) {
+        await f.adapter.onStateChange('vw-app.0.commands.refreshVehicleReport', state);
+    }
+    await f.adapter.onStateChange('0_userdata.0.old_vw.refreshVehicleReport', { val: true, ack: false });
+    await f.adapter.onStateChange('other.0.commands.refreshVehicleReport', { val: true, ack: false });
+    assert.deepEqual(f.records.controllerCalls, []);
+    await f.adapter.onStateChange('vw-app.0.commands.refreshVehicleReport', { val: true, ack: false });
+    assert.deepEqual(f.adapter.states.get('commands.refreshVehicleReport'), { val: false, ack: true });
+    assert.deepEqual(f.records.controllerCalls, [{ action: 'vehicleReportStatus', input: {} }]);
+    assert.equal(f.adapter.settings.allowWrites, false);
+    assert.deepEqual(f.records.stores[0].writes, []);
+    assert.equal(f.records.stores[0].reservations, 0);
+    assert.ok(f.records.phones.every(phone => phone.calls.length === 0));
+    assert.equal(f.value('battery.lastSyncRequestAt'), '');
+});
+
+test('vehicle report publication contains every normalized field, JSON list and category without inventing vehicle confirmation', async t => {
+    const report = vehicleReportModel();
+    const f = await fixture(t, { enrollment: enrolled(), fakeController: true,
+        controllerExecute: async () => vehicleReportResult(report) });
+    await f.adapter.command('vehicleReportStatus');
+    for (const key of ['odometerText', 'odometerKm', 'nextServiceText', 'nextServiceDays', 'summary',
+        'hasMessages', 'messageCount', 'synchronizationText', 'notice']) {
+        assert.deepEqual(f.adapter.states.get('vehicleReport.' + key), { val: report[key], ack: true }, key);
+    }
+    assert.deepEqual(f.adapter.states.get('vehicleReport.nextServiceKm'), { val: null, ack: true, q: 0x82 });
+    assert.equal(f.value('vehicleReport.observedAt'), '2026-10-24T19:00:00.000Z');
+    assert.deepEqual(JSON.parse(f.value('vehicleReport.additionalTexts')), report.additionalTexts);
+    assert.deepEqual(JSON.parse(f.value('vehicleReport.json')), report);
+    for (const category of Object.keys(REPORT_CATEGORIES)) {
+        assert.equal(f.value('vehicleReport.' + category + '.status'), 'no_messages');
+        assert.deepEqual(JSON.parse(f.value('vehicleReport.' + category + '.texts')), []);
+    }
+    report.additionalTexts.push('Spätere Änderung');
+    report.categories.engine.texts.push('Spätere Änderung');
+    assert.deepEqual(JSON.parse(f.value('vehicleReport.additionalTexts')), ['Zusätzlicher sichtbarer Berichttext']);
+    assert.deepEqual(JSON.parse(f.value('vehicleReport.engine.texts')), []);
+    assert.equal(f.value('climate.vehicleConfirmed'), false);
+    assert.equal(f.value('operation.lastResult'), 'succeeded');
+});
+
+test('unknown vehicle report values preserve source text and use null with invalid quality rather than false or zero', async t => {
+    const report = vehicleReportModel();
+    Object.assign(report, { odometerText: 'Nicht verfügbar', odometerKm: null,
+        nextServiceText: 'Nicht verfügbar', nextServiceDays: null, nextServiceKm: null,
+        summary: 'Keine Meldungen vorhanden', hasMessages: null, messageCount: null });
+    for (const category of Object.keys(REPORT_CATEGORIES)) report.categories[category] = {
+        label: REPORT_CATEGORIES[category], status: 'unknown', texts: ['Hinweistext aus der App'] };
+    const f = await fixture(t);
+    await f.adapter.observation(vehicleReportResult(report));
+    for (const key of ['odometerKm', 'nextServiceDays', 'nextServiceKm', 'hasMessages', 'messageCount']) {
+        assert.deepEqual(f.adapter.states.get('vehicleReport.' + key), { val: null, ack: true, q: 0x82 });
+    }
+    assert.equal(f.value('vehicleReport.summary'), report.summary);
+    assert.deepEqual(f.adapter.states.get('vehicleReport.engine.status'), { val: 'unknown', ack: true });
+    assert.deepEqual(JSON.parse(f.value('vehicleReport.engine.texts')), ['Hinweistext aus der App']);
+});
+
+test('invalid vehicle-report envelopes clear old report data without publishing any new partial report or touching other domains', async t => {
+    let response = vehicleReportResult();
+    const f = await fixture(t, { enrollment: enrolled(), fakeController: true, controllerExecute: async () => response });
+    await f.adapter.observation(chargingResult());
+    await f.adapter.observation({ appState: 'on', appVersion: '4.8.1', observedAt: '2026-10-24T17:00:00.000Z', temperature: 22.5 });
+    const untouched = new Map([...f.adapter.states].filter(([id]) => id.startsWith('climate.')
+        || id.startsWith('battery.') || id.startsWith('charging.') || id === 'operation.lastUpdated'));
+    const malformed = [null, { ...vehicleReportResult(), domain: 'charging' },
+        { ...vehicleReportResult(), source: 'other' }, { ...vehicleReportResult(), vehicleConfirmed: true },
+        { ...vehicleReportResult(), appVersion: undefined }, { ...vehicleReportResult(), observedAt: '123' },
+        { ...vehicleReportResult(), observedAt: '2026-02-30T19:00:00.000Z' }];
+    for (const bad of malformed) {
+        await f.adapter.observation(vehicleReportResult());
+        response = bad;
+        const before = f.adapter.writes.length;
+        await rejectsCode(f.adapter.command('vehicleReportStatus'), 'invalid_vehicle_report');
+        assertReportInvalid(f);
+        assert.ok(f.adapter.writes.slice(before).filter(row => row.id.startsWith('vehicleReport.'))
+            .every(row => row.value.q === 0x82));
+        for (const [id, value] of untouched) assert.deepEqual(f.adapter.states.get(id), value, id);
+    }
+});
+
+test('the entire report model is validated before the first report write, including last category and derived values', async t => {
+    let response;
+    const f = await fixture(t, { enrollment: enrolled(), fakeController: true, controllerExecute: async () => response });
+    const invalidDerived = vehicleReportModel(); invalidDerived.odometerKm++;
+    const invalidCategory = vehicleReportModel(); invalidCategory.categories.other.texts.push('SECRET INVALID CATEGORY');
+    for (const report of [invalidDerived, invalidCategory]) {
+        await f.adapter.observation(vehicleReportResult());
+        response = vehicleReportResult(report);
+        const before = f.adapter.writes.length;
+        await rejectsCode(f.adapter.command('vehicleReportStatus'), 'invalid_report');
+        assertReportInvalid(f);
+        assert.ok(f.adapter.writes.slice(before).filter(row => row.id.startsWith('vehicleReport.'))
+            .every(row => row.value.q === 0x82));
+    }
+    assert.ok(!JSON.stringify(f.adapter.logs).includes('SECRET'));
+    assert.ok(f.adapter.writes.every(row => row.value.val !== undefined));
+});
+
+test('report reads and failures are isolated from climate, charging and legacy observations in both directions', async t => {
+    let fail = false;
+    const f = await fixture(t, { enrollment: enrolled(), fakeController: true,
+        config: { legacyStatePrefix: '0_userdata.0.vw' }, controllerExecute: async () => {
+            if (fail) throw new Error('SECRET REPORT DUMP');
+            return vehicleReportResult();
+        } });
+    for (const name of ['appState', 'lastUpdated']) f.adapter.foreignObjects.set('0_userdata.0.vw.' + name, {});
+    await f.adapter.observation(chargingResult());
+    await f.adapter.observation({ appState: 'on', appVersion: '4.8.1', observedAt: '2026-10-24T17:00:00.000Z', temperature: 22.5 });
+    const untouched = new Map([...f.adapter.states].filter(([id]) => id.startsWith('climate.')
+        || id.startsWith('battery.') || id.startsWith('charging.') || id === 'operation.lastUpdated'));
+    const legacyBefore = f.adapter.foreignWrites.filter(row => /\.(appState|lastUpdated)$/.test(row.id));
+    await f.adapter.command('vehicleReportStatus');
+    for (const [id, value] of untouched) assert.deepEqual(f.adapter.states.get(id), value, id);
+    const reportBefore = reportStates(f);
+    await f.adapter.failure(new BridgeError('unknown_state', 'Unknown climate state.'));
+    await f.adapter.failure(new BridgeError('unknown_state', 'Unknown charging state.'), 'charging');
+    for (const [id, value] of reportBefore) assert.deepEqual(f.adapter.states.get(id), value, id);
+    await f.adapter.observation(chargingResult());
+    await f.adapter.observation({ appState: 'on', appVersion: '4.8.1', observedAt: '2026-10-24T17:00:00.000Z', temperature: 22.5 });
+    const legacyRestored = f.adapter.foreignWrites.filter(row => /\.(appState|lastUpdated)$/.test(row.id));
+    fail = true; await assert.rejects(f.adapter.command('vehicleReportStatus'));
+    assert.equal(f.value('operation.lastErrorCode'), 'internal_error');
+    assertReportInvalid(f);
+    for (const [id, value] of untouched) assert.deepEqual(f.adapter.states.get(id), value, id);
+    assert.deepEqual(f.adapter.foreignWrites.filter(row => /\.(appState|lastUpdated)$/.test(row.id)), legacyRestored);
+    assert.ok(legacyBefore.length > 0);
+    assert.ok(!JSON.stringify(f.adapter.logs).includes('SECRET'));
+});
+
+test('vehicle report status ignores damaged and still-saving preferences in all three independent queues', { timeout: 2000 }, async t => {
+    const saves = deferred();
+    const writing = { 'temperature-preference': deferred(), 'settings-preference': deferred(), 'charging-preference': deferred() };
+    const f = await fixture(t, { enrollment: enrolled(), fakeController: true,
+        memory: { 'temperature-preference': { targetCelsius: 'INVALID' },
+            'settings-preference': { ...DEFAULT_TARGET_SETTINGS, mode: 'INVALID' },
+            'charging-preference': { ...DEFAULT_TARGET_CHARGING, socLimit: 'INVALID' } },
+        storeWrite: async name => { if (writing[name]) { writing[name].resolve(); await saves.promise; } },
+    });
+    t.after(() => saves.resolve());
+    const pending = [f.adapter.stageTemperature(22.5), f.adapter.stageSetting('mode', 'climate'),
+        f.adapter.stageChargingSetting('socLimit', MAX_TARGET_SOC)];
+    await Promise.all(Object.values(writing).map(value => value.promise));
+    await f.adapter.command('vehicleReportStatus');
+    assert.deepEqual(f.records.controllerCalls, [{ action: 'vehicleReportStatus', input: {} }]);
+    assert.equal(f.records.stores[0].writes.length, 3);
+    assert.equal(f.records.stores[0].reservations, 0);
+    assert.equal(f.value('vehicleReport.odometerKm'), 12345);
+    saves.resolve(); await Promise.all(pending);
+});
+
+test('vehicle report requests retain profile and busy gates and are cancelled with the adapter lifecycle', async t => {
+    const missing = await fixture(t, { fakeController: true });
+    await rejectsCode(missing.adapter.command('vehicleReportStatus'), 'profile_required');
+    assert.equal(missing.records.phones.length, 0);
+    const mismatched = await fixture(t, { enrollment: enrolled(), fakeController: true, config: { approvedAppVersion: 'OTHER' } });
+    await rejectsCode(mismatched.adapter.command('vehicleReportStatus'), 'profile_mismatch');
+    assert.equal(mismatched.records.phones.length, 0);
+    const executing = deferred(); const finish = deferred();
+    const f = await fixture(t, { enrollment: enrolled(), fakeController: true, controllerExecute: async () => {
+        executing.resolve(); await finish.promise; throw new BridgeError('cancelled', 'The adapter is stopping.');
+    } });
+    t.after(() => finish.resolve());
+    const active = f.adapter.command('vehicleReportStatus');
+    const rejected = rejectsCode(active, 'cancelled');
+    await executing.promise;
+    await rejectsCode(f.adapter.command('vehicleReportStatus'), 'busy');
+    assert.equal(f.records.phones.length, 1);
+    let unloaded = false; const unload = f.adapter.onUnload(() => { unloaded = true; });
+    assert.equal(f.records.controllers[0].cancelled, true);
+    finish.resolve(); await rejected; await unload;
+    assert.equal(unloaded, true);
+    assert.equal(f.records.leases[0].closed, 1);
+    assert.equal(f.records.controllerCalls.length, 1);
 });
 
 test('unload waits for a charging save and restart restores it', async t => {
