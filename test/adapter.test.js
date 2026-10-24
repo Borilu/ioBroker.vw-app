@@ -12,6 +12,7 @@ const { PACKAGE } = require('../lib/ui');
 const ADMIN = require('../admin/jsonConfig.json');
 const { MIN_TEMPERATURE_CELSIUS, MAX_TEMPERATURE_CELSIUS, TEMPERATURE_STEP_CELSIUS } = require('../lib/temperature');
 const { DEFAULT_TARGET_SETTINGS, SETTINGS_KEYS } = require('../lib/settings');
+const { DEFAULT_TARGET_CHARGING, CHARGING_KEYS, MIN_TARGET_SOC, MAX_TARGET_SOC, TARGET_SOC_STEP } = require('../lib/charging');
 
 const VEHICLE = 'Ihr Fahrzeug: ID.7 GTX Tourer. ';
 const DEVICE = 'serial:TEST-ADAPTER-42';
@@ -19,6 +20,10 @@ const SETTING_TARGETS = { mode: 'climate.targetMode', climateOnUnlock: 'climate.
     autoWindowHeating: 'climate.targetAutoWindowHeating', zones: 'climate.targetZones' };
 const SETTING_OBSERVED = { mode: 'climate.mode', climateOnUnlock: 'climate.climateOnUnlock',
     autoWindowHeating: 'climate.autoWindowHeating', zones: 'climate.zones' };
+const CHARGING_TARGETS = { socLimit: 'charging.targetSoc', reducedAcCurrent: 'charging.targetReducedAcCurrent',
+    autoUnlockAc: 'charging.targetAutoUnlockAc', optimizedBatteryUse: 'charging.targetOptimizedBatteryUse' };
+const CHARGING_OBSERVED = { socLimit: 'charging.socLimit', reducedAcCurrent: 'charging.reducedAcCurrent',
+    autoUnlockAc: 'charging.autoUnlockAc', optimizedBatteryUse: 'charging.optimizedBatteryUse' };
 const HOST = '192.0.2.42';
 const PORT = 37123;
 const clone = value => structuredClone(value);
@@ -77,12 +82,13 @@ async function fixture(t, options = {}) {
         constructor() {
             super();
             this.config = config; this.namespace = 'vw-app.0';
-            this.states = new Map(); this.objects = new Map(); this.writes = [];
+            this.states = new Map(Object.entries(clone(options.initialStates || {}))); this.objects = new Map(); this.writes = [];
             this.foreignObjects = new Map(); this.foreignWrites = []; this.subscriptions = [];
             this.logs = []; this.responses = []; this.intervals = []; this.clearedIntervals = [];
             this.log = Object.fromEntries(['info', 'warn', 'error', 'debug'].map(level => [level, message => this.logs.push({ level, message })]));
         }
         async setObjectNotExistsAsync(id, value) { if (!this.objects.has(id)) this.objects.set(id, clone(value)); }
+        async getStateAsync(id) { return clone(this.states.get(id) || null); }
         async setStateAsync(id, value) {
             if (this.stopping && id === 'info.connection' && options.shutdownStateFailure) throw new Error('SECRET STATE WRITE ERROR');
             this.writes.push({ id, value: clone(value) }); this.states.set(id, clone(value));
@@ -167,6 +173,7 @@ async function fixture(t, options = {}) {
         async execute(action, input) {
             records.controllerCalls.push({ action, input: clone(input) });
             if (options.controllerExecute) return options.controllerExecute(action, input);
+            if (['chargingStatus', 'applyChargingSettings', 'synchronize'].includes(action)) return chargingResult(input.targetCharging);
             return { appState: environment.appState, appVersion: '4.8.1', vehicleConfirmed: false,
                 observedAt: new Date().toISOString(), temperature: input.targetTemperature,
                 confirmationSource: 'app_controls' };
@@ -201,6 +208,13 @@ function enrolled() { return { deviceId: DEVICE, profile: { appVersion: '4.8.1',
 function expectedCall(action, targetTemperature, targetSettings = DEFAULT_TARGET_SETTINGS) {
     return { action, input: { targetTemperature,
         ...(['start', 'applySettings'].includes(action) ? { targetSettings: { ...targetSettings } } : {}) } };
+}
+function expectedChargingCall(action, targetCharging = DEFAULT_TARGET_CHARGING) {
+    return { action, input: { targetCharging: { ...targetCharging } } };
+}
+function chargingResult(charging = DEFAULT_TARGET_CHARGING) {
+    return { domain: 'charging', appVersion: '4.8.1', observedAt: '2026-10-24T16:00:00.000Z',
+        battery: { soc: 52, rangeKm: 205 }, charging: { ...charging } };
 }
 
 test('ready keeps an unconfigured instance alive with runtime_missing and never downloads or touches a phone', async t => {
@@ -252,11 +266,12 @@ test('buttons accept only explicit ack=false and true values, reset acknowledged
     await f.adapter.onStateChange('vw-app.0.commands.unlock', { val: true, ack: false });
     await f.adapter.onStateChange('other.0.commands.start', { val: true, ack: false });
     assert.deepEqual(actions, []);
-    for (const name of ['start', 'stop', 'refresh', 'setTemperature', 'clearTemperature', 'applySettings', 'clearSettings']) {
+    for (const name of ['start', 'stop', 'refresh', 'setTemperature', 'clearTemperature', 'applySettings', 'clearSettings',
+        'refreshCharging', 'applyChargingSettings', 'clearChargingSettings', 'synchronize']) {
         await f.adapter.onStateChange('vw-app.0.commands.' + name, { val: true, ack: false });
         assert.deepEqual(f.adapter.states.get('commands.' + name), { val: false, ack: true });
     }
-    assert.deepEqual(actions, ['start', 'stop', 'status', 'setTemperature', 'applySettings']);
+    assert.deepEqual(actions, ['start', 'stop', 'status', 'setTemperature', 'applySettings', 'chargingStatus', 'applyChargingSettings', 'synchronize']);
 });
 
 test('legacy controls reset existing user states without creating or writing unrelated objects', async t => {
@@ -878,6 +893,383 @@ test('unload waits for an in-flight settings save and restart restores it', asyn
     const restarted = await fixture(t, { memory: f.memory });
     assert.equal(restarted.value('climate.targetAutoWindowHeating'), false);
     assert.equal(unloaded, true);
+});
+
+test('charging selection metadata uses percent and kilometre units and staging never operates a phone', async t => {
+    const f = await fixture(t, { runtimeMissing: true });
+    const common = f.adapter.objects.get('charging.targetSoc').common;
+    assert.deepEqual([common.type, common.write, common.unit, common.min, common.max, common.step],
+        ['number', true, '%', MIN_TARGET_SOC, MAX_TARGET_SOC, TARGET_SOC_STEP]);
+    assert.equal(f.adapter.objects.get('battery.soc').common.unit, '%');
+    assert.equal(f.adapter.objects.get('battery.rangeKm').common.unit, 'km');
+    for (const id of ['battery.soc', 'battery.rangeKm', ...Object.values(CHARGING_OBSERVED)]) {
+        assert.deepEqual(f.adapter.states.get(id), { val: null, ack: true, q: 0x82 });
+        assert.equal(f.adapter.objects.get(id).common.write, false);
+    }
+    const wishes = { socLimit: MAX_TARGET_SOC, reducedAcCurrent: false, autoUnlockAc: true, optimizedBatteryUse: false };
+    for (const key of CHARGING_KEYS) {
+        await f.adapter.onStateChange('vw-app.0.' + CHARGING_TARGETS[key], { val: wishes[key], ack: false });
+        assert.deepEqual(f.adapter.states.get(CHARGING_TARGETS[key]), { val: wishes[key], ack: true });
+        assert.ok(f.adapter.subscriptions.some(([kind, id]) => kind === 'own' && id === CHARGING_TARGETS[key]));
+    }
+    assert.deepEqual(f.memory['charging-preference'], wishes);
+    assert.equal(f.value('charging.targetSettingsError'), '');
+    assert.equal(f.records.phones.length, 0);
+    assert.equal(f.memory['settings-preference'], undefined);
+    assert.equal(f.memory['temperature-preference'], undefined);
+});
+
+test('charging writes and buttons require explicit ack=false and legacy aliases cannot apply them', async t => {
+    const f = await fixture(t, { config: { legacyStatePrefix: '0_userdata.0.old_vw' } });
+    const actions = [];
+    f.adapter.command = async action => actions.push(action);
+    for (const state of [{ val: MAX_TARGET_SOC }, { val: MAX_TARGET_SOC, ack: true }, { val: MAX_TARGET_SOC, ack: 0 }]) {
+        await f.adapter.onStateChange('vw-app.0.charging.targetSoc', state);
+    }
+    for (const name of ['refreshCharging', 'applyChargingSettings', 'clearChargingSettings', 'synchronize']) {
+        for (const state of [{ val: true }, { val: true, ack: true }, { val: true, ack: 'false' }, { val: false, ack: false }, { val: 1, ack: false }]) {
+            await f.adapter.onStateChange('vw-app.0.commands.' + name, state);
+        }
+        await f.adapter.onStateChange('0_userdata.0.old_vw.' + name, { val: true, ack: false });
+    }
+    assert.deepEqual(actions, []);
+    assert.equal(f.memory['charging-preference'], undefined);
+});
+
+test('charging restart restores saved wishes without resetting them and clearChargingSettings is atomic and domain-local', async t => {
+    const selected = { socLimit: MIN_TARGET_SOC, reducedAcCurrent: true, autoUnlockAc: false, optimizedBatteryUse: true };
+    const memory = { 'charging-preference': selected, 'temperature-preference': { targetCelsius: 22.5 },
+        'settings-preference': { ...DEFAULT_TARGET_SETTINGS, mode: 'windowHeating' } };
+    const f = await fixture(t, { memory });
+    for (const key of CHARGING_KEYS) {
+        assert.equal(f.value(CHARGING_TARGETS[key]), selected[key]);
+        assert.ok(!f.adapter.writes.some(row => row.id === CHARGING_TARGETS[key] && row.value.val === null));
+    }
+    const before = f.records.stores[0].writes.length;
+    await f.adapter.onStateChange('vw-app.0.commands.clearChargingSettings', { val: true, ack: false });
+    assert.deepEqual(f.memory['charging-preference'], DEFAULT_TARGET_CHARGING);
+    assert.equal(f.records.stores[0].writes.length, before + 1);
+    assert.equal(f.value('climate.targetTemperature'), 22.5);
+    assert.equal(f.value('climate.targetMode'), 'windowHeating');
+    assert.equal(f.records.phones.length, 0);
+    const restarted = await fixture(t, { memory: f.memory });
+    for (const id of Object.values(CHARGING_TARGETS)) assert.equal(restarted.value(id), null);
+});
+
+test('invalid charging selection blocks immediate apply and a different successful field cannot heal its error', async t => {
+    const f = await fixture(t, { enrollment: enrolled(), config: { allowWrites: true }, fakeController: true });
+    await f.adapter.stageChargingSetting('socLimit', MIN_TARGET_SOC);
+    const invalid = f.adapter.stageChargingSetting('socLimit', MIN_TARGET_SOC + TARGET_SOC_STEP / 2);
+    const apply = f.adapter.command('applyChargingSettings');
+    await rejectsCode(invalid, 'invalid_charging_settings');
+    await rejectsCode(apply, 'charging_selection_failed');
+    assert.equal(f.records.phones.length, 0);
+    assert.equal(f.value('charging.targetSoc'), MIN_TARGET_SOC);
+    await f.adapter.stageChargingSetting('autoUnlockAc', false);
+    assert.ok(f.value('charging.targetSettingsError').includes('socLimit: invalid_charging_settings:'));
+    await rejectsCode(f.adapter.command('applyChargingSettings'), 'charging_selection_failed');
+    assert.equal(f.adapter.chargingUpdateFailed.autoUnlockAc, false);
+    assert.equal(f.value('charging.targetAutoUnlockAc'), false);
+    await f.adapter.stageChargingSetting('socLimit', MAX_TARGET_SOC);
+    await f.adapter.command('applyChargingSettings');
+    assert.equal(f.value('charging.targetSettingsError'), '');
+    assert.deepEqual(f.records.controllerCalls, [expectedChargingCall('applyChargingSettings',
+        { ...DEFAULT_TARGET_CHARGING, socLimit: MAX_TARGET_SOC, autoUnlockAc: false })]);
+});
+
+test('failed charging persistence blocks apply, keeps the accepted value, and explicit clear repairs it', async t => {
+    let fail = false;
+    const f = await fixture(t, { enrollment: enrolled(), config: { allowWrites: true }, fakeController: true,
+        storeWrite: async name => { if (name === 'charging-preference' && fail) throw new Error('SECRET DISK PATH'); },
+    });
+    await f.adapter.stageChargingSetting('reducedAcCurrent', false);
+    fail = true;
+    const staging = f.adapter.stageChargingSetting('reducedAcCurrent', true);
+    const apply = f.adapter.command('applyChargingSettings');
+    await assert.rejects(staging);
+    await rejectsCode(apply, 'charging_selection_failed');
+    assert.equal(f.value('charging.targetReducedAcCurrent'), false);
+    assert.equal(f.records.phones.length, 0);
+    fail = false;
+    await f.adapter.stageChargingSetting('autoUnlockAc', false);
+    await rejectsCode(f.adapter.command('applyChargingSettings'), 'charging_selection_failed');
+    await f.adapter.clearChargingSettings();
+    assert.equal(f.value('charging.targetSettingsError'), '');
+    await rejectsCode(f.adapter.command('applyChargingSettings'), 'charging_settings_required');
+    await f.adapter.stageChargingSetting('optimizedBatteryUse', false);
+    await f.adapter.command('applyChargingSettings');
+    assert.ok(!JSON.stringify(f.adapter.logs).includes('SECRET'));
+});
+
+test('damaged charging fields survive unrelated saves and restart instead of silently becoming valid', async t => {
+    const damaged = { ...DEFAULT_TARGET_CHARGING, socLimit: Infinity };
+    const f = await fixture(t, { enrollment: enrolled(), fakeController: true, memory: { 'charging-preference': damaged } });
+    assert.deepEqual(f.adapter.states.get('charging.targetSoc'), { val: null, ack: true, q: 0x82 });
+    await f.adapter.stageChargingSetting('autoUnlockAc', false);
+    const disk = JSON.parse(JSON.stringify(f.memory['charging-preference']));
+    assert.equal(disk.socLimit, '__invalid_saved_setting__');
+    const restarted = await fixture(t, { enrollment: enrolled(), fakeController: true, memory: { 'charging-preference': disk } });
+    assert.equal(restarted.adapter.chargingPreferenceReady.socLimit, false);
+    assert.equal(restarted.value('charging.targetAutoUnlockAc'), false);
+    await rejectsCode(restarted.adapter.command('applyChargingSettings'), 'invalid_state');
+    await restarted.adapter.command('status');
+    await restarted.adapter.command('chargingStatus');
+    assert.deepEqual(restarted.records.controllerCalls, [expectedCall('status', null), expectedChargingCall('chargingStatus')]);
+    await restarted.adapter.clearChargingSettings();
+    assert.equal(restarted.adapter.chargingPreferenceReady.socLimit, true);
+});
+
+test('applying charging settings requires a wish, write permission and a calibrated profile before phone access', async t => {
+    const f = await fixture(t, { fakeController: true });
+    await rejectsCode(f.adapter.command('applyChargingSettings'), 'charging_settings_required');
+    await f.adapter.stageChargingSetting('optimizedBatteryUse', false);
+    await rejectsCode(f.adapter.command('applyChargingSettings'), 'writes_disabled');
+    f.adapter.settings.allowWrites = true;
+    await rejectsCode(f.adapter.command('applyChargingSettings'), 'profile_required');
+    f.memory.enrollment = enrolled();
+    f.adapter.settings.approvedAppVersion = 'SECRET_EDIT';
+    await rejectsCode(f.adapter.command('applyChargingSettings'), 'profile_mismatch');
+    assert.equal(f.records.phones.length, 0);
+    f.adapter.settings.approvedAppVersion = '';
+    await f.adapter.command('applyChargingSettings');
+    assert.deepEqual(f.records.controllerCalls, [expectedChargingCall('applyChargingSettings',
+        { ...DEFAULT_TARGET_CHARGING, optimizedBatteryUse: false })]);
+});
+
+test('a charging snapshot waits for prior persistence while later selection and errors affect only the next job', async t => {
+    const writing = deferred(); const save = deferred(); const executing = deferred(); const finish = deferred();
+    const f = await fixture(t, { enrollment: enrolled(), config: { allowWrites: true }, fakeController: true,
+        storeWrite: async (name, value) => { if (name === 'charging-preference' && value.socLimit === MIN_TARGET_SOC && value.autoUnlockAc === null) { writing.resolve(); await save.promise; } },
+        controllerExecute: async (action, input) => { executing.resolve(); await finish.promise; return chargingResult(input.targetCharging); },
+    });
+    t.after(() => { save.resolve(); finish.resolve(); });
+    const prior = f.adapter.stageChargingSetting('socLimit', MIN_TARGET_SOC); await writing.promise;
+    const apply = f.adapter.command('applyChargingSettings');
+    const next = f.adapter.stageChargingSetting('autoUnlockAc', false);
+    assert.equal(f.records.phones.length, 0);
+    save.resolve(); await prior; await next; await executing.promise;
+    await rejectsCode(f.adapter.stageChargingSetting('reducedAcCurrent', 'false'), 'invalid_charging_settings');
+    assert.equal(f.value('operation.lastResult'), 'running');
+    assert.equal(f.value('operation.lastErrorCode'), '');
+    assert.deepEqual(f.records.controllerCalls, [expectedChargingCall('applyChargingSettings', { ...DEFAULT_TARGET_CHARGING, socLimit: MIN_TARGET_SOC })]);
+    finish.resolve(); await apply;
+    assert.equal(f.value('charging.autoUnlockAc'), null);
+    assert.equal(f.value('charging.targetAutoUnlockAc'), false);
+    assert.equal(f.value('operation.lastResult'), 'succeeded');
+    await rejectsCode(f.adapter.command('applyChargingSettings'), 'charging_selection_failed');
+});
+
+test('status, stop, climate writes and charging refresh do not wait for a pending charging preference save', { timeout: 2000 }, async t => {
+    const writing = deferred(); const save = deferred();
+    const f = await fixture(t, { enrollment: enrolled(), config: { allowWrites: true }, fakeController: true,
+        storeWrite: async name => { if (name === 'charging-preference') { writing.resolve(); await save.promise; } },
+    });
+    t.after(() => save.resolve());
+    await f.adapter.stageTemperature(22.5);
+    await f.adapter.stageSetting('mode', 'climate');
+    const selection = f.adapter.stageChargingSetting('socLimit', MAX_TARGET_SOC); await writing.promise;
+    for (const action of ['status', 'stop', 'start', 'setTemperature', 'applySettings', 'chargingStatus']) await f.adapter.command(action);
+    assert.deepEqual(f.records.controllerCalls, [expectedCall('status', null), expectedCall('stop', null),
+        expectedCall('start', 22.5, { ...DEFAULT_TARGET_SETTINGS, mode: 'climate' }), expectedCall('setTemperature', 22.5),
+        expectedCall('applySettings', null, { ...DEFAULT_TARGET_SETTINGS, mode: 'climate' }), expectedChargingCall('chargingStatus')]);
+    assert.equal(f.memory['charging-preference'], undefined);
+    const apply = f.adapter.command('applyChargingSettings');
+    await Promise.resolve(); assert.equal(f.records.controllerCalls.length, 6);
+    save.resolve(); await selection; await apply;
+    assert.deepEqual(f.records.controllerCalls.at(-1), expectedChargingCall('applyChargingSettings', { ...DEFAULT_TARGET_CHARGING, socLimit: MAX_TARGET_SOC }));
+});
+
+test('applyChargingSettings does not wait for stuck temperature or climate-settings saves', { timeout: 2000 }, async t => {
+    const temperatureWriting = deferred(); const settingsWriting = deferred(); const save = deferred();
+    const f = await fixture(t, { enrollment: enrolled(), config: { allowWrites: true }, fakeController: true,
+        storeWrite: async name => {
+            if (name === 'temperature-preference') { temperatureWriting.resolve(); await save.promise; }
+            if (name === 'settings-preference') { settingsWriting.resolve(); await save.promise; }
+        },
+    });
+    t.after(() => save.resolve());
+    await f.adapter.stageChargingSetting('reducedAcCurrent', false);
+    const temperature = f.adapter.stageTemperature(22.5); const settings = f.adapter.stageSetting('mode', 'climate');
+    await Promise.all([temperatureWriting.promise, settingsWriting.promise]);
+    await f.adapter.command('applyChargingSettings');
+    assert.deepEqual(f.records.controllerCalls, [expectedChargingCall('applyChargingSettings', { ...DEFAULT_TARGET_CHARGING, reducedAcCurrent: false })]);
+    save.resolve(); await Promise.all([temperature, settings]);
+});
+
+test('charging success and failure preserve climate observations and legacy climate feedback exactly', async t => {
+    let fail = false;
+    const f = await fixture(t, { enrollment: enrolled(), fakeController: true, config: { legacyStatePrefix: '0_userdata.0.vw' },
+        controllerExecute: async () => { if (fail) throw new Error('SECRET PHONE DATA'); return chargingResult({ socLimit: 80, reducedAcCurrent: false, autoUnlockAc: true, optimizedBatteryUse: false }); },
+    });
+    f.adapter.foreignObjects.set('0_userdata.0.vw.appState', {});
+    f.adapter.foreignObjects.set('0_userdata.0.vw.lastUpdated', {});
+    await f.adapter.observation({ appState: 'on', appVersion: '4.8.1', temperature: 22.5, confirmationSource: 'app_overview',
+        observedAt: '2026-10-24T15:00:00.000Z', settings: { mode: 'climate', climateOnUnlock: true, autoWindowHeating: true, zones: 'both' } });
+    const before = new Map([...f.adapter.states].filter(([id]) => id.startsWith('climate.') || id === 'operation.lastUpdated'));
+    const beforeLegacy = f.adapter.foreignWrites.filter(row => /\.(appState|lastUpdated)$/.test(row.id));
+    await f.adapter.command('chargingStatus');
+    assert.equal(f.value('battery.soc'), 52); assert.equal(f.value('battery.rangeKm'), 205);
+    assert.equal(f.value('charging.reducedAcCurrent'), false);
+    assert.equal(f.value('battery.observedAt'), '2026-10-24T16:00:00.000Z');
+    for (const [id, value] of before) assert.deepEqual(f.adapter.states.get(id), value, id);
+    fail = true; await assert.rejects(f.adapter.command('chargingStatus'));
+    assert.equal(f.value('operation.lastErrorCode'), 'internal_error');
+    for (const [id, value] of before) assert.deepEqual(f.adapter.states.get(id), value, id);
+    assert.deepEqual(f.adapter.foreignWrites.filter(row => /\.(appState|lastUpdated)$/.test(row.id)), beforeLegacy);
+    for (const id of ['battery.soc', 'battery.rangeKm', ...Object.values(CHARGING_OBSERVED)]) {
+        assert.deepEqual(f.adapter.states.get(id), { val: null, ack: true, q: 0x82 });
+    }
+    assert.equal(f.value('battery.observedAt'), '');
+    assert.ok(!JSON.stringify(f.adapter.logs).includes('SECRET'));
+});
+
+test('climate observations and failures preserve battery and charging state while malformed charging values are qualified unknown', async t => {
+    const f = await fixture(t);
+    await f.adapter.observation(chargingResult({ socLimit: 80, reducedAcCurrent: false, autoUnlockAc: true, optimizedBatteryUse: false }));
+    const before = new Map([...f.adapter.states].filter(([id]) => id.startsWith('battery.') || id.startsWith('charging.')));
+    await f.adapter.observation({ appState: 'off', appVersion: '4.8.1', observedAt: '2026-10-24T17:00:00.000Z' });
+    await f.adapter.failure(new BridgeError('phone_locked', 'Unlock the phone.'));
+    for (const [id, value] of before) assert.deepEqual(f.adapter.states.get(id), value, id);
+    await f.adapter.observation({ domain: 'charging', battery: { soc: '52', rangeKm: -1 },
+        charging: { socLimit: 101, reducedAcCurrent: 'false', autoUnlockAc: false }, observedAt: 'not a date' });
+    for (const id of ['battery.soc', 'battery.rangeKm', 'charging.socLimit', 'charging.reducedAcCurrent', 'charging.optimizedBatteryUse']) {
+        assert.deepEqual(f.adapter.states.get(id), { val: null, ack: true, q: 0x82 });
+    }
+    assert.deepEqual(f.adapter.states.get('charging.autoUnlockAc'), { val: false, ack: true });
+    assert.equal(f.value('battery.observedAt'), '');
+    assert.ok(f.adapter.writes.every(row => row.value.val !== undefined));
+});
+
+test('a charging command rejects an unexpected climate result without projecting it into climate states', async t => {
+    const f = await fixture(t, { enrollment: enrolled(), fakeController: true,
+        controllerExecute: async () => ({ appState: 'on', appVersion: '4.8.1', observedAt: new Date().toISOString() }) });
+    const before = f.adapter.states.get('climate.appState');
+    await rejectsCode(f.adapter.command('chargingStatus'), 'invalid_state');
+    assert.deepEqual(f.adapter.states.get('climate.appState'), before);
+    assert.equal(f.value('battery.observedAt'), '');
+});
+
+test('synchronize is an explicit read request with no write permission or preference queue dependency', { timeout: 2000 }, async t => {
+    const saves = deferred();
+    const writing = { 'temperature-preference': deferred(), 'settings-preference': deferred(), 'charging-preference': deferred() };
+    const requestedAt = '2026-10-24T18:00:00.000Z';
+    const f = await fixture(t, { enrollment: enrolled(), fakeController: true,
+        memory: { 'temperature-preference': { targetCelsius: 'INVALID' },
+            'settings-preference': { ...DEFAULT_TARGET_SETTINGS, mode: 'INVALID' },
+            'charging-preference': { ...DEFAULT_TARGET_CHARGING, socLimit: 'INVALID' } },
+        storeWrite: async name => { if (writing[name]) { writing[name].resolve(); await saves.promise; } },
+        controllerExecute: async () => ({ ...chargingResult(), syncRequestedAt: requestedAt }),
+    });
+    t.after(() => saves.resolve());
+    const temperature = f.adapter.stageTemperature(22.5);
+    const settings = f.adapter.stageSetting('mode', 'climate');
+    const charging = f.adapter.stageChargingSetting('socLimit', MAX_TARGET_SOC);
+    await Promise.all(Object.values(writing).map(value => value.promise));
+    await f.adapter.onStateChange('vw-app.0.commands.synchronize', { val: true, ack: false });
+    assert.equal(f.adapter.settings.allowWrites, false);
+    assert.deepEqual(f.records.controllerCalls, [expectedChargingCall('synchronize')]);
+    assert.deepEqual(f.adapter.states.get('commands.synchronize'), { val: false, ack: true });
+    assert.equal(f.value('battery.lastSyncRequestAt'), requestedAt);
+    assert.equal(f.value('battery.soc'), 52);
+    assert.equal(f.value('climate.appState'), 'unknown');
+    assert.equal(f.memory['charging-preference'].socLimit, 'INVALID');
+    saves.resolve(); await Promise.all([temperature, settings, charging]);
+});
+
+test('last sync request changes only for a valid explicit result timestamp and survives reads, errors and restart', async t => {
+    const requestedAt = '2026-10-24T18:00:00.000Z';
+    const f = await fixture(t);
+    assert.equal(f.adapter.objects.get('battery.lastSyncRequestAt').common.name,
+        'Letzte an die App gesendete Synchronisationsanfrage');
+    assert.equal(f.adapter.objects.get('battery.lastSyncRequestAt').common.write, false);
+    assert.equal(f.value('battery.lastSyncRequestAt'), '');
+    await f.adapter.observation({ ...chargingResult(), syncRequestedAt: requestedAt });
+    const syncWrites = f.adapter.writes.filter(row => row.id === 'battery.lastSyncRequestAt').length;
+    for (const invalid of [undefined, null, '', 0, '123', 'not a date', '2026-02-30T18:00:00.000Z', '2026-10-24T25:00:00.000Z']) {
+        await f.adapter.observation({ ...chargingResult(), syncRequestedAt: invalid });
+        assert.equal(f.value('battery.lastSyncRequestAt'), requestedAt);
+    }
+    await f.adapter.failure(new BridgeError('phone_locked', 'Unlock the phone.'), 'charging');
+    assert.equal(f.value('battery.lastSyncRequestAt'), requestedAt);
+    assert.equal(f.adapter.writes.filter(row => row.id === 'battery.lastSyncRequestAt').length, syncWrites);
+    const restarted = await fixture(t, { initialStates: { 'battery.lastSyncRequestAt': { val: requestedAt, ack: true } } });
+    assert.equal(restarted.value('battery.lastSyncRequestAt'), requestedAt);
+    assert.ok(!restarted.adapter.writes.some(row => row.id === 'battery.lastSyncRequestAt' && row.value.val === ''));
+    const malformed = await fixture(t, { initialStates: { 'battery.lastSyncRequestAt': { val: 'INVALID', ack: true } } });
+    assert.equal(malformed.value('battery.lastSyncRequestAt'), '');
+});
+
+test('optional polling reads climate then charging without synchronization and manual refresh stays climate-only', async t => {
+    const disabled = await fixture(t);
+    assert.equal(disabled.adapter.intervals.length, 0);
+    const f = await fixture(t, { enrollment: enrolled(), fakeController: true, config: { pollIntervalSeconds: 300 } });
+    assert.equal(f.adapter.intervals.length, 1);
+    assert.equal(f.adapter.intervals[0].milliseconds, 300000);
+    await f.adapter.intervals[0].callback();
+    assert.deepEqual(f.records.controllerCalls, [expectedCall('status', null), expectedChargingCall('chargingStatus')]);
+    assert.equal(f.value('battery.lastSyncRequestAt'), '');
+    await f.adapter.onStateChange('vw-app.0.commands.refresh', { val: true, ack: false });
+    assert.deepEqual(f.records.controllerCalls.at(-1), expectedCall('status', null));
+    assert.equal(f.records.controllerCalls.filter(row => row.action === 'chargingStatus').length, 1);
+    assert.equal(f.records.controllerCalls.some(row => row.action === 'synchronize'), false);
+});
+
+test('polling skips busy instances and rechecks availability between climate and charging jobs', async t => {
+    const f = await fixture(t, { config: { pollIntervalSeconds: 300 } });
+    const calls = [];
+    f.adapter.command = async action => calls.push(action);
+    f.adapter.busy = true;
+    await f.adapter.intervals[0].callback(); assert.deepEqual(calls, []);
+    f.adapter.busy = false;
+    f.adapter.command = async action => { calls.push(action); f.adapter.busy = true; };
+    await f.adapter.intervals[0].callback(); assert.deepEqual(calls, ['status']);
+    f.adapter.busy = false;
+    f.adapter.command = async action => { calls.push(action); f.adapter.stopping = true; };
+    await f.adapter.intervals[0].callback(); assert.deepEqual(calls, ['status', 'status']);
+    f.adapter.stopping = false;
+});
+
+test('a failed climate poll does not trigger synchronization and the later charging read remains domain-local', async t => {
+    const f = await fixture(t, { enrollment: enrolled(), fakeController: true, config: { pollIntervalSeconds: 300 },
+        controllerExecute: async action => {
+            if (action === 'status') throw new BridgeError('unknown_state', 'The climate state is unclear.');
+            return chargingResult();
+        },
+    });
+    await f.adapter.intervals[0].callback();
+    assert.deepEqual(f.records.controllerCalls, [expectedCall('status', null), expectedChargingCall('chargingStatus')]);
+    assert.equal(f.value('climate.appState'), 'unknown');
+    assert.equal(f.value('battery.soc'), 52);
+    assert.equal(f.value('battery.lastSyncRequestAt'), '');
+});
+
+test('unload waits for a charging save and restart restores it', async t => {
+    const writing = deferred(); const save = deferred();
+    const f = await fixture(t, { storeWrite: async name => { if (name === 'charging-preference') { writing.resolve(); await save.promise; } } });
+    t.after(() => save.resolve());
+    const staging = f.adapter.stageChargingSetting('autoUnlockAc', false); await writing.promise;
+    let unloaded = false; const unload = f.adapter.onUnload(() => { unloaded = true; });
+    await Promise.resolve(); assert.equal(unloaded, false);
+    save.resolve(); await staging; await unload;
+    const restarted = await fixture(t, { memory: f.memory });
+    assert.equal(restarted.value('charging.targetAutoUnlockAc'), false);
+    assert.equal(unloaded, true);
+});
+
+test('a stuck charging save cannot hold unload beyond its bounded shutdown timer', async t => {
+    const writing = deferred(); const save = deferred(); const timerStarted = deferred();
+    const f = await fixture(t, { storeWrite: async name => { if (name === 'charging-preference') { writing.resolve(); await save.promise; } } });
+    const originalSetTimeout = global.setTimeout;
+    let expire;
+    const mocked = t.mock.method(global, 'setTimeout', (callback, milliseconds, ...args) => {
+        if (milliseconds === 3000) { expire = callback; timerStarted.resolve(); return originalSetTimeout(() => {}, 3000); }
+        return originalSetTimeout(callback, milliseconds, ...args);
+    });
+    const staging = f.adapter.stageChargingSetting('socLimit', MAX_TARGET_SOC); await writing.promise;
+    let callbackCount = 0; const unload = f.adapter.onUnload(() => { callbackCount++; });
+    await timerStarted.promise; expire(); await unload;
+    assert.equal(callbackCount, 1); assert.equal(f.records.leases[0].closed, 1);
+    mocked.mock.restore(); save.resolve(); await staging;
 });
 
 test('unload aborts operations, cancels controller, stops runtime and releases lease even when cleanup throws', async t => {

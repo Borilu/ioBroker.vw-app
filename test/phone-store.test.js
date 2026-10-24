@@ -234,17 +234,79 @@ test('lock screen, absent focus, and any foreign focused app prevent all gesture
 });
 
 test('launcher resolution permits only the fixed package and argv has no shell interpolation', async () => {
-    const { phone, runtime } = makePhone();
+    const otherFocus = 'mCurrentFocus=Window{18ab u0 com.android.launcher/.Home}\n';
+    let focusReads=0;
+    const { phone, runtime } = makePhone({ handler: args => args.slice(2).join(' ') === 'shell dumpsys window' && focusReads++===0 ? otherFocus : undefined });
     await phone.launch();
     assert.deepEqual(deviceCommands(runtime), [
         ['shell', 'input', 'keyevent', 'KEYCODE_WAKEUP'],
+        ['shell', 'dumpsys', 'window'],
         ['shell', 'cmd', 'package', 'resolve-activity', '--brief', '-a', 'android.intent.action.MAIN', '-c', 'android.intent.category.LAUNCHER', PACKAGE],
-        ['shell', 'am', 'start', '-W', '-n', PACKAGE + '/.MainActivity'],
+        ['shell', 'am', 'start', '-W', '--activity-reorder-to-front', '--activity-single-top', '-n', PACKAGE + '/.MainActivity'],
+        ['shell', 'dumpsys', 'window'],
     ]);
     for (const component of ['com.android.settings/.Settings', PACKAGE + '/.MainActivity;id', PACKAGE + '/.One\n' + PACKAGE + '/.Two']) {
-        const bad = makePhone({ handler: args => args.includes('resolve-activity') ? component : undefined });
+        const bad = makePhone({ handler: args => args.slice(2).join(' ') === 'shell dumpsys window' ? otherFocus : args.includes('resolve-activity') ? component : undefined });
         await rejectsCode('app_missing', bad.phone.launch());
         assert.ok(!deviceCommands(bad.runtime).some(args => args[1] === 'am'));
+    }
+});
+
+test('launcher waits for focus transition without launching twice and stops if focus never changes', async()=>{
+    let focusReads=0;
+    const otherFocus='mCurrentFocus=Window{18ab u0 com.android.launcher/.Home}\n';
+    const delayed=makePhone({handler:args=>args.slice(2).join(' ')==='shell dumpsys window' && focusReads++<2 ? otherFocus : undefined});
+    await delayed.phone.launch();
+    assert.equal(deviceCommands(delayed.runtime).filter(args=>args[1]==='am').length,1);
+    assert.equal(focusReads,3);
+    const blocked=makePhone({handler:args=>args.slice(2).join(' ')==='shell dumpsys window' ? otherFocus : undefined});
+    await rejectsCode('phone_locked_or_other_app',blocked.phone.launch());
+    assert.equal(deviceCommands(blocked.runtime).filter(args=>args[1]==='am').length,1);
+    assert.equal(deviceCommands(blocked.runtime).filter(args=>args.slice(0,3).join(' ')==='shell dumpsys window').length,6);
+});
+
+test('launch preserves an already visible VW screen without replacing its manual draft', async () => {
+    const { phone, runtime } = makePhone();
+    await phone.launch();
+    assert.deepEqual(deviceCommands(runtime), [['shell', 'input', 'keyevent', 'KEYCODE_WAKEUP'], ['shell', 'dumpsys', 'window']]);
+});
+
+test('launch does not treat a failed focus read as permission to open another Activity', async () => {
+    const { phone, runtime } = makePhone({ handler: args => {
+        if (args.slice(2).join(' ') === 'shell dumpsys window') throw new BridgeError('adb_command_failed', 'Focus failed.');
+    } });
+    await rejectsCode('adb_command_failed', phone.launch());
+    assert.ok(!deviceCommands(runtime).some(args => args[1] === 'am'));
+});
+
+test('bounded swipes validate coordinates and recheck focus before sending input', async () => {
+    const { phone, runtime } = makePhone();
+    for (const gesture of [{}, {x1:1,y1:2,x2:1,y2:2}, {x1:1,y1:2,x2:3,y2:4,durationMs:0}, {x1:-1,y1:2,x2:3,y2:4}, {x1:1,y1:2,x2:3,y2:Infinity}]) {
+        await rejectsCode('invalid_target', phone.swipe(gesture));
+    }
+    assert.equal(runtime.calls.length, 0);
+    await phone.swipe({x1:50,y1:1000,x2:50,y2:300,durationMs:400});
+    assert.deepEqual(deviceCommands(runtime), [['shell','dumpsys','window'], ['shell','input','swipe','50','1000','50','300','400']]);
+});
+
+test('native view returns only the current VW tree and lifecycle flags, excluding other tasks and app saved state', async () => {
+    const native = '  ACTIVITY other.app/.Other aaaa pid=10\nSECRET_OTHER_TASK\n'
+        + '  ACTIVITY '+PACKAGE+'/.SingleActivity bbbb pid=20\n    Local Activity State:\n      mResumed=true mStopped=false mFinished=false\n      SECRET_SAVED_STATE\n'
+        + '    View Hierarchy:\n      DecorView@aaaa[SingleActivity]\n        android.widget.LinearLayout{aaaa V.E...... ........ 0,0-1000,2000}\n'
+        + '    Looper data:\nSECRET_INTERNAL_LOG\n';
+    const {phone}=makePhone({handler:args=>args.slice(2).join(' ')==='shell dumpsys activity top'?native:undefined});
+    const result=await phone.nativeView();
+    assert.ok(result.startsWith('  ACTIVITY '+PACKAGE+'/.SingleActivity'));
+    assert.ok(result.includes('mResumed=true mStopped=false mFinished=false'));
+    assert.ok(result.includes('View Hierarchy:'));
+    assert.ok(!result.includes('SECRET')); assert.ok(!result.includes('other.app'));
+});
+
+test('native view ambiguity and missing lifecycle metadata fail with fixed diagnostics', async () => {
+    const prefix='  ACTIVITY '+PACKAGE+'/.SingleActivity bbbb pid=20\n';
+    for (const native of ['SECRET',prefix+'    View Hierarchy:\n      DecorView@aaaa[SingleActivity]\n',prefix+prefix]) {
+        const {phone}=makePhone({handler:args=>args.slice(2).join(' ')==='shell dumpsys activity top'?native:undefined});
+        await rejectsCode('native_ui_unavailable',phone.nativeView());
     }
 });
 

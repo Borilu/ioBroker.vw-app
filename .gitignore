@@ -12,5 +12,6 @@ enrollment.json
 command-journal.json
 temperature-preference.json
 settings-preference.json
+charging-preference.json
 *.log
 .DS_Store

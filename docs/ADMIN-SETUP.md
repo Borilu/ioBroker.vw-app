@@ -33,11 +33,11 @@ Nach einem Update der Volkswagen-App die Ansicht erneut prüfen und die Übernah
 
 ## 4. Betrieb freigeben
 
-Zunächst eine Statusabfrage durchführen und deren Rückmeldung mit der Volkswagen-App vergleichen. Danach bei Bedarf **Klimatisierung über ioBroker starten und stoppen erlauben** aktivieren und speichern. Die Einrichtungsschaltflächen selbst führen keinen Klimatisierungsstart oder -stopp aus.
+Zunächst die Klima- und Ladezustände abfragen und deren Rückmeldungen mit der Volkswagen-App vergleichen. Danach bei Bedarf **Klimastart, Stopp und Änderungen der Fahrzeugeinstellungen erlauben** aktivieren und speichern. Diese Freigabe gilt auch für Änderungen der Ladeeinstellungen. Ohne Freigabe sind lesende Abfragen und das Speichern von Wünschen möglich; tatsächliche Änderungen in der App bleiben gesperrt. Die Einrichtungsschaltflächen selbst führen keinen Klimatisierungsstart oder -stopp aus.
 
 **Beim Laden wachhalten jetzt aktivieren** ändert auf ausdrücklichen Klick die entsprechende Android-Einstellung. Die zusätzliche dauerhafte Option erlaubt dem Adapter, diese Einstellung bei späteren Verbindungen anzuwenden. Eine vorhandene Bildschirmsperre muss weiterhin am Handy entsperrt werden.
 
-Automatische Statusabfragen sind zunächst ausgeschaltet (`0`). Wenn gewünscht, ein Intervall von mindestens 300 Sekunden einstellen. Jede Statusabfrage bedient beziehungsweise öffnet die App; sie stellt keine passive Cloud-Abfrage dar. Der angezeigte Klimazustand stammt aus der App und bestätigt nicht unabhängig den Fahrzeugzustand.
+Automatische Statusabfragen sind zunächst ausgeschaltet (`pollIntervalSeconds=0`). Wenn gewünscht, ein Intervall von mindestens 300 Sekunden einstellen. Ein Durchlauf liest zuerst den Klimastatus und anschließend Batterie und Ladeeinstellungen, sofern das Handy zwischen den Aufträgen weiterhin frei ist. Übernimmt zwischenzeitlich ein anderer Auftrag das Handy, wird die zusätzliche Ladeabfrage nicht dahinter eingereiht. Automatische Abfragen lösen keine Synchronisationsanfrage aus. `commands.refresh` bleibt eine reine Klimaabfrage; Batterie und Ladeeinstellungen können weiterhin getrennt mit `commands.refreshCharging` gelesen werden. Jede Abfrage bedient beziehungsweise öffnet die App; sie stellt keine passive Cloud-Abfrage dar. Die angezeigten Werte stammen aus der App und bestätigen nicht unabhängig den Fahrzeugzustand.
 
 Die Rückmeldung der Volkswagen-App kann nach einem Start verzögert eintreffen. Neue Instanzen warten nach einem Schaltversuch standardmäßig bis zu **120 Sekunden** auf die App-Bestätigung. In den Experteneinstellungen lässt sich die **Wartezeit auf Bestätigung in der App** zwischen 30 und 150 Sekunden wählen. Das **Zeitlimit je Auftrag** beträgt standardmäßig 300 Sekunden und umfasst Verbindung, Navigation, Temperaturwahl und Bestätigung zusammen. Ein kleineres oder bereits weitgehend verbrauchtes Gesamtlimit beendet die Wartezeit früher.
 
@@ -91,6 +91,45 @@ Der nur lesbare Rückmeldepunkt `climate.zones` kann außerdem `none` melden: In
 Die Referenz-App kann beim erneuten Öffnen der Fahrzeugübersicht oder Einstellungen wieder Klimatisierung anzeigen. Der gespeicherte Moduswunsch des Adapters bleibt erhalten. Der Adapter speichert und prüft zuerst die übrigen Einstellungen und wählt danach den gewünschten Modus für den Auftrag. `climate.mode` beschreibt die aktuelle App-Ansicht und keine unabhängige Fahrzeugmessung.
 
 Version 0.3.0 bestand 220 automatisierte Tests auf Linux. Auf dem Galaxy A31 wurden beide Modi, beide Stellungen der Automatikschalter, alle drei Zonenauswahlen sowie Speichern, erneutes Auslesen und ein gemeinsamer Auftrag mit allen vier Wünschen geprüft. Die Wünsche blieben nach einem Adapterneustart erhalten und konnten anschließend gelöscht werden. Die ursprünglichen App-Werte wurden wiederhergestellt; die Klimatisierung blieb aus. Die Verbindung zum Startablauf ist durch Regressionstests abgedeckt; ein zusätzlicher physischer Klimastart wurde für diese Einstellungsprüfung nicht ausgelöst.
+
+## 7. Batterie und Ladeeinstellungen
+
+`commands.refreshCharging` mit `true` und `ack=false` liest die in der App angezeigten beziehungsweise zwischengespeicherten Batterie- und Ladeinformationen, ohne Ladeeinstellungen zu ändern oder ausdrücklich eine Fahrzeugsynchronisation anzufordern. `battery.soc` enthält den Ladezustand in Prozent, `battery.rangeKm` die Restreichweite in Kilometern. Der Prozentwert wird aus den Reichweitendetails gelesen. Als Rückfall kann die Fahrzeugübersicht nur eine eindeutig mit km bezeichnete Reichweite liefern; aus ihr wird kein Ladezustand geschätzt. Ein nicht lesbarer Wert ist `null` mit ungültiger Qualität.
+
+`battery.observedAt` nennt den Zeitpunkt, zu dem der Adapter diese Werte aus der App gelesen hat. Das ist **kein Fahrzeugtelemetrie-Zeitstempel** und sagt nicht, wann das Fahrzeug die Werte gemessen oder übertragen hat. Die App kann ältere Werte anzeigen. Die Zeit der letzten Klimaabfrage steht weiterhin getrennt in `operation.lastUpdated`.
+
+**`commands.synchronize`** mit `true` und `ack=false` fordert ausdrücklich eine Synchronisation über die Volkswagen-App an. Der Adapter betätigt den eindeutig erkannten Link **Jetzt synchronisieren** einmal. Der anschließend deaktivierte Link bestätigt nur die angenommene Anfrage. Anschließend liest der Adapter Batterie und Ladeeinstellungen erneut aus der App; die Werte können weiterhin aus deren Zwischenspeicher stammen.
+
+Die App weist darauf hin, dass die Synchronisation einige Minuten dauern kann. Der Auftrag wartet nicht automatisch auf nachweislich neue Fahrzeugwerte und meldet keine abgeschlossene Fahrzeugsynchronisation. Bei Bedarf später erneut `commands.refreshCharging` auslösen und den App-Stand prüfen. Normale Abfragen und automatisches Polling betätigen **Jetzt synchronisieren** nicht.
+
+Für `commands.synchronize` ist die Freigabe für Änderungen der Fahrzeugeinstellungen nicht erforderlich. Der Auftrag übernimmt keine vorgemerkten Wünsche und wartet nicht auf deren Speicherwarteschlangen. Die Regel, dass am Handy höchstens ein Auftrag gleichzeitig läuft, gilt weiterhin.
+
+Der nur lesbare Datenpunkt `battery.lastSyncRequestAt` heißt **Letzte an die App gesendete Synchronisationsanfrage**. Er speichert einen ISO-Zeitpunkt und wird nur bei einem gültigen neuen Anfragetimestamp aktualisiert. Eine Abfrage ohne gültigen neuen Anfragetimestamp erhält den bisherigen Verlauf. Dieser Wert bezeichnet die Anfrage an die App, während `battery.observedAt` die Auslesezeit bezeichnet. Beide sind kein Beleg für den Zeitpunkt einer Fahrzeugmessung oder eine abgeschlossene Synchronisation.
+
+Die folgenden vier Wünsche werden mit `ack=false` geschrieben. `ack=true` bestätigt nur die private Speicherung; die Auswahl allein bedient das Handy nicht. Die Wünsche bleiben nach einem Adapterneustart erhalten. `null` behält die betreffende App-Einstellung bei, ein echtes Boolean `false` schaltet eine Option ausdrücklich aus.
+
+| Vorgemerkter Wunsch | Erlaubte Werte | Getrennte App-Rückmeldung |
+| --- | --- | --- |
+| `charging.targetSoc` | `null` oder numerisch `50`, `60`, `70`, `80`, `90`, `100` % | `charging.socLimit` |
+| `charging.targetReducedAcCurrent` | `null`, `true`, `false` | `charging.reducedAcCurrent` |
+| `charging.targetAutoUnlockAc` | `null`, `true`, `false` | `charging.autoUnlockAc` |
+| `charging.targetOptimizedBatteryUse` | `null`, `true`, `false` | `charging.optimizedBatteryUse` |
+
+Die geprüften Positionen des Ladegrenzen-Reglers liegen bei **50 bis 100 % in 10-%-Schritten**. Zwischenwerte wie `55`, Zahlen als Text wie `"80"` und Schalterwerte als Text wie `"false"` werden abgewiesen. Ungültige Eingaben oder fehlgeschlagene Speicherungen stellen den letzten akzeptierten Wert wieder her und nennen das betroffene Feld in `charging.targetSettingsError`.
+
+**`commands.applyChargingSettings`** mit `true` und `ack=false` übernimmt nur diese vier Ladewünsche. Mindestens ein Wunsch und die Freigabe für Änderungen der Fahrzeugeinstellungen sind erforderlich. Der Adapter berechnet den Ladegrenzen-Tipp aus der frisch gelesenen nativen Reglergeometrie und prüft den exakt angezeigten Zielwert. Wird **Speichern** angeboten, betätigt er die Schaltfläche einmal und öffnet die Einstellungen erneut, um die gespeicherten Werte zu prüfen. Erst danach wird Erfolg gemeldet.
+
+Ein vorher bereits offener, manuell geänderter Einstellungsentwurf wird weder gespeichert noch verworfen. Die Änderungen zuerst direkt am Handy ausdrücklich speichern oder verwerfen und den Unterdialog verlassen. Der Adapter verwendet eine bereits sichtbare Volkswagen-Ansicht weiter, damit ein offener Entwurf nicht durch einen neuen App-Aufruf umgangen wird.
+
+Nach einem Auswahlfehler ist ein neuer Ladeeinstellungsauftrag mit `charging_selection_failed` gesperrt. Genau das betroffene Feld erneut gültig auswählen oder **`commands.clearChargingSettings`** betätigen. Eine erfolgreiche Änderung eines anderen Feldes löscht den Fehler nicht. Der Knopf setzt ausschließlich die vier Ladewünsche atomar auf `null`, ohne das Handy zu bedienen; die Klima- und Temperaturwünsche bleiben erhalten.
+
+Ladewünsche haben eine eigene Speicherwarteschlange. Nur die Übernahme der Ladeeinstellungen wartet auf vorangegangene Ladewünsche. Klimaaufträge und Ladeabfragen warten nicht auf eine laufende Speicherung der Ladewünsche; umgekehrt wartet ein Ladeeinstellungsauftrag nicht auf Temperatur- oder Klimawünsche. Am Handy läuft weiterhin höchstens ein Auftrag gleichzeitig. Ein angenommener Auftrag behält seinen ursprünglichen Schnappschuss; spätere Auswahlen gelten für den nächsten Auftrag. Auswahlfehler überschreiben keine Rückmeldung eines gleichzeitig laufenden Handyauftrags.
+
+Ladeabfragen und Ladefehler verändern keine Klimarückmeldungen. Klimaabfragen und Klimafehler verändern ebenso wenig die Batterie- und Laderückmeldungen. Der Adapter bietet **keine Lade-Start/Stopp-Funktion**; die Ladebefehle starten oder stoppen auch keine Klimatisierung.
+
+**Optimierte Batterienutzung** bedeutet laut App, dass die Hochvoltbatterie für Fernbedienungsfunktionen der App verwendet werden kann. Das kann die Reichweite beeinflussen. Die Option ist keine automatische 80-%-Batteriepflegebegrenzung. Außerdem weist die App darauf hin, dass die eingestellte Ladegrenze nicht an festgelegten Ladeorten gilt. Die Erläuterungen für das ausgewählte Fahrzeug direkt in der App beachten.
+
+Version 0.4.0 bestand **332 automatisierte Tests auf Linux**. Die Liveprüfung las Ladezustand und km-Reichweite aus der echten App, speicherte die Ladegrenzen 50 und 100 % und bestätigte sie nach erneutem Öffnen. Alle drei Schalter wurden in beiden Stellungen geprüft. Die Ladewünsche blieben nach einem Adapterneustart erhalten. Anschließend wurden die ursprünglichen App-Einstellungen wiederhergestellt und alle vier Wünsche gelöscht; die Klimatisierung blieb ausgeschaltet und unverändert. Die Liveprüfung von `commands.synchronize` löste genau eine Anfrage aus, bestätigte den deaktivierten App-Link, setzte `battery.lastSyncRequestAt` und las anschließend Batterie- und Ladewerte, ohne Einstellungen zu ändern. Damit ist die Anfrage an die App bestätigt; ein abgeschlossener Abgleich mit dem Fahrzeug wurde nicht nachgewiesen. Die neuen Batterie- und Ladefunktionen wurden bislang ausschließlich mit der **deutschen Volkswagen-App 4.8.1 auf einem Galaxy A31 mit Android 12** geprüft.
 
 ## Schnittstelle der Einrichtungsschaltflächen
 
