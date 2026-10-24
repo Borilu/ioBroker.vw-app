@@ -131,6 +131,48 @@ Ladeabfragen und Ladefehler verändern keine Klimarückmeldungen. Klimaabfragen 
 
 Version 0.4.0 bestand **332 automatisierte Tests auf Linux**. Die Liveprüfung las Ladezustand und km-Reichweite aus der echten App, speicherte die Ladegrenzen 50 und 100 % und bestätigte sie nach erneutem Öffnen. Alle drei Schalter wurden in beiden Stellungen geprüft. Die Ladewünsche blieben nach einem Adapterneustart erhalten. Anschließend wurden die ursprünglichen App-Einstellungen wiederhergestellt und alle vier Wünsche gelöscht; die Klimatisierung blieb ausgeschaltet und unverändert. Die Liveprüfung von `commands.synchronize` löste genau eine Anfrage aus, bestätigte den deaktivierten App-Link, setzte `battery.lastSyncRequestAt` und las anschließend Batterie- und Ladewerte, ohne Einstellungen zu ändern. Damit ist die Anfrage an die App bestätigt; ein abgeschlossener Abgleich mit dem Fahrzeug wurde nicht nachgewiesen. Die neuen Batterie- und Ladefunktionen wurden bislang ausschließlich mit der **deutschen Volkswagen-App 4.8.1 auf einem Galaxy A31 mit Android 12** geprüft.
 
+## 8. Fahrzeugzustandsbericht lesen
+
+**`commands.refreshVehicleReport`** mit `true` und `ack=false` liest das Menü **Fahrzeugzustandsbericht** der Volkswagen-App. Der Knopf wird automatisch zurückgesetzt. Er ist der einzige Bedienpunkt für den Bericht; alle Datenpunkte unter `vehicleReport` sind ausschließlich lesbar. Es gibt keine Wunschwerte und keinen Übernehmen-, Speichern-, Schalt- oder Synchronisationsauftrag für den Bericht. Die Freigabe für Änderungen der Fahrzeugeinstellungen ist nicht nötig; das geprüfte Handy und das kalibrierte App-/Fahrzeugprofil bleiben erforderlich.
+
+Der Bericht wird nur auf Anforderung gelesen. Das bestehende Klima-/Lade-Polling bleibt unverändert; `commands.refresh` liest weiterhin nur den Klimastatus. Ein Berichtauftrag wartet nicht auf das Speichern von Klima-, Temperatur- oder Ladewünschen. Am Handy kann weiterhin nur ein Auftrag gleichzeitig laufen.
+
+Alle folgenden Datenpunkte liegen unter `vw-app.0`:
+
+| Datenpunkt | Bedeutung |
+| --- | --- |
+| `vehicleReport.odometerText` | Kilometerstand als App-Text |
+| `vehicleReport.odometerKm` | Eindeutig abgeleiteter Kilometerstand in km; sonst `null` mit ungültiger Qualität |
+| `vehicleReport.nextServiceText` | Serviceangabe als App-Text |
+| `vehicleReport.nextServiceDays` | Eindeutig abgeleitete Servicefrist in Tagen; sonst `null` mit ungültiger Qualität |
+| `vehicleReport.nextServiceKm` | Eindeutig abgeleitete Servicefrist in km; sonst `null` mit ungültiger Qualität |
+| `vehicleReport.summary` | Zusammenfassung aus der App |
+| `vehicleReport.hasMessages` | Aus einer erkannten Zusammenfassung abgeleitete Meldungsangabe; sonst `null` mit ungültiger Qualität |
+| `vehicleReport.messageCount` | Eindeutig abgeleitete Meldungsanzahl; sonst `null` mit ungültiger Qualität |
+| `vehicleReport.synchronizationText` | Unveränderter Synchronisationshinweis im App-Bericht |
+| `vehicleReport.notice` | Hinweistext des Berichts |
+| `vehicleReport.additionalTexts` | Zusätzliche gelesene Berichttexte als JSON-Array-Zeichenfolge |
+| `vehicleReport.json` | Vollständiger normalisierter Bericht als JSON-Zeichenfolge |
+| `vehicleReport.observedAt` | ISO-Zeitpunkt, zu dem der Adapter den Bericht aus der App gelesen hat |
+
+Zu jeder Kategorie gibt es `vehicleReport.<Kategorie>.status` und `vehicleReport.<Kategorie>.texts`. `texts` enthält eine JSON-Array-Zeichenfolge mit den gelesenen Kategorietexten.
+
+| Kategorie im Datenpunkt | Bezeichnung in der App |
+| --- | --- |
+| `engine` | Antrieb |
+| `assistance` | Assistenten |
+| `brakes` | Bremsen |
+| `lighting` | Fahrlicht |
+| `comfort` | Komfort |
+| `tires` | Reifen |
+| `other` | Sonstige |
+
+`no_messages` bedeutet ausschließlich, dass die App für diese Kategorie keine Meldungen anzeigt. Das ist keine Diagnose und keine unabhängige Bestätigung eines gesunden Fahrzeugzustands. Unbekannte Texte bleiben erhalten und werden mit `unknown` dargestellt. Aus namenlosen Symbolen werden weder Farben noch Warnstufen erfunden. Spätere Warnkonstellationen sind noch nicht live geprüft und werden deshalb nicht als bestätigte Interpretation ausgegeben.
+
+Der rohe App-Hinweis in `vehicleReport.synchronizationText` ist von der Auslesezeit `vehicleReport.observedAt` zu unterscheiden. Beide lösen keine Synchronisierung aus und belegen nicht unabhängig den Messzeitpunkt am Fahrzeug. Kann der vollständige Bericht nicht sicher gelesen oder validiert werden, werden nur die Berichtswerte geleert und als ungültig markiert; Klima- und Laderückmeldungen bleiben erhalten.
+
+Version 0.5.0 bestand **391 automatisierte Tests auf Linux**. Echte obere und untere Berichtsansichten wurden zusätzlich lokal zu einem vollständigen validierten Modell zusammengeführt. Zwei Liveabfragen auf einem **Galaxy A31 mit Android 12 und deutscher Volkswagen-App 4.8.1** erfassten Kilometerstand, Serviceangabe, Zusammenfassung, Synchronisationshinweis, alle sieben Kategorien, Fußzeile und normalisiertes JSON korrekt; die zweite Abfrage erneuerte `observedAt`. Alle 27 tatsächlichen ioBroker-Berichtsobjekte wurden auf reinen Lesezugriff geprüft, übereinstimmend mit den automatisierten Schematests. Bei beiden Abfragen blieben 23 überwachte Klima-, Lade-, Wunsch- und Synchronisationsanfragewerte exakt unverändert. Es wurde weder eine Fahrzeugaktion noch Speichern oder Synchronisieren ausgelöst; die Klimatisierung blieb ausgeschaltet. Aktive Warnkonstellationen wurden weder erzeugt noch live geprüft.
+
 ## Schnittstelle der Einrichtungsschaltflächen
 
 Alle Aktionen gehen über die ioBroker-Messagebox an die konfigurierte Instanz. Es werden keine beliebigen Shell-Kommandos oder Skripte aus der Oberfläche übertragen.
