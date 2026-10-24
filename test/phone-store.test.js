@@ -94,19 +94,42 @@ test('numeric configuration rejects booleans, NaN, out-of-range and non-decimal 
         throwsCode('invalid_config', () => normalizeConfig({ connectPort: value }));
     }
     for (const config of [{ allowWrites: 'true' }, { useBundledAdb: 1 }, { stayAwakeOnCharge: 'false' },
-        { commandTimeoutSeconds: true }, { cooldownSeconds: NaN }, { pollIntervalSeconds: 299 },
+        { commandTimeoutSeconds: true }, { outcomeTimeoutSeconds: true }, { outcomeTimeoutSeconds: 29 },
+        { outcomeTimeoutSeconds: 151 }, { outcomeTimeoutSeconds: '120\n' },
+        { cooldownSeconds: NaN }, { pollIntervalSeconds: 299 },
         { legacyStatePrefix: 'system.adapter.vw-app.0' }, { modeTitles: ' | ' }]) {
         throwsCode('invalid_config', () => normalizeConfig(config));
     }
 });
 
+test('confirmation wait defaults and bounds allow a shorter overall deadline without extending it', () => {
+    const defaults = normalizeConfig();
+    assert.equal(defaults.commandTimeoutSeconds, 180);
+    assert.equal(defaults.outcomeTimeoutSeconds, 120);
+    for (const outcomeTimeoutSeconds of [30, 150, '120']) {
+        assert.equal(normalizeConfig({ outcomeTimeoutSeconds }).outcomeTimeoutSeconds, Number(outcomeTimeoutSeconds));
+    }
+    const shorter = normalizeConfig({ commandTimeoutSeconds: 60, outcomeTimeoutSeconds: 150 });
+    assert.equal(shorter.commandTimeoutSeconds, 60);
+    assert.equal(shorter.outcomeTimeoutSeconds, 150);
+    const native = require('../io-package.json').native;
+    const admin = require('../admin/jsonConfig.json').items;
+    for (const key of ['commandTimeoutSeconds', 'outcomeTimeoutSeconds']) {
+        assert.equal(native[key], defaults[key]);
+        assert.equal(admin[key].default, defaults[key]);
+    }
+    assert.equal(admin.outcomeTimeoutSeconds.min, 30);
+    assert.equal(admin.outcomeTimeoutSeconds.max, 150);
+});
+
 test('configuration preserves the complete vehicle prefix and its trailing delimiter', () => {
     const marker = 'Ihr Fahrzeug: ID.7 GTX Tourer. ';
     const cfg = normalizeConfig({ hostIp: '192.0.2.14', connectPort: '37123', vehicleMarker: marker,
-        commandTimeoutSeconds: '125', cooldownSeconds: '60', modeTitles: ' Klimatisierung | Air conditioning ' });
+        commandTimeoutSeconds: '125', outcomeTimeoutSeconds: '90', cooldownSeconds: '60', modeTitles: ' Klimatisierung | Air conditioning ' });
     assert.equal(cfg.vehicleMarker, marker);
     assert.equal(cfg.connectPort, 37123);
     assert.equal(cfg.commandTimeoutSeconds, 125);
+    assert.equal(cfg.outcomeTimeoutSeconds, 90);
     assert.equal(cfg.cooldownSeconds, 60);
     assert.deepEqual(cfg.modeTitles, ['Klimatisierung', 'Air conditioning']);
     assert.equal(cfg.allowWrites, false);

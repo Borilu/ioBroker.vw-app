@@ -61,6 +61,93 @@ test('climate state requires exactly one visible anchor and one unambiguous CTA'
     code('unknown_state', () => new Screen(climate('cta_start', [], {}, { 'visible-to-user': 'false' })).climateState());
 });
 
+test('overview evidence uses the exact observed on-description inside the climate tile', () => {
+    const xml = hierarchy([node('climateTile', {}, [
+        node('', { 'content-desc': 'Vorklimatisierung. An. Details öffnen' }),
+        node('', { class: 'android.widget.Button', 'content-desc': '' }),
+    ])]);
+    assert.deepEqual(new Screen(xml).overviewClimateEvidence(), { appState: 'on', confirmationSource: 'app_overview' });
+});
+
+test('overview evidence never borrows descriptions from other tiles or outside the climate tile', () => {
+    const on = node('', { 'content-desc': 'Vorklimatisierung. An. Details öffnen' });
+    for (const children of [[on], [node('otherTile', {}, [on])], [node('climateTile'), on],
+        [node('climateTile'), node('otherTile', {}, [on])]]) {
+        assert.equal(new Screen(hierarchy(children)).overviewClimateEvidence(), null);
+    }
+    const ownOn = node('climateTile', {}, [on]);
+    const unrelated = node('otherTile', {}, [node('', { 'content-desc': 'Vorklimatisierung. Anderer Modus.' })]);
+    assert.deepEqual(new Screen(hierarchy([ownOn, unrelated])).overviewClimateEvidence(), { appState: 'on', confirmationSource: 'app_overview' });
+});
+
+test('overview evidence needs visible positive bounds on the tile and its description', () => {
+    for (const attrs of [{ 'visible-to-user': 'false' }, { bounds: '[0,0][0,0]' }, { bounds: 'invalid' }]) {
+        const label = node('', { 'content-desc': 'Vorklimatisierung. An. Details öffnen' });
+        assert.equal(new Screen(hierarchy([node('climateTile', attrs, [label])])).overviewClimateEvidence(), null);
+        const invalidLabel = node('', { 'content-desc': 'Vorklimatisierung. An. Details öffnen', ...attrs });
+        assert.equal(new Screen(hierarchy([node('climateTile', {}, [invalidLabel])])).overviewClimateEvidence(), null);
+    }
+    const hiddenAncestor = node('', { 'visible-to-user': 'false' }, [node('', { 'content-desc': 'Vorklimatisierung. An. Details öffnen' })]);
+    assert.equal(new Screen(hierarchy([node('climateTile', {}, [hiddenAncestor])])).overviewClimateEvidence(), null);
+});
+
+test('overview evidence ignores foreign packages and unrelated resource IDs', () => {
+    const label = node('', { 'content-desc': 'Vorklimatisierung. An. Details öffnen' });
+    const foreignTile = node('climateTile', { package: 'com.android.settings' }, [label]);
+    assert.equal(new Screen(hierarchy([foreignTile])).overviewClimateEvidence(), null);
+    const foreignLabel = node('', { package: 'com.android.settings', 'content-desc': 'Vorklimatisierung. An. Details öffnen' });
+    assert.equal(new Screen(hierarchy([node('climateTile', {}, [foreignLabel])])).overviewClimateEvidence(), null);
+    assert.equal(new Screen(hierarchy([node('other.package:id/climateTile', {}, [label])])).overviewClimateEvidence(), null);
+});
+
+test('overview evidence refuses duplicate visible tiles, duplicate on-labels, and competing descriptions', () => {
+    const label = node('', { 'content-desc': 'Vorklimatisierung. An. Details öffnen' });
+    code('unknown_state', () => new Screen(hierarchy([node('climateTile', {}, [label]), node('climateTile')])).overviewClimateEvidence());
+    code('unknown_state', () => new Screen(hierarchy([node('climateTile', {}, [label, label])])).overviewClimateEvidence());
+    for (const description of ['Vorklimatisierung. Aus. Details öffnen', 'Vorklimatisierung. Anderer Modus.', 'Vorklimatisierung. An. Details öffnen ']) {
+        const competing = node('', { 'content-desc': description });
+        code('unknown_state', () => new Screen(hierarchy([node('climateTile', {}, [label, competing])])).overviewClimateEvidence());
+    }
+});
+
+test('overview evidence considers only visible valid candidates and does not infer minutes or other states', () => {
+    const label = node('', { 'content-desc': 'Vorklimatisierung. An. Details öffnen' });
+    const hiddenTile = node('climateTile', { 'visible-to-user': 'false' }, [label]);
+    const invalidTile = node('climateTile', { bounds: '[0,0][0,0]' }, [label]);
+    const hiddenLabel = node('', { 'visible-to-user': 'false', 'content-desc': 'Vorklimatisierung. An. Details öffnen' });
+    assert.deepEqual(new Screen(hierarchy([node('climateTile', {}, [label, hiddenLabel]), hiddenTile, invalidTile])).overviewClimateEvidence(),
+        { appState: 'on', confirmationSource: 'app_overview' });
+    for (const description of ['30 Minuten', 'Restzeit: 30 Minuten', 'Preconditioning. On. Open details']) {
+        const unknown = node('', { 'content-desc': description });
+        assert.equal(new Screen(hierarchy([node('climateTile', {}, [unknown])])).overviewClimateEvidence(), null);
+    }
+    const minutes = node('', { text: '30 Minuten' });
+    assert.deepEqual(new Screen(hierarchy([node('climateTile', {}, [label, minutes])])).overviewClimateEvidence(),
+        { appState: 'on', confirmationSource: 'app_overview' });
+});
+
+test('unrecognized preconditioning descriptions remain explicitly unknown and never mean off', () => {
+    for (const description of ['Vorklimatisierung. Aus. Details öffnen', 'Vorklimatisierung. An.',
+        'Vorklimatisierung. An. Details öffnen ', 'Vorklimatisierung. Wird gestartet.', 'Vorklimatisierung.']) {
+        const label = node('', { 'content-desc': description });
+        assert.deepEqual(new Screen(hierarchy([node('climateTile', {}, [label])])).overviewClimateEvidence(),
+            { appState: 'unknown', confirmationSource: 'none' });
+    }
+});
+
+test('unknown preconditioning descriptions must also belong to a visible valid VW tile descendant', () => {
+    const unknown = { 'content-desc': 'Vorklimatisierung. Aus. Details öffnen' };
+    for (const children of [
+        [node('climateTile'), node('', unknown)],
+        [node('otherTile', {}, [node('', unknown)])],
+        [node('climateTile', {}, [node('', { ...unknown, package: 'com.android.settings' })])],
+        [node('climateTile', {}, [node('', { ...unknown, 'visible-to-user': 'false' })])],
+        [node('climateTile', {}, [node('', { ...unknown, bounds: '[0,0][0,0]' })])],
+    ]) {
+        assert.equal(new Screen(hierarchy(children)).overviewClimateEvidence(), null);
+    }
+});
+
 test('disabled dialogs, popup identifiers, and foreign foreground applications block gestures', () => {
     for (const attrs of [{ class: 'android.app.Dialog' }, { class: 'androidx.compose.ui.window.Dialog' },
         { 'resource-id': 'android:id/alertTitle' }, { 'resource-id': 'my_popup', enabled: 'false' },

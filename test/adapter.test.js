@@ -25,9 +25,10 @@ function xmlNode(id = '', attrs = {}, children = []) {
         + '>' + children.join('') + '</node>';
 }
 
-function overview(description = VEHICLE + 'Gerade synchronisiert') {
+function overview(description = VEHICLE + 'Gerade synchronisiert', activeClimate = false) {
     return '<hierarchy>' + xmlNode('', { 'content-desc': description })
-        + xmlNode('climateTile', { bounds: '[10,100][110,160]' }) + '</hierarchy>';
+        + xmlNode('climateTile', { bounds: '[10,100][110,160]' }, activeClimate
+            ? [xmlNode('', { 'content-desc': 'Vorklimatisierung. An. Details öffnen' })] : []) + '</hierarchy>';
 }
 
 function climate(state, mode = 'Klimatisierung', enabled = true) {
@@ -60,7 +61,7 @@ async function fixture(t, options = {}) {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), 'vw-app-adapter-test-'));
     const config = { hostIp: HOST, connectPort: PORT, approvedAppVersion: '', vehicleMarker: '',
         modeTitles: 'Klimatisierung|Air conditioning', allowWrites: false, useBundledAdb: true,
-        commandTimeoutSeconds: 125, cooldownSeconds: 60, pollIntervalSeconds: 0,
+        commandTimeoutSeconds: 180, outcomeTimeoutSeconds: 120, cooldownSeconds: 60, pollIntervalSeconds: 0,
         stayAwakeOnCharge: false, ...options.config };
     const memory = clone(options.enrollment ? { enrollment: options.enrollment } : {});
     const records = { runtime: [], phones: [], stores: [], leases: [], events: [] };
@@ -139,7 +140,7 @@ async function fixture(t, options = {}) {
         async back() { await this.invoke('back'); this.page = 'overview'; }
         async dump() {
             await this.invoke('dump');
-            return this.page === 'overview' ? overview(options.description)
+            return this.page === 'overview' ? overview(options.description, options.overviewEvidence && environment.appState === 'on')
                 : climate(environment.appState, options.mode, options.ctaEnabled !== false);
         }
         async tap(x, y) {
@@ -180,6 +181,7 @@ test('ready keeps an unconfigured instance alive with runtime_missing and never 
     assert.equal(f.value('info.runtimeReady'), false);
     assert.equal(f.value('info.status'), 'runtime_missing');
     assert.equal(f.value('operation.lastErrorCode'), 'runtime_missing');
+    assert.equal(f.value('climate.confirmationSource'), 'none');
     assert.equal(f.adapter.stopping, false);
     assert.equal(f.records.phones.length, 0);
     assert.deepEqual(f.records.runtime[0].calls, [['start']]);
@@ -202,9 +204,11 @@ test('state objects match their schema and quality wrappers remain flat on failu
         assert.equal(f.adapter.states.get(id).ack, true);
         assert.equal(typeof f.value(id), type);
     }
+    await f.adapter.observation({ appState: 'on', appVersion: '4.8.1', observedAt: new Date().toISOString(), confirmationSource: 'app_overview' });
     await f.adapter.failure(new Error('SECRET PHONE DUMP'));
     assert.deepEqual(f.adapter.states.get('climate.active'), { val: false, ack: true, q: 0x82 });
     assert.equal(f.value('climate.appState'), 'unknown');
+    assert.equal(f.value('climate.confirmationSource'), 'none');
     assert.equal(f.value('operation.lastUpdated'), '');
     assert.ok(!JSON.stringify(f.adapter.logs).includes('SECRET'));
 });
@@ -264,6 +268,7 @@ test('calibration recognizes Gerade synchronisiert and checks mode and clickable
     assert.deepEqual(response, { result: 'calibration_success', native: { approvedAppVersion: '4.8.1', vehicleMarker: VEHICLE }, saveConfig: true });
     assert.deepEqual(f.memory.enrollment, enrolled());
     assert.equal(f.value('climate.appState'), 'on');
+    assert.equal(f.value('climate.confirmationSource'), 'app_controls');
     assert.equal(f.value('climate.vehicleConfirmed'), false);
     assert.equal(f.ctas().length, 0);
     assert.equal(f.records.stores[0].reservations, 0);
@@ -281,6 +286,21 @@ test('calibration refuses unsafe modes, disabled CTA, or an app changing during 
         assert.equal(f.ctas().length, 0);
         assert.equal(f.value('climate.appState'), 'unknown');
     }
+});
+
+test('confirmation source distinguishes app overview evidence from controls without claiming vehicle telemetry or a timer', async t => {
+    const f = await fixture(t);
+    assert.equal(f.value('climate.confirmationSource'), 'none');
+    for (const confirmationSource of ['app_overview', 'app_controls']) {
+        await f.adapter.observation({ appState: 'on', appVersion: '4.8.1', confirmationSource, observedAt: '2026-10-24T15:00:00.000Z' });
+        assert.equal(f.value('climate.confirmationSource'), confirmationSource);
+        assert.equal(f.value('climate.appState'), 'on');
+        assert.equal(f.value('climate.vehicleConfirmed'), false);
+    }
+    await f.adapter.observation({ appState: 'off', appVersion: '4.8.1', observedAt: '2026-10-24T15:01:00.000Z' });
+    assert.equal(f.value('climate.confirmationSource'), 'app_controls');
+    assert.equal(f.value('climate.vehicleConfirmed'), false);
+    assert.equal(f.adapter.objects.has('climate.remainingMinutes'), false);
 });
 
 test('pair preserves all six code digits without echoing them to configuration, replies, states or logs', async t => {
@@ -337,13 +357,15 @@ test('wrong phone, changed version, unsafe mode and disabled writes block real c
 test('a start remains unknown until observed and competing requests never queue another gesture', async t => {
     const entered = deferred();
     const release = deferred();
-    const f = await fixture(t, { enrollment: enrolled(), config: { allowWrites: true }, hooks: {
+    const f = await fixture(t, { enrollment: enrolled(), overviewEvidence: true, config: { allowWrites: true, outcomeTimeoutSeconds: 90 }, hooks: {
         async tap(phone, x, y) { if (y === 330) { entered.resolve(); await release.promise; } },
     } });
     t.after(() => release.resolve());
     const operation = f.adapter.command('start');
     await entered.promise;
     assert.equal(f.value('operation.busy'), true);
+    assert.equal(f.adapter.controller.config.commandTimeoutSeconds, 180);
+    assert.equal(f.adapter.controller.config.outcomeTimeoutSeconds, 90);
     assert.equal(f.value('climate.appState'), 'unknown');
     assert.ok(!f.adapter.writes.some(row => row.id === 'climate.appState' && row.value.val === 'on'));
     await rejectsCode(f.adapter.command('stop'), 'busy');
@@ -351,7 +373,10 @@ test('a start remains unknown until observed and competing requests never queue 
     release.resolve();
     const result = await operation;
     assert.equal(result.appState, 'on');
+    assert.equal(result.confirmationSource, 'app_overview');
     assert.equal(f.value('climate.appState'), 'on');
+    assert.equal(f.value('climate.confirmationSource'), 'app_overview');
+    assert.equal(f.value('climate.vehicleConfirmed'), false);
     assert.deepEqual(f.adapter.states.get('climate.active'), { val: true, ack: true });
     assert.equal(f.value('operation.busy'), false);
     assert.equal(f.records.stores[0].reservations, 1);

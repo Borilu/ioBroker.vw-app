@@ -28,6 +28,13 @@ function climate(state = 'off', mode = 'Klimatisierung', ctaAttrs = {}) {
     ])]);
 }
 const OVERVIEW = overview();
+const RUNNING_OVERVIEW = hierarchy([
+    node('', { 'content-desc': VEHICLE + 'Gerade synchronisiert' }),
+    node('climateTile', { bounds: '[10,100][110,160]' }, [
+        node('', { 'content-desc': 'Vorklimatisierung. An. Details öffnen', bounds: '[10,100][110,160]' }),
+    ]),
+]);
+const PENDING_OVERVIEW = RUNNING_OVERVIEW.replace('Vorklimatisierung. An.', 'Vorklimatisierung. Aus.');
 const OFF = climate('off');
 const ON = climate('on');
 
@@ -67,8 +74,8 @@ function setup(screens = [OVERVIEW, OVERVIEW, OFF], overrides = {}) {
     const clock = { value: 1700000000000 };
     const config = {
         approvedAppVersion: '4.8.1', vehicleMarker: { contentDescPrefix: VEHICLE },
-        modeTitles: ['Klimatisierung'], allowWrites: true, commandTimeoutSeconds: 125,
-        cooldownSeconds: 60, outcomeTimeoutSeconds: 45, ...overrides,
+        modeTitles: ['Klimatisierung'], allowWrites: true, commandTimeoutSeconds: 180,
+        cooldownSeconds: 60, outcomeTimeoutSeconds: 120, ...overrides,
     };
     const store = {
         reservations: 0,
@@ -88,7 +95,7 @@ async function rejectsCode(promise, expected) {
 test('status connects once and reports only app observation without a CTA or reservation', async () => {
     const { controller, phone, store, log, clock } = setup();
     const result = await controller.execute('status');
-    assert.deepEqual(result, { appState: 'off', changed: false, source: 'volkswagen_android_app', vehicleConfirmed: false,
+    assert.deepEqual(result, { appState: 'off', changed: false, source: 'volkswagen_android_app', confirmationSource: 'app_controls', vehicleConfirmed: false,
         appVersion: '4.8.1', observedAt: new Date(clock.value).toISOString() });
     assert.deepEqual(log.slice(0, 3), ['connect', 'version', 'launch']);
     assert.equal(navCount(phone), 1);
@@ -100,11 +107,12 @@ test('status connects once and reports only app observation without a CTA or res
 });
 
 test('successful start rechecks version and state, reserves before the sole CTA, then observes on', async () => {
-    const { controller, phone, store, log } = setup([OVERVIEW, OVERVIEW, OFF, OFF, ON]);
+    const { controller, phone, store, log } = setup([OVERVIEW, OVERVIEW, OFF, OFF, ON, RUNNING_OVERVIEW]);
     const result = await controller.execute('start');
     assert.equal(result.appState, 'on');
     assert.equal(result.changed, true);
     assert.equal(result.vehicleConfirmed, false);
+    assert.equal(result.confirmationSource, 'app_overview');
     assert.equal(store.reservations, 1);
     assert.equal(ctaCount(phone), 1);
     assert.equal(phone.calls.filter(call => call[0] === 'version').length, 2);
@@ -240,10 +248,82 @@ test('outcome timeout includes zero timeout and never issues a second CTA', asyn
 });
 
 test('post-command return to the overview can be reopened after checking the vehicle', async () => {
-    const { controller, phone } = setup([OVERVIEW, OVERVIEW, OFF, OFF, OVERVIEW, OVERVIEW, ON]);
+    const { controller, phone } = setup([OVERVIEW, OVERVIEW, OFF, OFF, OVERVIEW, OVERVIEW, ON, RUNNING_OVERVIEW]);
     assert.equal((await controller.execute('start')).appState, 'on');
     assert.equal(navCount(phone), 2);
     assert.equal(ctaCount(phone), 1);
+});
+
+test('a delayed start after 45 seconds succeeds once and uses the running overview label', async () => {
+    const { controller, phone, clock } = setup([OVERVIEW, OVERVIEW, OFF, OFF, OFF, ON, RUNNING_OVERVIEW]);
+    phone.hooks.dump = count => { if (count === 5) clock.value += 60000; };
+    const result = await controller.execute('start');
+    assert.equal(result.appState, 'on');
+    assert.equal(result.confirmationSource, 'app_overview');
+    assert.equal(result.vehicleConfirmed, false);
+    assert.equal(ctaCount(phone), 1);
+    assert.equal(phone.calls.filter(call => call[0] === 'connect').length, 1);
+    assert.ok(clock.value > 1700000060000);
+});
+
+test('an active tile on automatic overview return confirms start without reopening climate controls', async () => {
+    const { controller, phone } = setup([OVERVIEW, OVERVIEW, OFF, OFF, RUNNING_OVERVIEW]);
+    const result = await controller.execute('start');
+    assert.equal(result.appState, 'on');
+    assert.equal(result.confirmationSource, 'app_overview');
+    assert.equal(navCount(phone), 1);
+    assert.equal(ctaCount(phone), 1);
+});
+
+test('missing active tile labels preserve the explicit controls evidence without inventing a countdown', async () => {
+    const { controller, phone } = setup([OVERVIEW, OVERVIEW, OFF, OFF, ON, OVERVIEW]);
+    const result = await controller.execute('start');
+    assert.equal(result.confirmationSource, 'app_controls');
+    assert.equal(result.appState, 'on');
+    assert.equal('remainingMinutes' in result, false);
+    assert.equal(ctaCount(phone), 1);
+});
+
+test('detail on with a still unconfirmed overview waits for the active tile without another CTA', async () => {
+    const { controller, phone, clock } = setup([OVERVIEW, OVERVIEW, OFF, OFF, ON, PENDING_OVERVIEW, PENDING_OVERVIEW, RUNNING_OVERVIEW]);
+    phone.hooks.dump = count => { if (count === 7) clock.value += 60000; };
+    const result = await controller.execute('start');
+    assert.equal(result.confirmationSource, 'app_overview');
+    assert.ok(clock.value >= 1700000060000);
+    assert.equal(ctaCount(phone), 1);
+    assert.equal(navCount(phone), 1);
+});
+
+test('a persistently unconfirmed overview times out instead of falling back to a premature detail success', async () => {
+    const { controller, phone } = setup([OVERVIEW, OVERVIEW, OFF, OFF, ON, PENDING_OVERVIEW], { outcomeTimeoutSeconds: 1 });
+    await rejectsCode(controller.execute('start'), 'outcome_unknown');
+    assert.equal(ctaCount(phone), 1);
+});
+
+test('conflicting initial detail and overview observations never trigger another start', async () => {
+    for (const action of ['start', 'status']) {
+        const { controller, phone } = setup([PENDING_OVERVIEW, PENDING_OVERVIEW, ON]);
+        await rejectsCode(controller.execute(action), 'unknown_state');
+        assert.equal(ctaCount(phone), 0);
+    }
+});
+
+test('the wrong vehicle after a start reports uncertainty without another CTA', async () => {
+    const { controller, phone } = setup([OVERVIEW, OVERVIEW, OFF, OFF, ON, overview('Ihr Fahrzeug: ID.5. Gerade synchronisiert')]);
+    await rejectsCode(controller.execute('start'), 'outcome_unknown');
+    assert.equal(ctaCount(phone), 1);
+});
+
+test('overview evidence is used for a matching status and never overrides an off detail state', async () => {
+    const running = setup([RUNNING_OVERVIEW, RUNNING_OVERVIEW, ON]);
+    const result = await running.controller.execute('status');
+    assert.equal(result.confirmationSource, 'app_overview');
+    assert.equal(result.appState, 'on');
+    assert.equal(ctaCount(running.phone), 0);
+    const changed = setup([RUNNING_OVERVIEW, RUNNING_OVERVIEW, OFF]);
+    const off = await changed.controller.execute('status');
+    assert.equal(off.appState, 'off');
+    assert.equal(off.confirmationSource, 'app_controls');
 });
 
 test('a busy controller rejects a concurrent job synchronously without queuing phone calls', async () => {
