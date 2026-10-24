@@ -197,7 +197,10 @@ async function fixture(t, options = {}) {
     }
 
     class FakeController {
-        constructor(settings) { Object.assign(this, settings); records.controllers.push(this); }
+        constructor(settings) {
+            Object.assign(this, settings); records.controllers.push(this);
+            if (options.cooperativeHandoff) this.requestReadHandoff = () => { this.handoffRequested = true; };
+        }
         async execute(action, input) {
             records.controllerCalls.push({ action, input: clone(input) });
             if (options.controllerExecute) return options.controllerExecute(action, input);
@@ -1594,7 +1597,7 @@ test('automatic age limit follows the estimated complete cycle while explicit li
     assert.equal(f.records.phones.length, 0);
 });
 
-test('manual handoff cancels only the automatic controller, waits for it and preserves the accepted preference snapshot', async t => {
+test('manual handoff falls back to cancelling an older automatic controller and preserves the accepted preference snapshot', async t => {
     const clock = fakeClock(); const entered = deferred(); const release = deferred();
     let f; let active = 0; let maximum = 0;
     f = await fixture(t, { clock, enrollment: enrolled(), fakeController: true, config: { pollIntervalSeconds: 15, allowWrites: true },
@@ -1646,6 +1649,47 @@ test('automatic finalization retains the busy reservation until metadata and aut
     assert.equal(f.records.controllerCalls.length, 2);
     assert.equal(f.adapter.currentOperation, null);
     assert.equal(f.adapter.controller, null); assert.equal(f.adapter.busy, false);
+});
+
+test('manual priority prefers cooperative read handoff and still waits for the automatic read to finish', async t => {
+    const clock = fakeClock(); const entered = deferred(); const release = deferred();
+    const f = await fixture(t, { clock, cooperativeHandoff: true, enrollment: enrolled(), fakeController: true,
+        config: { pollIntervalSeconds: 15 }, controllerExecute: async action => {
+            if (action === 'status') { entered.resolve(); await release.promise; throw new BridgeError('cancelled', 'Read handed off.'); }
+            return { ...chargingResult(), observedAt: new Date(clock.now()).toISOString() };
+        } });
+    t.after(() => release.resolve());
+    await clock.advance(0); await entered.promise;
+    const automatic = f.records.controllers[0];
+    const manual = f.adapter.command('chargingStatus');
+    assert.equal(automatic.handoffRequested, true);
+    assert.equal(automatic.cancelled, undefined);
+    assert.equal(f.adapter.abortController.signal.aborted, false);
+    assert.equal(f.records.controllerCalls.length, 1);
+    release.resolve(); await manual;
+    assert.deepEqual(f.records.controllerCalls, [expectedCall('status', null), expectedChargingCall('chargingStatus')]);
+    assert.equal(f.value('refresh.climate.lastErrorCode'), '');
+    assert.equal(f.value('refresh.charging.status'), 'fresh');
+});
+
+test('a competing command never cancels a manual write and unload keeps hard cancellation even with cooperative handoff support', async t => {
+    const entered = deferred(); const release = deferred();
+    const f = await fixture(t, { cooperativeHandoff: true, enrollment: enrolled(), fakeController: true,
+        config: { allowWrites: true }, controllerExecute: async () => {
+            entered.resolve(); await release.promise; throw new BridgeError('cancelled', 'Adapter stopped.');
+        } });
+    t.after(() => release.resolve());
+    const active = f.adapter.command('start'); const rejected = rejectsCode(active, 'cancelled');
+    await entered.promise;
+    const controller = f.records.controllers[0];
+    await rejectsCode(f.adapter.command('stop'), 'busy');
+    assert.equal(controller.handoffRequested, undefined);
+    assert.equal(controller.cancelled, undefined);
+    const unload = f.adapter.onUnload(() => {});
+    assert.equal(controller.cancelled, true);
+    assert.equal(controller.handoffRequested, undefined);
+    release.resolve(); await rejected; await unload;
+    assert.deepEqual(f.records.controllerCalls, [expectedCall('start', null)]);
 });
 
 test('read-only follow-up after an uncertain write never repeats it or overwrites manual operation and legacy feedback', async t => {
