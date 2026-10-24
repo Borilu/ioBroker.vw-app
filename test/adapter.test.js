@@ -55,6 +55,30 @@ function deferred() {
     const promise = new Promise(done => { resolve = done; });
     return { promise, resolve };
 }
+function fakeClock(start = Date.parse('2026-10-24T19:00:00.000Z')) {
+    let current = start; let sequence = 0; const timers = new Map();
+    const settle = async () => { for (let index = 0; index < 700; index++) await Promise.resolve(); };
+    return { now: () => current, timers,
+        setTimeout(callback, delay) { const id = ++sequence; timers.set(id, { at: current + delay, callback }); return id; },
+        clearTimeout(id) { timers.delete(id); },
+        async advance(milliseconds) {
+            const target = current + milliseconds;
+            while (true) {
+                const next = [...timers].filter(([, value]) => value.at <= target).sort((a, b) => a[1].at - b[1].at || a[0] - b[0])[0];
+                if (!next) break;
+                current = next[1].at; timers.delete(next[0]); await next[1].callback(); await settle();
+            }
+            current = target; await settle();
+        }, settle };
+}
+class RecordingScheduler {
+    constructor(options) { this.options = options; this.requests = []; this.available = 0; this.started = false; }
+    start() { this.started = true; }
+    stop() { this.started = false; }
+    notifyAvailable() { this.available++; }
+    request(domain, options) { this.requests.push({ domain, ...options }); return this.started; }
+    snapshot() { return { runningDomain: null, estimatedCycleMs: 112500, domains: {} }; }
+}
 
 function singleAdminSuccess(controlName, response, result) {
     const control = ADMIN.items[controlName];
@@ -92,6 +116,7 @@ async function fixture(t, options = {}) {
         async getStateAsync(id) { return clone(this.states.get(id) || null); }
         async setStateAsync(id, value) {
             if (this.stopping && id === 'info.connection' && options.shutdownStateFailure) throw new Error('SECRET STATE WRITE ERROR');
+            if (options.stateWrite) await options.stateWrite(id, value, this);
             this.writes.push({ id, value: clone(value) }); this.states.set(id, clone(value));
         }
         async subscribeStatesAsync(pattern) { this.subscriptions.push(['own', pattern]); }
@@ -101,6 +126,8 @@ async function fixture(t, options = {}) {
         sendTo(from, command, message, callback) { this.responses.push({ from, command, message: clone(message), callback }); }
         setInterval(callback, milliseconds) { const timer = { callback, milliseconds }; this.intervals.push(timer); return timer; }
         clearInterval(timer) { this.clearedIntervals.push(timer); }
+        setTimeout(callback, milliseconds) { return options.clock ? options.clock.setTimeout(callback, milliseconds) : setTimeout(callback, milliseconds); }
+        clearTimeout(timer) { if (options.clock) options.clock.clearTimeout(timer); else clearTimeout(timer); }
     }
 
     class FakeRuntime {
@@ -174,17 +201,20 @@ async function fixture(t, options = {}) {
         async execute(action, input) {
             records.controllerCalls.push({ action, input: clone(input) });
             if (options.controllerExecute) return options.controllerExecute(action, input);
-            if (['chargingStatus', 'applyChargingSettings', 'synchronize'].includes(action)) return chargingResult(input.targetCharging);
-            if (action === 'vehicleReportStatus') return vehicleReportResult();
+            const observedAt = new Date(options.clock ? options.clock.now() : Date.now()).toISOString();
+            if (['chargingStatus', 'applyChargingSettings', 'synchronize'].includes(action)) return { ...chargingResult(input.targetCharging), ...(options.clock ? { observedAt } : {}) };
+            if (action === 'vehicleReportStatus') return { ...vehicleReportResult(), ...(options.clock ? { observedAt } : {}) };
             return { appState: environment.appState, appVersion: '4.8.1', vehicleConfirmed: false,
-                observedAt: new Date().toISOString(), temperature: input.targetTemperature,
+                observedAt, temperature: input.targetTemperature,
                 confirmationSource: 'app_controls' };
         }
-        cancel() { this.cancelled = true; }
+        cancel() { this.cancelled = true; if (options.controllerCancel) options.controllerCancel(this); }
     }
 
     const utils = { Adapter: FakeAdapter, getAbsoluteInstanceDataDir: () => root };
     const Adapter = createAdapterClass(utils, { Runtime: FakeRuntime, Phone: FakePhone, Store: FakeStore, Lease: FakeLease,
+        ...(options.clock ? { now: options.clock.now } : {}),
+        ...(options.RefreshScheduler ? { RefreshScheduler: options.RefreshScheduler } : {}),
         ...(options.fakeController ? { Controller: FakeController } : {}) });
     const adapter = new Adapter();
     t.after(async () => {
@@ -232,9 +262,10 @@ function vehicleReportResult(vehicleReport = vehicleReportModel()) {
         appVersion: '4.8.1', observedAt: '2026-10-24T19:00:00.000Z', vehicleReport };
 }
 function reportStates(f) { return new Map([...f.adapter.states].filter(([id]) => id.startsWith('vehicleReport.'))); }
-function assertReportInvalid(f) {
+function assertReportInvalid(f, previous = null) {
     for (const [id, definition] of Object.entries(DEFINITIONS).filter(([key]) => key.startsWith('vehicleReport.'))) {
-        assert.deepEqual(f.adapter.states.get(id), { val: definition[2], ack: true, q: 0x82 }, id);
+        if (id === 'vehicleReport.observedAt' && previous) assert.deepEqual(f.adapter.states.get(id), previous.get(id));
+        else assert.deepEqual(f.adapter.states.get(id), { val: previous ? previous.get(id).val : definition[2], ack: true, q: 0x82 }, id);
     }
 }
 
@@ -269,10 +300,11 @@ test('state objects match their schema and quality wrappers remain flat on failu
     }
     await f.adapter.observation({ appState: 'on', appVersion: '4.8.1', observedAt: new Date().toISOString(), confirmationSource: 'app_overview' });
     await f.adapter.failure(new Error('SECRET PHONE DUMP'));
-    assert.deepEqual(f.adapter.states.get('climate.active'), { val: false, ack: true, q: 0x82 });
-    assert.equal(f.value('climate.appState'), 'unknown');
-    assert.equal(f.value('climate.confirmationSource'), 'none');
-    assert.equal(f.value('operation.lastUpdated'), '');
+    assert.deepEqual(f.adapter.states.get('climate.active'), { val: true, ack: true, q: 0x82 });
+    assert.equal(f.value('climate.appState'), 'on');
+    assert.equal(f.value('climate.confirmationSource'), 'app_overview');
+    assert.notEqual(f.value('operation.lastUpdated'), '');
+    assert.equal(f.value('refresh.climate.status'), 'error');
     assert.ok(!JSON.stringify(f.adapter.logs).includes('SECRET'));
 });
 
@@ -455,6 +487,10 @@ test('keepAwake is an explicit setup operation and automatic application remains
     assert.equal(f.ctas().length, 0);
     await f.adapter.command('status');
     assert.equal(f.records.phones[1].calls.some(call => call[0] === 'keepAwake'), false);
+    const delegated = await fixture(t, { enrollment: enrolled(), fakeController: true, config: { stayAwakeOnCharge: true } });
+    await delegated.adapter.command('status');
+    assert.equal(delegated.records.controllers[0].config.stayAwakeOnCharge, true);
+    assert.deepEqual(delegated.records.phones[0].calls, []);
 });
 
 test('temperature selection is privately staged and acknowledged without operating the phone, including while runtime is missing', async t => {
@@ -1132,15 +1168,16 @@ test('charging success and failure preserve climate observations and legacy clim
     assert.equal(f.value('battery.soc'), 52); assert.equal(f.value('battery.rangeKm'), 205);
     assert.equal(f.value('charging.reducedAcCurrent'), false);
     assert.equal(f.value('battery.observedAt'), '2026-10-24T16:00:00.000Z');
+    const chargingBefore = new Map([...f.adapter.states].filter(([id]) => id.startsWith('battery.') || id.startsWith('charging.')));
     for (const [id, value] of before) assert.deepEqual(f.adapter.states.get(id), value, id);
     fail = true; await assert.rejects(f.adapter.command('chargingStatus'));
     assert.equal(f.value('operation.lastErrorCode'), 'internal_error');
     for (const [id, value] of before) assert.deepEqual(f.adapter.states.get(id), value, id);
     assert.deepEqual(f.adapter.foreignWrites.filter(row => /\.(appState|lastUpdated)$/.test(row.id)), beforeLegacy);
     for (const id of ['battery.soc', 'battery.rangeKm', ...Object.values(CHARGING_OBSERVED)]) {
-        assert.deepEqual(f.adapter.states.get(id), { val: null, ack: true, q: 0x82 });
+        assert.deepEqual(f.adapter.states.get(id), { val: chargingBefore.get(id).val, ack: true, q: 0x82 });
     }
-    assert.equal(f.value('battery.observedAt'), '');
+    assert.equal(f.value('battery.observedAt'), '2026-10-24T16:00:00.000Z');
     assert.ok(!JSON.stringify(f.adapter.logs).includes('SECRET'));
 });
 
@@ -1152,12 +1189,12 @@ test('climate observations and failures preserve battery and charging state whil
     await f.adapter.failure(new BridgeError('phone_locked', 'Unlock the phone.'));
     for (const [id, value] of before) assert.deepEqual(f.adapter.states.get(id), value, id);
     await f.adapter.observation({ domain: 'charging', battery: { soc: '52', rangeKm: -1 },
-        charging: { socLimit: 101, reducedAcCurrent: 'false', autoUnlockAc: false }, observedAt: 'not a date' });
+        charging: { socLimit: 101, reducedAcCurrent: 'false', autoUnlockAc: false }, observedAt: '2026-10-24T18:00:00.000Z' });
     for (const id of ['battery.soc', 'battery.rangeKm', 'charging.socLimit', 'charging.reducedAcCurrent', 'charging.optimizedBatteryUse']) {
         assert.deepEqual(f.adapter.states.get(id), { val: null, ack: true, q: 0x82 });
     }
     assert.deepEqual(f.adapter.states.get('charging.autoUnlockAc'), { val: false, ack: true });
-    assert.equal(f.value('battery.observedAt'), '');
+    assert.equal(f.value('battery.observedAt'), '2026-10-24T16:00:00.000Z');
     assert.ok(f.adapter.writes.every(row => row.value.val !== undefined));
 });
 
@@ -1220,49 +1257,59 @@ test('last sync request changes only for a valid explicit result timestamp and s
     assert.equal(malformed.value('battery.lastSyncRequestAt'), '');
 });
 
-test('optional polling reads climate then charging without synchronization and manual refresh stays climate-only', async t => {
+test('adaptive automatic reads fairly visit all three domains without synchronization and manual refresh stays climate-only', async t => {
     const disabled = await fixture(t);
-    assert.equal(disabled.adapter.intervals.length, 0);
-    const f = await fixture(t, { enrollment: enrolled(), fakeController: true, config: { pollIntervalSeconds: 300 } });
-    assert.equal(f.adapter.intervals.length, 1);
-    assert.equal(f.adapter.intervals[0].milliseconds, 300000);
-    await f.adapter.intervals[0].callback();
-    assert.deepEqual(f.records.controllerCalls, [expectedCall('status', null), expectedChargingCall('chargingStatus')]);
+    assert.equal(disabled.adapter.scheduler, undefined);
+    const clock = fakeClock();
+    const f = await fixture(t, { clock, enrollment: enrolled(), fakeController: true, config: { pollIntervalSeconds: 15 } });
+    await clock.advance(0); await clock.advance(5000); await clock.advance(5000);
+    assert.deepEqual(f.records.controllerCalls, [expectedCall('status', null), expectedChargingCall('chargingStatus'), { action: 'vehicleReportStatus', input: {} }]);
     assert.equal(f.value('battery.lastSyncRequestAt'), '');
+    assert.equal(f.value('operation.lastResult'), '');
+    assert.equal(f.value('operation.busy'), false);
+    assert.equal(f.value('refresh.autoBusy'), false);
     await f.adapter.onStateChange('vw-app.0.commands.refresh', { val: true, ack: false });
     assert.deepEqual(f.records.controllerCalls.at(-1), expectedCall('status', null));
     assert.equal(f.records.controllerCalls.filter(row => row.action === 'chargingStatus').length, 1);
     assert.equal(f.records.controllerCalls.some(row => row.action === 'synchronize'), false);
-    assert.equal(f.records.controllerCalls.some(row => row.action === 'vehicleReportStatus'), false);
+    assert.equal(f.records.controllerCalls.filter(row => row.action === 'vehicleReportStatus').length, 1);
 });
 
-test('polling skips busy instances and rechecks availability between climate and charging jobs', async t => {
-    const f = await fixture(t, { config: { pollIntervalSeconds: 300 } });
-    const calls = [];
-    f.adapter.command = async action => calls.push(action);
+test('scheduler checks busy and a pending manual reservation, and stop removes every adapter timer', async t => {
+    const clock = fakeClock();
+    const f = await fixture(t, { clock, enrollment: enrolled(), fakeController: true, config: { pollIntervalSeconds: 15 } });
     f.adapter.busy = true;
-    await f.adapter.intervals[0].callback(); assert.deepEqual(calls, []);
-    f.adapter.busy = false;
-    f.adapter.command = async action => { calls.push(action); f.adapter.busy = true; };
-    await f.adapter.intervals[0].callback(); assert.deepEqual(calls, ['status']);
-    f.adapter.busy = false;
-    f.adapter.command = async action => { calls.push(action); f.adapter.stopping = true; };
-    await f.adapter.intervals[0].callback(); assert.deepEqual(calls, ['status', 'status']);
-    f.adapter.stopping = false;
+    await clock.advance(0); assert.deepEqual(f.records.controllerCalls, []);
+    f.adapter.busy = false; f.adapter.pendingManual = true;
+    f.adapter.scheduler.notifyAvailable(); await clock.advance(0); assert.deepEqual(f.records.controllerCalls, []);
+    f.adapter.pendingManual = false; f.adapter.scheduler.notifyAvailable(); await clock.advance(0);
+    assert.equal(f.records.controllerCalls.length, 1);
+    await f.adapter.onUnload(() => {}); await clock.advance(60000);
+    assert.equal(f.records.controllerCalls.length, 1);
+    assert.equal(clock.timers.size, 0);
 });
 
-test('a failed climate poll does not trigger synchronization and the later charging read remains domain-local', async t => {
-    const f = await fixture(t, { enrollment: enrolled(), fakeController: true, config: { pollIntervalSeconds: 300 },
+test('a failed automatic climate read preserves manual outcome and other domains continue without automatic synchronization', async t => {
+    const clock = fakeClock();
+    const f = await fixture(t, { clock, enrollment: enrolled(), fakeController: true, config: { pollIntervalSeconds: 15 },
         controllerExecute: async action => {
             if (action === 'status') throw new BridgeError('unknown_state', 'The climate state is unclear.');
-            return chargingResult();
+            return { ...(action === 'vehicleReportStatus' ? vehicleReportResult() : chargingResult()), observedAt: new Date(clock.now()).toISOString() };
         },
     });
-    await f.adapter.intervals[0].callback();
-    assert.deepEqual(f.records.controllerCalls, [expectedCall('status', null), expectedChargingCall('chargingStatus')]);
+    await f.adapter.state('operation.lastResult', 'failed');
+    await f.adapter.state('operation.lastErrorCode', 'outcome_unknown');
+    await f.adapter.state('operation.lastError', 'Earlier write was uncertain.');
+    await clock.advance(0); await clock.advance(5000); await clock.advance(5000);
+    assert.deepEqual(f.records.controllerCalls, [expectedCall('status', null), expectedChargingCall('chargingStatus'), { action: 'vehicleReportStatus', input: {} }]);
     assert.equal(f.value('climate.appState'), 'unknown');
     assert.equal(f.value('battery.soc'), 52);
     assert.equal(f.value('battery.lastSyncRequestAt'), '');
+    assert.equal(f.value('refresh.climate.status'), 'error');
+    assert.equal(f.value('refresh.charging.status'), 'fresh');
+    assert.equal(f.value('operation.lastResult'), 'failed');
+    assert.equal(f.value('operation.lastErrorCode'), 'outcome_unknown');
+    assert.equal(f.value('operation.lastError'), 'Earlier write was uncertain.');
 });
 
 test('vehicle report data is read-only with explicit units, exact German category channels and qualified initial values', async t => {
@@ -1360,10 +1407,11 @@ test('invalid vehicle-report envelopes clear old report data without publishing 
         { ...vehicleReportResult(), observedAt: '2026-02-30T19:00:00.000Z' }];
     for (const bad of malformed) {
         await f.adapter.observation(vehicleReportResult());
+        const reportBefore = reportStates(f);
         response = bad;
         const before = f.adapter.writes.length;
         await rejectsCode(f.adapter.command('vehicleReportStatus'), 'invalid_vehicle_report');
-        assertReportInvalid(f);
+        assertReportInvalid(f, reportBefore);
         assert.ok(f.adapter.writes.slice(before).filter(row => row.id.startsWith('vehicleReport.'))
             .every(row => row.value.q === 0x82));
         for (const [id, value] of untouched) assert.deepEqual(f.adapter.states.get(id), value, id);
@@ -1377,10 +1425,11 @@ test('the entire report model is validated before the first report write, includ
     const invalidCategory = vehicleReportModel(); invalidCategory.categories.other.texts.push('SECRET INVALID CATEGORY');
     for (const report of [invalidDerived, invalidCategory]) {
         await f.adapter.observation(vehicleReportResult());
+        const reportBefore = reportStates(f);
         response = vehicleReportResult(report);
         const before = f.adapter.writes.length;
         await rejectsCode(f.adapter.command('vehicleReportStatus'), 'invalid_report');
-        assertReportInvalid(f);
+        assertReportInvalid(f, reportBefore);
         assert.ok(f.adapter.writes.slice(before).filter(row => row.id.startsWith('vehicleReport.'))
             .every(row => row.value.q === 0x82));
     }
@@ -1412,7 +1461,7 @@ test('report reads and failures are isolated from climate, charging and legacy o
     const legacyRestored = f.adapter.foreignWrites.filter(row => /\.(appState|lastUpdated)$/.test(row.id));
     fail = true; await assert.rejects(f.adapter.command('vehicleReportStatus'));
     assert.equal(f.value('operation.lastErrorCode'), 'internal_error');
-    assertReportInvalid(f);
+    assertReportInvalid(f, reportBefore);
     for (const [id, value] of untouched) assert.deepEqual(f.adapter.states.get(id), value, id);
     assert.deepEqual(f.adapter.foreignWrites.filter(row => /\.(appState|lastUpdated)$/.test(row.id)), legacyRestored);
     assert.ok(legacyBefore.length > 0);
@@ -1463,6 +1512,195 @@ test('vehicle report requests retain profile and busy gates and are cancelled wi
     assert.equal(unloaded, true);
     assert.equal(f.records.leases[0].closed, 1);
     assert.equal(f.records.controllerCalls.length, 1);
+});
+
+test('freshness starts unknown without false climate readings and all metadata is read-only', async t => {
+    const f = await fixture(t, { clock: fakeClock() });
+    assert.deepEqual(f.adapter.states.get('climate.active'), { val: null, ack: true, q: 0x82 });
+    for (const domain of ['climate', 'charging', 'vehicleReport']) {
+        assert.equal(f.value('refresh.' + domain + '.status'), 'unknown');
+        assert.equal(f.value('refresh.' + domain + '.lastReadAt'), '');
+        assert.deepEqual(f.adapter.states.get('refresh.' + domain + '.ageSeconds'), { val: null, ack: true, q: 0x82 });
+    }
+    for (const [id] of Object.entries(DEFINITIONS).filter(([id]) => id.startsWith('refresh.'))) {
+        assert.equal(f.adapter.objects.get(id).common.write, false, id);
+    }
+});
+
+test('TTL keeps last values and JSON but invalidates only expired actual fields and legacy app-state quality', async t => {
+    const clock = fakeClock();
+    const f = await fixture(t, { clock, config: { refreshMaxAgeSeconds: 30, legacyStatePrefix: '0_userdata.0.vw' } });
+    for (const name of ['appState', 'lastUpdated']) f.adapter.foreignObjects.set('0_userdata.0.vw.' + name, {});
+    await f.adapter.stageTemperature(22.5); await f.adapter.stageSetting('mode', 'climate');
+    await f.adapter.stageChargingSetting('socLimit', 80);
+    await f.adapter.state('climate.targetTemperatureError', 'retained selection error');
+    const at = new Date(clock.now()).toISOString();
+    await f.adapter.observation({ appState: 'on', temperature: 22.5, appVersion: '4.8.1', observedAt: at });
+    await f.adapter.observation({ ...chargingResult({ socLimit: 80, reducedAcCurrent: false, autoUnlockAc: true, optimizedBatteryUse: false }), observedAt: at, syncRequestedAt: at });
+    await f.adapter.observation({ ...vehicleReportResult(), observedAt: at });
+    const reportJson = f.value('vehicleReport.json');
+    await clock.advance(30000); assert.equal(f.value('refresh.climate.status'), 'fresh');
+    await clock.advance(1000);
+    for (const domain of ['climate', 'charging', 'vehicleReport']) {
+        assert.equal(f.value('refresh.' + domain + '.status'), 'stale');
+        assert.equal(f.value('refresh.' + domain + '.ageSeconds'), 31);
+        assert.equal(f.value('refresh.' + domain + '.lastReadAt'), at);
+    }
+    assert.deepEqual(f.adapter.states.get('climate.active'), { val: true, ack: true, q: 0x82 });
+    assert.deepEqual(f.adapter.states.get('battery.soc'), { val: 52, ack: true, q: 0x82 });
+    assert.deepEqual(f.adapter.states.get('vehicleReport.json'), { val: reportJson, ack: true, q: 0x82 });
+    assert.equal(f.value('battery.observedAt'), at); assert.equal(f.value('vehicleReport.observedAt'), at);
+    assert.deepEqual(f.adapter.foreignWrites.filter(row => row.id.endsWith('.appState')).at(-1).value, { val: 'on', ack: true, q: 0x82 });
+    for (const id of ['climate.targetTemperature', 'climate.targetMode', 'charging.targetSoc', 'climate.targetTemperatureError', 'battery.lastSyncRequestAt']) {
+        assert.equal(f.adapter.states.get(id).q, undefined, id);
+    }
+    assert.equal(f.value('climate.targetTemperatureError'), 'retained selection error');
+    await f.adapter.observation({ appState: 'off', appVersion: '4.8.1', observedAt: new Date(clock.now()).toISOString(), temperature: null });
+    assert.equal(f.value('refresh.climate.status'), 'fresh');
+    assert.equal(f.value('refresh.climate.ageSeconds'), 0);
+    assert.deepEqual(f.adapter.states.get('climate.active'), { val: false, ack: true });
+    assert.deepEqual(f.adapter.states.get('climate.temperature'), { val: null, ack: true, q: 0x82 });
+    assert.equal(f.value('refresh.charging.status'), 'stale');
+    assert.equal(f.records.phones.length, 0);
+});
+
+test('refresh metadata writes only changed values while the one-second tick still updates each domain age', async t => {
+    const clock = fakeClock(); const f = await fixture(t, { clock, config: { refreshMaxAgeSeconds: 30 } });
+    const at = new Date(clock.now()).toISOString();
+    await f.adapter.observation({ appState: 'off', appVersion: '4.8.1', observedAt: at });
+    await f.adapter.observation({ ...chargingResult(), observedAt: at });
+    await f.adapter.observation({ ...vehicleReportResult(), observedAt: at });
+    const before = f.adapter.writes.length;
+    await f.adapter.updateFreshness();
+    for (const domain of ['climate', 'charging', 'vehicleReport']) await f.adapter.publishRefreshMetadata(domain);
+    assert.equal(f.adapter.writes.length, before);
+    await clock.advance(1000);
+    assert.deepEqual(f.adapter.writes.slice(before), ['climate', 'charging', 'vehicleReport'].map(domain => ({
+        id: 'refresh.' + domain + '.ageSeconds', value: { val: 1, ack: true },
+    })));
+    const afterAge = f.adapter.writes.length;
+    await f.adapter.updateFreshness();
+    assert.equal(f.adapter.writes.length, afterAge);
+});
+
+test('automatic age limit follows the estimated complete cycle while explicit limits override it', async t => {
+    const clock = fakeClock();
+    const f = await fixture(t, { clock, RefreshScheduler: RecordingScheduler, config: { pollIntervalSeconds: 15 } });
+    assert.equal(f.value('refresh.climate.maxAgeSeconds'), 225);
+    await f.adapter.scheduler.options.onUpdate({ estimatedCycleMs: 300000, runningDomain: null, domains: {} });
+    assert.equal(f.value('refresh.charging.maxAgeSeconds'), 600);
+    f.adapter.settings.refreshMaxAgeSeconds = 45; await f.adapter.updateFreshness();
+    assert.equal(f.value('refresh.vehicleReport.maxAgeSeconds'), 45);
+    assert.equal(f.records.phones.length, 0);
+});
+
+test('manual handoff cancels only the automatic controller, waits for it and preserves the accepted preference snapshot', async t => {
+    const clock = fakeClock(); const entered = deferred(); const release = deferred();
+    let f; let active = 0; let maximum = 0;
+    f = await fixture(t, { clock, enrollment: enrolled(), fakeController: true, config: { pollIntervalSeconds: 15, allowWrites: true },
+        controllerExecute: async (action, input) => {
+            active++; maximum = Math.max(maximum, active);
+            try {
+                if (action === 'status') { entered.resolve(); await release.promise; throw new BridgeError('cancelled', 'Read handed off.'); }
+                return { appState: 'on', appVersion: '4.8.1', observedAt: new Date(clock.now()).toISOString(), temperature: input.targetTemperature };
+            } finally { active--; }
+        },
+    });
+    t.after(() => release.resolve());
+    await f.adapter.stageTemperature(22.5); await f.adapter.stageSetting('mode', 'climate');
+    await f.adapter.observation({ appState: 'off', appVersion: '4.8.1', observedAt: new Date(clock.now()).toISOString() });
+    await clock.advance(0); await entered.promise;
+    const start = f.adapter.command('start');
+    assert.equal(f.adapter.pendingManual, true); assert.equal(f.records.controllers[0].cancelled, true);
+    assert.equal(f.adapter.abortController.signal.aborted, false);
+    await rejectsCode(f.adapter.command('stop'), 'busy');
+    await f.adapter.stageTemperature(23); await f.adapter.stageSetting('zones', 'both');
+    assert.equal(f.records.controllerCalls.length, 1);
+    assert.equal(f.value('refresh.climate.status'), 'fresh');
+    release.resolve(); await start;
+    assert.equal(maximum, 1);
+    assert.deepEqual(f.records.controllerCalls, [expectedCall('status', null), expectedCall('start', 22.5, { ...DEFAULT_TARGET_SETTINGS, mode: 'climate' })]);
+    assert.equal(f.value('refresh.climate.lastErrorCode'), '');
+    assert.ok(!f.adapter.writes.some(row => row.id === 'refresh.climate.status' && row.value.val === 'error'));
+    assert.ok(!f.adapter.writes.some(row => row.id === 'operation.lastResult' && row.value.val === 'failed'));
+    assert.equal(f.value('operation.lastResult'), 'succeeded');
+    assert.equal(f.value('climate.targetTemperature'), 23);
+    assert.equal(f.value('refresh.autoBusy'), false);
+    assert.equal(f.adapter.pendingManual, false);
+});
+
+test('automatic finalization retains the busy reservation until metadata and autoBusy writes finish', async t => {
+    const clock = fakeClock(); const finalizing = deferred(); const release = deferred(); let block = false;
+    const f = await fixture(t, { clock, enrollment: enrolled(), fakeController: true, config: { pollIntervalSeconds: 15 },
+        stateWrite: async (id, value) => { if (block && id === 'refresh.autoBusy' && value.val === false) { finalizing.resolve(); await release.promise; } },
+    });
+    t.after(() => release.resolve()); block = true;
+    await clock.advance(0); await finalizing.promise;
+    const originalController = f.adapter.controller;
+    assert.equal(f.adapter.busy, true);
+    const manual = f.adapter.command('chargingStatus');
+    assert.equal(f.adapter.pendingManual, true);
+    assert.equal(f.adapter.controller, originalController);
+    assert.equal(f.records.controllerCalls.length, 1);
+    release.resolve(); await manual;
+    assert.equal(f.records.controllerCalls.length, 2);
+    assert.equal(f.adapter.currentOperation, null);
+    assert.equal(f.adapter.controller, null); assert.equal(f.adapter.busy, false);
+});
+
+test('read-only follow-up after an uncertain write never repeats it or overwrites manual operation and legacy feedback', async t => {
+    const clock = fakeClock();
+    const f = await fixture(t, { clock, RefreshScheduler: RecordingScheduler, enrollment: enrolled(), fakeController: true,
+        config: { pollIntervalSeconds: 15, allowWrites: true, legacyStatePrefix: '0_userdata.0.vw' },
+        controllerExecute: async action => {
+            if (action === 'start') throw new BridgeError('outcome_unknown', 'The write outcome is unclear.');
+            return { appState: 'on', appVersion: '4.8.1', observedAt: new Date(clock.now()).toISOString() };
+        },
+    });
+    for (const name of ['busy', 'lastResult', 'lastError']) f.adapter.foreignObjects.set('0_userdata.0.vw.' + name, {});
+    await rejectsCode(f.adapter.command('start'), 'outcome_unknown');
+    assert.deepEqual(f.adapter.scheduler.requests, [{ domain: 'climate', priority: true, delayMs: 2000 }]);
+    const feedback = f.adapter.foreignWrites.filter(row => /\.(busy|lastResult|lastError)$/.test(row.id));
+    await f.adapter.scheduler.options.run('climate');
+    assert.deepEqual(f.records.controllerCalls, [expectedCall('start', null), expectedCall('status', null)]);
+    assert.equal(f.value('operation.lastResult'), 'failed');
+    assert.equal(f.value('operation.lastErrorCode'), 'outcome_unknown');
+    assert.equal(f.value('refresh.climate.status'), 'fresh'); assert.equal(f.value('climate.appState'), 'on');
+    assert.deepEqual(f.adapter.foreignWrites.filter(row => /\.(busy|lastResult|lastError)$/.test(row.id)), feedback);
+});
+
+test('each accepted write requests only its own read area and poll zero disables follow-ups', async t => {
+    const clock = fakeClock();
+    const f = await fixture(t, { clock, RefreshScheduler: RecordingScheduler, enrollment: enrolled(), fakeController: true,
+        config: { pollIntervalSeconds: 15, allowWrites: true } });
+    await f.adapter.stageTemperature(22.5); await f.adapter.stageSetting('mode', 'climate'); await f.adapter.stageChargingSetting('socLimit', 80);
+    for (const action of ['start', 'stop', 'setTemperature', 'applySettings', 'applyChargingSettings', 'synchronize']) await f.adapter.command(action);
+    assert.deepEqual(f.adapter.scheduler.requests.map(request => request.domain), ['climate', 'climate', 'climate', 'climate', 'charging', 'charging']);
+    assert.ok(f.adapter.scheduler.requests.every(request => request.priority === true && request.delayMs === 2000));
+    const offClock = fakeClock();
+    const off = await fixture(t, { clock: offClock, RefreshScheduler: RecordingScheduler, enrollment: enrolled(), fakeController: true, config: { allowWrites: true } });
+    await off.adapter.command('start'); await offClock.advance(60000);
+    assert.equal(off.adapter.scheduler, undefined);
+    assert.deepEqual(off.records.controllerCalls, [expectedCall('start', null)]);
+});
+
+test('legacy freshness aliases cannot publish after unload while an object lookup is pending', async t => {
+    const f = await fixture(t, { config: { legacyStatePrefix: '0_userdata.0.vw' } });
+    const entered = deferred(); const release = deferred();
+    f.adapter.getForeignObjectAsync = async () => { entered.resolve(); await release.promise; return {}; };
+    const publishing = f.adapter.legacy('appState', { val: 'on', ack: true, q: 0x82 });
+    await entered.promise; await f.adapter.onUnload(() => {}); release.resolve(); await publishing;
+    assert.deepEqual(f.adapter.foreignWrites, []);
+});
+
+test('installing a missing runtime starts the configured scheduler without downloading automatically', async t => {
+    const clock = fakeClock();
+    const f = await fixture(t, { clock, RefreshScheduler: RecordingScheduler, runtimeMissing: true, config: { pollIntervalSeconds: 15 } });
+    assert.equal(f.adapter.scheduler.started, false);
+    assert.deepEqual(f.records.runtime[0].calls, [['start']]);
+    await f.message('installRuntime', { acceptLicense: true });
+    assert.equal(f.adapter.scheduler.started, true);
+    assert.equal(f.records.phones.length, 0);
 });
 
 test('unload waits for a charging save and restart restores it', async t => {
