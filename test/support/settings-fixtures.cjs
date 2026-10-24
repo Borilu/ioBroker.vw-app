@@ -6,7 +6,7 @@ const POINTS = Object.freeze({
     back: { x: 60, y: 50 }, mode: { x: 500, y: 550 }, settings: { x: 500, y: 700 },
     saveSettings: { x: 890, y: 50 },
     zones: { x: 875, y: 800 }, zonesDirectional: { x: 825, y: 800 },
-    climate: { x: 500, y: 300 }, windowHeating: { x: 500, y: 700 },
+    climate: { x: 450, y: 205 }, windowHeating: { x: 450, y: 605 },
     climateOnUnlock: { x: 900, y: 210 }, autoWindowHeating: { x: 900, y: 510 },
     frontLeft: { x: 900, y: 510 }, frontRight: { x: 900, y: 810 },
     temperatureLeft: { x: 100, y: 240 }, temperatureCurrent: { x: 500, y: 240 },
@@ -58,13 +58,14 @@ function completeDemoClimate(state = 'off', mode = 'climate', temperature = 22) 
     ])]);
 }
 function modeScreen(current = 'climate') {
-    const option = (value, bounds, labelBounds) => node('', { clickable: 'true', checkable: 'true',
-        checked: String(current === value), bounds }, [text(modeLabel(value), labelBounds)]);
+    const option = (value, bounds, labelBounds, descriptionBounds) => node('', { clickable: 'true', checkable: 'true',
+        checked: String(current === value), bounds }, [text(modeLabel(value), labelBounds),
+        text('Beschreibung der Option ' + modeLabel(value), descriptionBounds)]);
     return hierarchy([node('design_bottom_sheet', { class: 'android.widget.FrameLayout' }, [
         back('vwd_navigation_button'), text('Modus wählen', '[200,20][800,70]', 'vwd_title'),
         node('ventilation_layout', { class: 'androidx.compose.ui.platform.ComposeView', bounds: '[0,100][1000,1000]' }, [
-            option('climate', '[50,150][950,450]', '[200,180][700,230]'),
-            option('windowHeating', '[50,550][950,850]', '[200,580][700,630]'),
+            option('climate', '[50,150][950,450]', '[200,180][700,230]', '[200,250][900,420]'),
+            option('windowHeating', '[50,550][950,850]', '[200,580][700,630]', '[200,650][900,820]'),
         ]),
     ])]);
 }
