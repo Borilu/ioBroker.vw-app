@@ -27,6 +27,21 @@ function climate(state = 'off', mode = 'Klimatisierung', ctaAttrs = {}) {
         node('clima_air_conditioning_pick', {}, [node('title', { text: mode })]),
     ])]);
 }
+function temperatureClimate(value = 22, state = 'off', mode = 'Klimatisierung') {
+    const option = (number, x1, x2) => node('', { class: 'android.view.View', clickable: 'true', bounds: `[${x1},30][${x2},190]` }, [
+        node('', { class: 'android.widget.TextView', text: String(number), bounds: `[${x1},30][${x2 - 30},190]` }),
+        node('', { class: 'android.widget.TextView', text: '°', bounds: `[${x2 - 30},30][${x2},150]` }),
+    ]);
+    return hierarchy([
+        node('clima_compose_view', { class: 'androidx.compose.ui.platform.ComposeView', bounds: '[0,10][1000,210]' }, [
+            node('', { class: 'android.view.View', scrollable: 'true', bounds: '[0,10][1000,210]' }, [
+                option(value - 0.5, 0, 200), option(value, 400, 600), option(value + 0.5, 800, 1000),
+            ]),
+        ]),
+        node(state === 'off' ? 'cta_start' : 'cta_stop', { clickable: 'true', bounds: '[10,300][110,360]' }),
+        node('clima_air_conditioning_pick', {}, [node('title', { text: mode })]),
+    ]);
+}
 const OVERVIEW = overview();
 const RUNNING_OVERVIEW = hierarchy([
     node('', { 'content-desc': VEHICLE + 'Gerade synchronisiert' }),
@@ -95,7 +110,7 @@ async function rejectsCode(promise, expected) {
 test('status connects once and reports only app observation without a CTA or reservation', async () => {
     const { controller, phone, store, log, clock } = setup();
     const result = await controller.execute('status');
-    assert.deepEqual(result, { appState: 'off', changed: false, source: 'volkswagen_android_app', confirmationSource: 'app_controls', vehicleConfirmed: false,
+    assert.deepEqual(result, { appState: 'off', changed: false, source: 'volkswagen_android_app', confirmationSource: 'app_controls', temperature: null, vehicleConfirmed: false,
         appVersion: '4.8.1', observedAt: new Date(clock.value).toISOString() });
     assert.deepEqual(log.slice(0, 3), ['connect', 'version', 'launch']);
     assert.equal(navCount(phone), 1);
@@ -378,4 +393,142 @@ test('cancel during a CTA reports uncertainty and prevents all later gestures an
     const length = phone.calls.length;
     await rejectsCode(controller.execute('stop'), 'cancelled');
     assert.equal(phone.calls.length, length);
+});
+
+function temperatureTaps(phone) { return phone.calls.filter(call => call[0] === 'tap' && call[2] === 110); }
+
+test('status reads the app temperature without changing it', async () => {
+    const { controller, phone } = setup([OVERVIEW, OVERVIEW, temperatureClimate(22.5)]);
+    const result = await controller.execute('status');
+    assert.equal(result.temperature, 22.5);
+    assert.equal(result.appState, 'off');
+    assert.equal(temperatureTaps(phone).length, 0);
+    assert.equal(ctaCount(phone), 0);
+});
+
+test('temperature-only jobs follow fresh half-degree selections and never start climate control', async () => {
+    const { controller, phone, store } = setup([OVERVIEW, OVERVIEW, temperatureClimate(22), temperatureClimate(22), temperatureClimate(22.5), temperatureClimate(23)]);
+    const result = await controller.execute('setTemperature', { targetTemperature: 23 });
+    assert.equal(result.temperature, 23);
+    assert.equal(result.appState, 'off');
+    assert.equal(result.changed, false);
+    assert.equal(result.temperatureChanged, true);
+    assert.equal(temperatureTaps(phone).length, 2);
+    assert.equal(ctaCount(phone), 0);
+    assert.equal(store.reservations, 0);
+});
+
+test('a start applies and verifies the selected temperature before its sole CTA', async () => {
+    const { controller, phone, store, log } = setup([OVERVIEW, OVERVIEW, temperatureClimate(22), temperatureClimate(22),
+        temperatureClimate(22.5), temperatureClimate(22.5), temperatureClimate(22.5, 'on'), RUNNING_OVERVIEW]);
+    const result = await controller.execute('start', { targetTemperature: 22.5 });
+    assert.equal(result.appState, 'on');
+    assert.equal(result.temperature, 22.5);
+    assert.equal(temperatureTaps(phone).length, 1);
+    assert.equal(ctaCount(phone), 1);
+    assert.equal(store.reservations, 1);
+    assert.ok(log.indexOf('tap:900,110') < log.indexOf('reserve:60'));
+    assert.equal(log[log.indexOf('tap:60,330') - 1], 'reserve:60');
+});
+
+test('temperature can be lowered or adjusted during existing climate operation without another start', async () => {
+    for (const state of ['off', 'on']) {
+        const overviewScreen = state === 'on' ? RUNNING_OVERVIEW : OVERVIEW;
+        const { controller, phone } = setup([overviewScreen, overviewScreen, temperatureClimate(22, state), temperatureClimate(22, state), temperatureClimate(21.5, state)]);
+        const result = await controller.execute(state === 'on' ? 'start' : 'setTemperature', { targetTemperature: 21.5 });
+        assert.equal(result.temperature, 21.5);
+        assert.equal(temperatureTaps(phone)[0][1], 100);
+        assert.equal(ctaCount(phone), 0);
+        assert.equal(result.temperatureChanged, true);
+    }
+});
+
+test('an already selected temperature requires no temperature gesture or journal reservation', async () => {
+    const { controller, phone, store } = setup([OVERVIEW, OVERVIEW, temperatureClimate(22)]);
+    const result = await controller.execute('setTemperature', { targetTemperature: 22 });
+    assert.equal(result.temperatureChanged, false);
+    assert.equal(temperatureTaps(phone).length, 0);
+    assert.equal(ctaCount(phone), 0);
+    assert.equal(store.reservations, 0);
+});
+
+test('invalid or absent temperature selections are rejected before contacting the phone', async () => {
+    for (const targetTemperature of [15.5, 30, 22.25, '22', false, NaN, Infinity]) {
+        const { controller, phone } = setup();
+        await rejectsCode(controller.execute('setTemperature', { targetTemperature }), 'invalid_temperature');
+        assert.equal(phone.calls.length, 0);
+    }
+    const { controller, phone } = setup();
+    await rejectsCode(controller.execute('setTemperature'), 'temperature_required');
+    assert.equal(phone.calls.length, 0);
+});
+
+test('write permission, supported picker and A/C mode are required before temperature gestures', async () => {
+    const cases = [
+        [temperatureClimate(22), { allowWrites: false }, 'writes_disabled'],
+        [OFF, {}, 'temperature_unavailable'],
+        [temperatureClimate(22, 'off', 'Scheibenheizung'), {}, 'unsafe_mode'],
+    ];
+    for (const [screen, config, expected] of cases) {
+        const { controller, phone } = setup([OVERVIEW, OVERVIEW, screen], config);
+        await rejectsCode(controller.execute('setTemperature', { targetTemperature: 22.5 }), expected);
+        assert.equal(temperatureTaps(phone).length, 0);
+        assert.equal(ctaCount(phone), 0);
+    }
+});
+
+test('an unconfirmed temperature tap is never repeated and prevents a climate start', async () => {
+    const { controller, phone, store } = setup([OVERVIEW, OVERVIEW, temperatureClimate(22)]);
+    await rejectsCode(controller.execute('start', { targetTemperature: 22.5 }), 'temperature_outcome_unknown');
+    assert.equal(temperatureTaps(phone).length, 1);
+    assert.equal(ctaCount(phone), 0);
+    assert.equal(store.reservations, 0);
+});
+
+test('unexpected temperature, climate-state and app-version changes stop temperature selection', async () => {
+    for (const after of [temperatureClimate(23), temperatureClimate(22.5, 'on')]) {
+        const { controller, phone } = setup([OVERVIEW, OVERVIEW, temperatureClimate(22), temperatureClimate(22), after]);
+        await rejectsCode(controller.execute('setTemperature', { targetTemperature: 22.5 }), 'temperature_outcome_unknown');
+        assert.equal(temperatureTaps(phone).length, 1);
+        assert.equal(ctaCount(phone), 0);
+    }
+    const version = setup([OVERVIEW, OVERVIEW, temperatureClimate(22), temperatureClimate(22), temperatureClimate(22.5)]);
+    version.phone.versions = ['4.8.1', '4.8.1', '4.8.2'];
+    await rejectsCode(version.controller.execute('setTemperature', { targetTemperature: 23 }), 'version_not_approved');
+    assert.equal(temperatureTaps(version.phone).length, 1);
+});
+
+test('a changed temperature before the start CTA prevents the CTA', async () => {
+    const { controller, phone, store } = setup([OVERVIEW, OVERVIEW, temperatureClimate(22), temperatureClimate(22), temperatureClimate(22.5), temperatureClimate(23)]);
+    await rejectsCode(controller.execute('start', { targetTemperature: 22.5 }), 'temperature_not_confirmed');
+    assert.equal(temperatureTaps(phone).length, 1);
+    assert.equal(ctaCount(phone), 0);
+    assert.equal(store.reservations, 0);
+});
+
+test('cancellation during a temperature tap stops every subsequent gesture', async () => {
+    const { controller, phone } = setup([OVERVIEW, OVERVIEW, temperatureClimate(22)]);
+    phone.hooks.tap = (_x, y) => { if (y === 110) controller.cancel(); };
+    await rejectsCode(controller.execute('start', { targetTemperature: 22.5 }), 'temperature_outcome_unknown');
+    assert.equal(temperatureTaps(phone).length, 1);
+    assert.equal(ctaCount(phone), 0);
+});
+
+test('temperature dry runs check the visible neighbor and start CTA without input', async () => {
+    const { controller, phone, store } = setup([OVERVIEW, OVERVIEW, temperatureClimate(22)]);
+    const result = await controller.execute('start', { targetTemperature: 22.5, dryRun: true });
+    assert.equal(result.wouldSetTemperature, 22.5);
+    assert.equal(result.wouldRequest, 'on');
+    assert.equal(result.temperature, 22);
+    assert.equal(temperatureTaps(phone).length, 0);
+    assert.equal(ctaCount(phone), 0);
+    assert.equal(store.reservations, 0);
+});
+
+test('cooldown failure after a confirmed temperature selection remains a cooldown and sends no CTA', async () => {
+    const { controller, phone, store } = setup([OVERVIEW, OVERVIEW, temperatureClimate(22), temperatureClimate(22), temperatureClimate(22.5), temperatureClimate(22.5)]);
+    store.reserveCommand = async () => { throw new BridgeError('cooldown', 'Bitte warten.'); };
+    await rejectsCode(controller.execute('start', { targetTemperature: 22.5 }), 'cooldown');
+    assert.equal(temperatureTaps(phone).length, 1);
+    assert.equal(ctaCount(phone), 0);
 });
