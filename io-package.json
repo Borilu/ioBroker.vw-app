@@ -1,8 +1,9 @@
 {
   "common": {
     "name": "vw-app",
-    "version": "0.5.0",
+    "version": "0.6.0",
     "news": {
+      "0.6.0": { "en": "Refresh climate, charging and vehicle-report app observations automatically with fair scheduling, manual-command priority and separate read-age diagnostics.", "de": "Klima-, Lade- und Berichtswerte der App automatisch fair aktualisieren, Bedienbefehle bevorzugen und das Alter der App-Auslesung getrennt anzeigen." },
       "0.5.0": { "en": "Read the vehicle health report, mileage, next service, app synchronization label and seven message categories without changing vehicle settings.", "de": "Fahrzeugzustandsbericht, Kilometerstand, nächsten Service, Synchronisationshinweis der App und sieben Meldungsbereiche auslesen, ohne Fahrzeugeinstellungen zu ändern." },
       "0.4.0": { "en": "Read app-reported battery charge and remaining range; stage and apply a 50–100% charge limit in 10% steps, reduced AC current, automatic AC plug unlocking and optimized battery use.", "de": "Ladezustand und Restreichweite aus der App lesen; Ladegrenze von 50–100 % in 10-%-Schritten, reduzierten AC-Ladestrom, automatische AC-Steckerentriegelung und optimierte Batterienutzung vormerken und übernehmen." },
       "0.3.0": { "en": "Select climate or window-heating mode, climate on unlock, automatic window heating and front comfort zones.", "de": "Klimatisierung oder Scheibenheizung, Standklimatisierung bei Entriegelung, automatische Scheibenheizung und vordere Komfortzonen einstellen." },
@@ -38,7 +39,7 @@
     "modeTitles": "Klimatisierung|Air conditioning", "allowWrites": false,
     "adbPath": "", "useBundledAdb": true, "commandTimeoutSeconds": 300,
     "outcomeTimeoutSeconds": 120,
-    "cooldownSeconds": 60, "pollIntervalSeconds": 0, "stayAwakeOnCharge": false,
+    "cooldownSeconds": 60, "pollIntervalSeconds": 15, "refreshMaxAgeSeconds": 0, "stayAwakeOnCharge": false,
     "legacyStatePrefix": ""
   },
   "objects": [],
