@@ -64,7 +64,12 @@ All IDs are relative to `vw-app.0` (replace `0` with the instance number).
 | `commands.start` | Write `true`, `ack=false` to start climate control |
 | `commands.stop` | Write `true`, `ack=false` to stop the shown climate operation |
 | `commands.refresh` | Write `true`, `ack=false` to read the app state |
+| `commands.setTemperature` | Write `true`, `ack=false` to apply the saved target temperature without starting climate control |
+| `commands.clearTemperature` | Write `true`, `ack=false` to select “keep the app temperature”, without operating the phone |
 | `climate.appState` | `on`, `off` or `unknown` as observed in the VW app |
+| `climate.targetTemperature` | Writable saved target in °C; `null` keeps the existing app temperature. Acknowledgment means saved, not applied |
+| `climate.targetTemperatureError` | Fixed feedback about an invalid or unsaved target selection; separate from the current phone job |
+| `climate.temperature` | Read-only temperature observed in the app, or `null` with invalid quality if unreadable |
 | `climate.confirmationSource` | `none`, `app_controls` (climate controls) or `app_overview` (the exact active-climate description in the vehicle overview) |
 | `climate.active` | Boolean observation; invalid quality on a failed read |
 | `climate.vehicleConfirmed` | Always `false`; no independent vehicle telemetry confirmation |
@@ -78,7 +83,7 @@ All IDs are relative to `vw-app.0` (replace `0` with the instance number).
 | `info.appVersion` | Observed Volkswagen app version |
 | `info.status` | Setup/runtime/operation status |
 
-Buttons reset automatically. Temperature stays at the value already selected in the Volkswagen app. Stop ends the climate operation exposed by the app's single Stop button, which may include window heating. Start requires a recognized air-conditioning mode.
+Buttons reset automatically. Without a selected target temperature, the app's existing temperature is preserved. Stop ends the climate operation exposed by the app's single Stop button, which may include window heating. Start requires a recognized air-conditioning mode.
 
 Status is read on request by default. Optional automatic polling is limited to one read every five minutes or slower. Status can become stale between reads; check `operation.lastUpdated`.
 
@@ -94,13 +99,25 @@ The confirmation source describes evidence from the app. Both `app_controls` and
 - Unknown dialogs, missing controls, unexpected modes or a changed app version stop the operation.
 - After a switching attempt, an unclear outcome is reported as `outcome_unknown`; the adapter does not repeat the command automatically.
 
-Volkswagen's app may acknowledge a start with a delay. New instances allow up to **120 seconds** after a switching attempt for the app confirmation (`outcomeTimeoutSeconds`, configurable from 30 to 150 seconds), within a **180-second** overall job deadline (`commandTimeoutSeconds`, configurable from 30 to 180 seconds). Connection and navigation also consume that overall budget; a shorter overall limit can therefore end the wait earlier. Existing instances retain their saved overall limit. If it is still 125 seconds, change it to 180 seconds in expert settings to use the longer default budget.
+Volkswagen's app may acknowledge a start with a delay. New instances allow up to **120 seconds** after a switching attempt for the app confirmation (`outcomeTimeoutSeconds`, configurable from 30 to 150 seconds), within a **300-second** overall job deadline (`commandTimeoutSeconds`, configurable from 30 to 360 seconds). Connection, navigation and temperature selection also consume that overall budget; a shorter overall limit can therefore end the wait earlier. Existing instances retain their saved overall limit. If it is still 125 or 180 seconds, change it to 300 seconds in expert settings to allow the full budget for temperature selection and starting.
 
 An exact active-climate description in the selected vehicle's overview can provide additional app confirmation. A successful read of that description is reported as `app_overview`; observations from the climate controls are reported as `app_controls`. An uncertain result clears the source to `none` rather than claiming vehicle telemetry.
 
 On **24 October 2026**, the user confirmed a real climate start on an ID.7. The app acknowledged it after an earlier adapter request had already reported `outcome_unknown`. This update allows more time for that delayed response and recognizes the observed overview description as another app signal. The on-screen countdown is not available through the inspected UI hierarchy and is not used as a fabricated confirmation source.
 
 These checks cannot guarantee compatibility with a future app UI. Check the official app after any uncertain result. Recalibrate after app updates.
+
+## Select the target temperature
+
+Write a supported numeric °C value, for example `22.5`, to `climate.targetTemperature` with `ack=false`. The verified numeric range is **16.0 to 29.5 °C in 0.5 °C steps**; the adjacent `LO` and `HI` modes are not supported. Numeric strings such as `"22.5"` are rejected. A successful `ack=true` means the selection was saved privately for future use; this write does not touch the phone. Invalid input restores the last accepted selection and reports `invalid_temperature` in `climate.targetTemperatureError`. A valid selection clears that selection error without changing a concurrent phone job's error or result.
+
+After an invalid or unsaved selection, a new Start or Apply is blocked with `temperature_selection_failed`, even though the previous value is displayed again. Explicitly select a valid value again or press `commands.clearTemperature` to resolve it. Status and Stop remain available. A failed selection made after a job was accepted does not alter that job's saved target.
+
+Use `commands.setTemperature` to apply the saved selection without pressing Start or Stop, or use `commands.start` to set it before the climate start. Write permission must be enabled for either operation to change the app temperature. `climate.temperature` is updated only from an actual app reading and remains separate from the saved target. An app reading still does not set `climate.vehicleConfirmed` to `true`.
+
+The saved selection survives adapter restarts. Press `commands.clearTemperature` to keep the existing app temperature on later starts. Alternatively, write the actual null value (`null`, not the text `"null"`) to the target. This choice only changes the saved preference. Applying a null selection with `commands.setTemperature` is rejected before any phone access. A new selection made during a running job is saved for the next job; it does not alter the target already chosen for the active job.
+
+The app picker is operated through freshly read individual 0.5 °C steps, so a large temperature change can take additional time. Check the resulting `climate.temperature`; if feedback is uncertain, inspect the Volkswagen app before issuing another command.
 
 ## Migration from the Python prototype
 
@@ -128,6 +145,13 @@ Adapter source: [MIT](LICENSE). Third-party components retain their licenses; se
 Independent community project, not provided or endorsed by Volkswagen, Google or ioBroker. Volkswagen and Android are trademarks of their respective owners.
 
 ### Changelog
+
+#### 0.2.0
+
+- Persist a selected target temperature from 16 to 29.5 °C in 0.5 °C steps and apply it before the next start.
+- Apply a temperature without starting climate control, read the selected app temperature, or clear the staged selection.
+- Verify each picker step and preserve the last accepted target across adapter restarts.
+- Allow a 300-second overall job budget for temperature selection and delayed app confirmation.
 
 #### 0.1.1
 

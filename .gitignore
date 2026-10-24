@@ -10,5 +10,6 @@ adb-home/
 adbkey*
 enrollment.json
 command-journal.json
+temperature-preference.json
 *.log
 .DS_Store
