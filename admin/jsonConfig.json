@@ -217,7 +217,7 @@
     },
     "allowWrites": {
       "type": "checkbox",
-      "label": "Klimatisierung über ioBroker starten und stoppen erlauben",
+      "label": "Klimastart, Stopp und Temperaturänderungen erlauben",
       "default": false,
       "disabled": "!data.approvedAppVersion || !data.vehicleMarker",
       "help": "Erst nach erfolgreicher Einrichtung aktivieren und speichern. Ohne Freigabe sind nur Statusabfragen möglich.",
@@ -228,6 +228,11 @@
       "label": "Handy bei Verbindung am Ladekabel wachhalten",
       "default": false,
       "help": "Optional. Der Adapter darf beim Verbinden die entsprechende Android-Einstellung aktivieren. Eine vorhandene Bildschirmsperre wird dadurch nicht entsperrt.",
+      "sm": 12
+    },
+    "_temperatureHint": {
+      "type": "staticText",
+      "text": "Temperaturwahl: In climate.targetTemperature 16 bis 29.5 °C in 0.5-°C-Schritten vormerken, zum Beispiel 22.5. Ein Start übernimmt den Sollwert; commands.setTemperature stellt ihn ohne Klimastart ein. commands.clearTemperature wählt App-Temperatur beibehalten. climate.temperature zeigt den ausgelesenen App-Wert; climate.targetTemperatureError meldet Auswahlfehler. Eine bestätigte Auswahl bedeutet zunächst nur gespeichert. LO und HI werden nicht unterstützt.",
       "sm": 12
     },
     "_keepAwake": {
@@ -259,12 +264,12 @@
     "commandTimeoutSeconds": {
       "type": "number",
       "label": "Zeitlimit je Auftrag (Sekunden)",
-      "default": 180,
+      "default": 300,
       "min": 30,
-      "max": 180,
+      "max": 360,
       "step": 1,
       "expertMode": true,
-      "help": "Begrenzt den gesamten Auftrag einschließlich der Wartezeit auf die App-Rückmeldung. Bei unklarer Rückmeldung wird kein Schaltbefehl wiederholt.",
+      "help": "Begrenzt Temperaturwahl, Verbindung und Wartezeit auf die App-Rückmeldung zusammen. Große Temperatursprünge brauchen zusätzliche Zeit. Bei unklarer Rückmeldung wird kein Schaltbefehl wiederholt.",
       "sm": 6
     },
     "outcomeTimeoutSeconds": {
