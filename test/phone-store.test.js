@@ -347,9 +347,11 @@ test('temperature preference persists independently of enrollment and the comman
     await store.write('enrollment', { deviceId: SERIAL });
     await store.write('command-journal', { lastAttempt: 123 });
     await store.write('temperature-preference', { targetCelsius: 22.5 });
+    await store.write('settings-preference', { mode: 'windowHeating', climateOnUnlock: false, autoWindowHeating: true, zones: 'frontLeft' });
     const restored = new StateStore(directory);
     assert.equal(path.basename(restored.file('temperature-preference')), 'temperature-preference.json');
     assert.deepEqual(await restored.read('temperature-preference'), { targetCelsius: 22.5 });
+    assert.deepEqual(await restored.read('settings-preference'), { mode: 'windowHeating', climateOnUnlock: false, autoWindowHeating: true, zones: 'frontLeft' });
     await restored.write('temperature-preference', { targetCelsius: null });
     assert.deepEqual(await store.read('temperature-preference'), { targetCelsius: null });
     assert.deepEqual(await store.read('enrollment'), { deviceId: SERIAL });

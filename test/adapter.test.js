@@ -11,9 +11,14 @@ const { BridgeError } = require('../lib/errors');
 const { PACKAGE } = require('../lib/ui');
 const ADMIN = require('../admin/jsonConfig.json');
 const { MIN_TEMPERATURE_CELSIUS, MAX_TEMPERATURE_CELSIUS, TEMPERATURE_STEP_CELSIUS } = require('../lib/temperature');
+const { DEFAULT_TARGET_SETTINGS, SETTINGS_KEYS } = require('../lib/settings');
 
 const VEHICLE = 'Ihr Fahrzeug: ID.7 GTX Tourer. ';
 const DEVICE = 'serial:TEST-ADAPTER-42';
+const SETTING_TARGETS = { mode: 'climate.targetMode', climateOnUnlock: 'climate.targetClimateOnUnlock',
+    autoWindowHeating: 'climate.targetAutoWindowHeating', zones: 'climate.targetZones' };
+const SETTING_OBSERVED = { mode: 'climate.mode', climateOnUnlock: 'climate.climateOnUnlock',
+    autoWindowHeating: 'climate.autoWindowHeating', zones: 'climate.zones' };
 const HOST = '192.0.2.42';
 const PORT = 37123;
 const clone = value => structuredClone(value);
@@ -193,6 +198,10 @@ async function fixture(t, options = {}) {
 }
 
 function enrolled() { return { deviceId: DEVICE, profile: { appVersion: '4.8.1', vehicleMarker: VEHICLE } }; }
+function expectedCall(action, targetTemperature, targetSettings = DEFAULT_TARGET_SETTINGS) {
+    return { action, input: { targetTemperature,
+        ...(['start', 'applySettings'].includes(action) ? { targetSettings: { ...targetSettings } } : {}) } };
+}
 
 test('ready keeps an unconfigured instance alive with runtime_missing and never downloads or touches a phone', async t => {
     const f = await fixture(t, { runtimeMissing: true, config: { hostIp: '', connectPort: 0 } });
@@ -213,14 +222,14 @@ test('ready keeps an unconfigured instance alive with runtime_missing and never 
 
 test('state objects match their schema and quality wrappers remain flat on failure', async t => {
     const f = await fixture(t);
-    for (const [id, [type, role, , write]] of Object.entries(DEFINITIONS)) {
+    for (const [id, [type, role, initial, write]] of Object.entries(DEFINITIONS)) {
         const object = f.adapter.objects.get(id);
         assert.equal(object.type, 'state');
         assert.equal(object.common.type, type);
         assert.equal(object.common.role, role);
         assert.equal(object.common.write, write);
         assert.equal(f.adapter.states.get(id).ack, true);
-        if (f.value(id) === null) assert.equal(type, 'number');
+        if (f.value(id) === null) assert.equal(initial, null);
         else assert.equal(typeof f.value(id), type);
     }
     await f.adapter.observation({ appState: 'on', appVersion: '4.8.1', observedAt: new Date().toISOString(), confirmationSource: 'app_overview' });
@@ -243,11 +252,11 @@ test('buttons accept only explicit ack=false and true values, reset acknowledged
     await f.adapter.onStateChange('vw-app.0.commands.unlock', { val: true, ack: false });
     await f.adapter.onStateChange('other.0.commands.start', { val: true, ack: false });
     assert.deepEqual(actions, []);
-    for (const name of ['start', 'stop', 'refresh', 'setTemperature', 'clearTemperature']) {
+    for (const name of ['start', 'stop', 'refresh', 'setTemperature', 'clearTemperature', 'applySettings', 'clearSettings']) {
         await f.adapter.onStateChange('vw-app.0.commands.' + name, { val: true, ack: false });
         assert.deepEqual(f.adapter.states.get('commands.' + name), { val: false, ack: true });
     }
-    assert.deepEqual(actions, ['start', 'stop', 'status', 'setTemperature']);
+    assert.deepEqual(actions, ['start', 'stop', 'status', 'setTemperature', 'applySettings']);
 });
 
 test('legacy controls reset existing user states without creating or writing unrelated objects', async t => {
@@ -499,7 +508,7 @@ test('a failed pending selection blocks an immediately submitted start or apply 
         else await f.adapter.onStateChange('vw-app.0.commands.clearTemperature', { val: true, ack: false });
         assert.equal(f.adapter.temperatureUpdateFailed, false);
         await f.adapter.command('start');
-        assert.deepEqual(f.records.controllerCalls.at(-1), { action: 'start', input: { targetTemperature: kind === 'invalid' ? 23.5 : null } });
+        assert.deepEqual(f.records.controllerCalls.at(-1), expectedCall('start', kind === 'invalid' ? 23.5 : null));
     }
 });
 
@@ -515,7 +524,7 @@ test('a damaged stored preference blocks commands until a valid selection is exp
     f.records.controllerCalls.length = 0;
     await f.adapter.stageTemperature(22.5);
     await f.adapter.command('start');
-    assert.deepEqual(f.records.controllerCalls, [{ action: 'start', input: { targetTemperature: 22.5 } }]);
+    assert.deepEqual(f.records.controllerCalls, [expectedCall('start', 22.5)]);
 });
 
 test('temperature-only apply requires a non-null selection and write permission before phone access', async t => {
@@ -564,7 +573,7 @@ test('a start waits for previous preference persistence but later staging cannot
     assert.equal(f.adapter.temperatureUpdateFailed, false);
     assert.equal(f.value('climate.targetTemperature'), null);
     assert.deepEqual(f.memory['temperature-preference'], { targetCelsius: null });
-    assert.deepEqual(f.records.controllerCalls, [{ action: 'start', input: { targetTemperature: 22.5 } }]);
+    assert.deepEqual(f.records.controllerCalls, [expectedCall('start', 22.5)]);
     finish.resolve(); await start;
     assert.equal(f.value('climate.temperature'), 22.5);
     assert.equal(f.value('climate.targetTemperature'), null);
@@ -655,6 +664,220 @@ test('observed temperatures remain separate, numeric, qualified and constrained 
         assert.deepEqual(f.adapter.states.get('climate.temperature'), { val: null, ack: true, q: 0x82 });
     }
     assert.equal(f.value('climate.vehicleConfirmed'), false);
+});
+
+test('four climate settings stage strictly and persist explicit false without touching the phone', async t => {
+    const f = await fixture(t, { runtimeMissing: true });
+    const wishes = { mode: 'windowHeating', climateOnUnlock: false, autoWindowHeating: true, zones: 'frontRight' };
+    for (const [key, value] of Object.entries(wishes)) {
+        await f.adapter.onStateChange('vw-app.0.' + SETTING_TARGETS[key], { val: value, ack: false });
+        assert.deepEqual(f.adapter.states.get(SETTING_TARGETS[key]), { val: value, ack: true });
+    }
+    assert.deepEqual(f.memory['settings-preference'], wishes);
+    assert.equal(f.records.phones.length, 0);
+    assert.deepEqual(f.records.runtime[0].calls, [['start']]);
+    assert.equal(f.value('climate.targetSettingsError'), '');
+    await f.adapter.onStateChange('vw-app.0.climate.targetClimateOnUnlock', { val: true, ack: true });
+    assert.equal(f.value('climate.targetClimateOnUnlock'), false);
+});
+
+test('settings restart restores all wishes and clearSettings atomically preserves the app values without clearing temperature', async t => {
+    const selected = { mode: 'climate', climateOnUnlock: false, autoWindowHeating: true, zones: 'both' };
+    const f = await fixture(t, { memory: { 'settings-preference': selected, 'temperature-preference': { targetCelsius: 22.5 } } });
+    for (const [key, value] of Object.entries(selected)) {
+        assert.deepEqual(f.adapter.writes.filter(row => row.id === SETTING_TARGETS[key]), [
+            { id: SETTING_TARGETS[key], value: { val: value, ack: true } },
+        ]);
+    }
+    const before = f.records.stores[0].writes.length;
+    await f.adapter.onStateChange('vw-app.0.commands.clearSettings', { val: true, ack: false });
+    assert.deepEqual(f.memory['settings-preference'], DEFAULT_TARGET_SETTINGS);
+    assert.equal(f.records.stores[0].writes.length, before + 1);
+    assert.deepEqual(f.adapter.states.get('commands.clearSettings'), { val: false, ack: true });
+    assert.equal(f.value('climate.targetTemperature'), 22.5);
+    assert.equal(f.records.phones.length, 0);
+    const restarted = await fixture(t, { memory: f.memory });
+    assert.deepEqual(restarted.adapter.targetSettings, DEFAULT_TARGET_SETTINGS);
+});
+
+test('an invalid mode blocks immediate apply and another successful field cannot heal its error', async t => {
+    const f = await fixture(t, { enrollment: enrolled(), config: { allowWrites: true }, fakeController: true });
+    await f.adapter.stageSetting('mode', 'climate');
+    const rejectedSelection = f.adapter.stageSetting('mode', 'INVALID');
+    const apply = f.adapter.command('applySettings');
+    const other = f.adapter.stageSetting('zones', 'both');
+    await rejectsCode(rejectedSelection, 'invalid_settings');
+    await rejectsCode(apply, 'settings_selection_failed');
+    await other;
+    await rejectsCode(f.adapter.command('start'), 'settings_selection_failed');
+    assert.equal(f.records.phones.length, 0);
+    assert.equal(f.value('climate.targetMode'), 'climate');
+    assert.equal(f.value('climate.targetZones'), 'both');
+    assert.ok(f.value('climate.targetSettingsError').includes('mode: invalid_settings:'));
+    await f.adapter.stageSetting('mode', 'windowHeating');
+    assert.equal(f.value('climate.targetSettingsError'), '');
+    await f.adapter.command('applySettings');
+    assert.deepEqual(f.records.controllerCalls, [expectedCall('applySettings', null, {
+        mode: 'windowHeating', climateOnUnlock: null, autoWindowHeating: null, zones: 'both',
+    })]);
+});
+
+test('settings persistence errors remain isolated per field and clearSettings explicitly repairs them', async t => {
+    const f = await fixture(t, { enrollment: enrolled(), config: { allowWrites: true }, fakeController: true,
+        storeWrite: async (name, value) => {
+            if (name === 'settings-preference' && value.autoWindowHeating === true) throw new BridgeError('state_not_saved', 'Settings could not be saved.');
+        },
+    });
+    await f.adapter.state('operation.lastErrorCode', 'outcome_unknown');
+    await f.adapter.state('operation.lastError', 'Previous phone feedback was unclear.');
+    await rejectsCode(f.adapter.stageSetting('autoWindowHeating', true), 'state_not_saved');
+    await f.adapter.stageSetting('climateOnUnlock', false);
+    assert.equal(f.value('operation.lastErrorCode'), 'outcome_unknown');
+    assert.equal(f.value('operation.lastError'), 'Previous phone feedback was unclear.');
+    assert.equal(f.value('climate.targetClimateOnUnlock'), false);
+    assert.equal(f.adapter.settingsUpdateFailed.autoWindowHeating, true);
+    await rejectsCode(f.adapter.command('applySettings'), 'settings_selection_failed');
+    assert.equal(f.records.phones.length, 0);
+    await f.adapter.clearSettings();
+    assert.equal(f.value('climate.targetSettingsError'), '');
+    await rejectsCode(f.adapter.command('applySettings'), 'settings_required');
+    assert.equal(f.records.phones.length, 0);
+    await f.adapter.stageSetting('mode', 'climate');
+    await f.adapter.command('applySettings');
+    assert.deepEqual(f.records.controllerCalls, [expectedCall('applySettings', null, { ...DEFAULT_TARGET_SETTINGS, mode: 'climate' })]);
+});
+
+test('repairing another saved setting does not erase a damaged mode on disk or after restart', async t => {
+    const damaged = { mode: 'BROKEN', climateOnUnlock: false, autoWindowHeating: true, zones: 'frontLeft' };
+    const f = await fixture(t, { memory: { 'settings-preference': damaged } });
+    assert.equal(f.adapter.settingsPreferenceReady.mode, false);
+    assert.equal(f.adapter.settingsPreferenceReady.climateOnUnlock, true);
+    await f.adapter.stageSetting('zones', 'both');
+    assert.equal(f.memory['settings-preference'].mode, 'BROKEN');
+    const restarted = await fixture(t, { enrollment: enrolled(), memory: f.memory, config: { allowWrites: true }, fakeController: true });
+    await rejectsCode(restarted.adapter.command('applySettings'), 'invalid_state');
+    assert.equal(restarted.records.phones.length, 0);
+    assert.deepEqual(restarted.adapter.states.get('climate.targetMode'), { val: null, ack: true, q: 0x82 });
+    await restarted.adapter.stageSetting('mode', 'climate');
+    await restarted.adapter.command('applySettings');
+    assert.deepEqual(restarted.records.controllerCalls, [expectedCall('applySettings', null, { ...damaged, mode: 'climate', zones: 'both' })]);
+});
+
+test('a non-finite damaged setting cannot become a valid null through an unrelated JSON save', async t => {
+    const f = await fixture(t, { memory: { 'settings-preference': { ...DEFAULT_TARGET_SETTINGS, mode: Infinity } } });
+    await f.adapter.stageSetting('zones', 'both');
+    const onDisk = JSON.parse(JSON.stringify(f.memory['settings-preference']));
+    const restarted = await fixture(t, { memory: { 'settings-preference': onDisk } });
+    assert.equal(restarted.adapter.settingsPreferenceReady.mode, false);
+    assert.equal(restarted.adapter.settingsUpdateFailed.mode, true);
+    assert.equal(restarted.value('climate.targetZones'), 'both');
+});
+
+test('missing settings observations are unknown and explicit observed false is never treated as missing', async t => {
+    const f = await fixture(t);
+    const base = { appState: 'off', appVersion: '4.8.1', observedAt: new Date().toISOString() };
+    await f.adapter.observation(base);
+    for (const id of Object.values(SETTING_OBSERVED)) assert.deepEqual(f.adapter.states.get(id), { val: null, ack: true, q: 0x82 });
+    const observed = { mode: 'climate', climateOnUnlock: false, autoWindowHeating: true, zones: 'frontRight' };
+    await f.adapter.observation({ ...base, settings: observed });
+    for (const [key, value] of Object.entries(observed)) assert.deepEqual(f.adapter.states.get(SETTING_OBSERVED[key]), { val: value, ack: true });
+    await f.adapter.observation({ ...base, settings: { ...observed, zones: 'none' } });
+    assert.deepEqual(f.adapter.states.get('climate.zones'), { val: 'none', ack: true });
+    assert.equal(f.adapter.objects.get('climate.targetZones').common.states.none, undefined);
+    assert.equal(typeof f.adapter.objects.get('climate.zones').common.states.none, 'string');
+    await f.adapter.observation({ ...base, settings: { mode: 'INVALID', climateOnUnlock: 'false', autoWindowHeating: false, zones: 'left' } });
+    assert.deepEqual(f.adapter.states.get('climate.autoWindowHeating'), { val: false, ack: true });
+    for (const id of ['climate.mode', 'climate.climateOnUnlock', 'climate.zones']) assert.deepEqual(f.adapter.states.get(id), { val: null, ack: true, q: 0x82 });
+    assert.equal(f.value('climate.vehicleConfirmed'), false);
+});
+
+test('applySettings needs write permission and depends only on settings, not a pending temperature write', { timeout: 2000 }, async t => {
+    const writing = deferred(); const save = deferred();
+    const f = await fixture(t, { enrollment: enrolled(), fakeController: true,
+        storeWrite: async name => { if (name === 'temperature-preference') { writing.resolve(); await save.promise; } },
+    });
+    t.after(() => save.resolve());
+    await f.adapter.stageSetting('mode', 'climate');
+    await rejectsCode(f.adapter.command('applySettings'), 'writes_disabled');
+    assert.equal(f.records.phones.length, 0);
+    f.adapter.settings.allowWrites = true;
+    const selection = f.adapter.stageTemperature(22.5); await writing.promise;
+    await f.adapter.command('applySettings');
+    assert.deepEqual(f.records.controllerCalls, [expectedCall('applySettings', null, { ...DEFAULT_TARGET_SETTINGS, mode: 'climate' })]);
+    assert.equal(f.memory['temperature-preference'], undefined);
+    save.resolve(); await selection;
+});
+
+test('temperature-only apply, status and stop do not depend on a pending settings write', { timeout: 2000 }, async t => {
+    const writing = deferred(); const save = deferred();
+    const f = await fixture(t, { enrollment: enrolled(), config: { allowWrites: true }, fakeController: true,
+        storeWrite: async name => { if (name === 'settings-preference') { writing.resolve(); await save.promise; } },
+    });
+    t.after(() => save.resolve());
+    await f.adapter.stageTemperature(22.5);
+    const selection = f.adapter.stageSetting('mode', 'climate'); await writing.promise;
+    await f.adapter.command('setTemperature'); await f.adapter.command('status'); await f.adapter.command('stop');
+    assert.deepEqual(f.records.controllerCalls, [expectedCall('setTemperature', 22.5), expectedCall('status', null), expectedCall('stop', null)]);
+    assert.equal(f.memory['settings-preference'], undefined);
+    save.resolve(); await selection;
+});
+
+test('an explicit window-heating start ignores failed and still-pending temperature selections', { timeout: 2000 }, async t => {
+    const writing = deferred(); const save = deferred();
+    const f = await fixture(t, { enrollment: enrolled(), config: { allowWrites: true }, fakeController: true,
+        storeWrite: async (name, value) => { if (name === 'temperature-preference' && value.targetCelsius === 23) { writing.resolve(); await save.promise; } },
+    });
+    t.after(() => save.resolve());
+    await f.adapter.stageSetting('mode', 'windowHeating');
+    await rejectsCode(f.adapter.stageTemperature(22.25), 'invalid_temperature');
+    await f.adapter.command('start');
+    const pending = f.adapter.stageTemperature(23); await writing.promise;
+    await f.adapter.command('start');
+    assert.deepEqual(f.records.controllerCalls, [expectedCall('start', null, { ...DEFAULT_TARGET_SETTINGS, mode: 'windowHeating' }),
+        expectedCall('start', null, { ...DEFAULT_TARGET_SETTINGS, mode: 'windowHeating' })]);
+    assert.equal(f.memory['temperature-preference'], undefined);
+    save.resolve(); await pending;
+});
+
+test('a settings snapshot waits for prior saves but later field changes and failures cannot alter the accepted job', async t => {
+    const writing = deferred(); const save = deferred(); const executing = deferred(); const finish = deferred();
+    const f = await fixture(t, { enrollment: enrolled(), config: { allowWrites: true }, fakeController: true,
+        storeWrite: async (name, value) => { if (name === 'settings-preference' && value.mode === 'climate' && value.zones === null) { writing.resolve(); await save.promise; } },
+        controllerExecute: async (action, input) => {
+            executing.resolve(); await finish.promise;
+            return { appState: 'off', appVersion: '4.8.1', observedAt: new Date().toISOString(), settings: input.targetSettings };
+        },
+    });
+    t.after(() => { save.resolve(); finish.resolve(); });
+    const prior = f.adapter.stageSetting('mode', 'climate'); await writing.promise;
+    const start = f.adapter.command('start');
+    const next = f.adapter.stageSetting('zones', 'both');
+    assert.equal(f.records.phones.length, 0);
+    save.resolve(); await prior; await next; await executing.promise;
+    await rejectsCode(f.adapter.stageSetting('climateOnUnlock', 'false'), 'invalid_settings');
+    assert.equal(f.value('operation.lastResult'), 'running');
+    assert.equal(f.value('operation.lastErrorCode'), '');
+    assert.deepEqual(f.records.controllerCalls, [expectedCall('start', null, { ...DEFAULT_TARGET_SETTINGS, mode: 'climate' })]);
+    finish.resolve(); await start;
+    assert.equal(f.value('climate.targetZones'), 'both');
+    assert.equal(f.value('climate.zones'), null);
+    await rejectsCode(f.adapter.command('start'), 'settings_selection_failed');
+});
+
+test('unload waits for an in-flight settings save and restart restores it', async t => {
+    const writing = deferred(); const save = deferred();
+    const f = await fixture(t, { storeWrite: async name => {
+        if (name === 'settings-preference') { writing.resolve(); await save.promise; }
+    } });
+    t.after(() => save.resolve());
+    const selection = f.adapter.stageSetting('autoWindowHeating', false); await writing.promise;
+    let unloaded = false;
+    const unload = f.adapter.onUnload(() => { unloaded = true; });
+    await Promise.resolve(); assert.equal(unloaded, false);
+    save.resolve(); await selection; await unload;
+    const restarted = await fixture(t, { memory: f.memory });
+    assert.equal(restarted.value('climate.targetAutoWindowHeating'), false);
+    assert.equal(unloaded, true);
 });
 
 test('unload aborts operations, cancels controller, stops runtime and releases lease even when cleanup throws', async t => {

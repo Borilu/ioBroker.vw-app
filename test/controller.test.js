@@ -111,6 +111,7 @@ test('status connects once and reports only app observation without a CTA or res
     const { controller, phone, store, log, clock } = setup();
     const result = await controller.execute('status');
     assert.deepEqual(result, { appState: 'off', changed: false, source: 'volkswagen_android_app', confirmationSource: 'app_controls', temperature: null, vehicleConfirmed: false,
+        settings: { mode: 'climate', climateOnUnlock: null, autoWindowHeating: null, zones: null },
         appVersion: '4.8.1', observedAt: new Date(clock.value).toISOString() });
     assert.deepEqual(log.slice(0, 3), ['connect', 'version', 'launch']);
     assert.equal(navCount(phone), 1);
