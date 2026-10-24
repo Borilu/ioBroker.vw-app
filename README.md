@@ -4,7 +4,7 @@ Control the **official Volkswagen Android app over Wi-Fi** from ioBroker.
 
 **Experimental community adapter.** The source has been tested with synthetic Android views. The initial real-device reference is a Galaxy A31 with Android 12, Volkswagen app 4.8.1 and an ID.7 GTX Tourer. This does not establish compatibility with every Volkswagen model, region or future app version. Only the selected vehicle in one phone app is controlled by an instance.
 
-Der Adapter bedient die offizielle Volkswagen-App auf einem Android-Handy. Kopplung, Einrichtung, Klimabefehle und Ladeeinstellungen werden direkt im ioBroker-Adapter verwaltet. Den Fahrzeugzustandsbericht liest er auf Anforderung aus. Die Volkswagen-Anmeldung bleibt auf dem Handy.
+Der Adapter bedient die offizielle Volkswagen-App auf einem Android-Handy. Kopplung, Einrichtung, Klimabefehle und Ladeeinstellungen werden direkt im ioBroker-Adapter verwaltet. Klima-, Lade- und Berichtswerte liest er wahlweise automatisch oder auf Anforderung aus. Die Volkswagen-Anmeldung bleibt auf dem Handy.
 
 ## What runs where
 
@@ -84,7 +84,7 @@ All IDs are relative to `vw-app.0` (replace `0` with the instance number).
 | `climate.confirmationSource` | `none`, `app_controls` (climate controls) or `app_overview` (the exact active-climate description in the vehicle overview) |
 | `climate.active` | Boolean observation; invalid quality on a failed read |
 | `climate.vehicleConfirmed` | Always `false`; no independent vehicle telemetry confirmation |
-| `operation.busy` | One operation is running |
+| `operation.busy` | A manual phone/setup operation is running; automatic reads use `refresh.autoBusy` |
 | `operation.lastResult` | `running`, `succeeded` or `failed` |
 | `operation.lastError` | Fixed diagnostic guidance |
 | `operation.lastErrorCode` | Machine-readable error code |
@@ -96,23 +96,49 @@ All IDs are relative to `vw-app.0` (replace `0` with the instance number).
 
 Buttons reset automatically. Without a selected target temperature, the app's existing temperature is preserved. Stop ends the climate operation exposed by the app's single Stop button, which may include window heating. With `climate.targetMode=null`, Start keeps the existing requirement for a recognized air-conditioning mode. An explicit `windowHeating` preference selects the separate window-heating operation; a staged temperature is ignored for that mode.
 
-Status is read on request by default: `commands.refresh` reads climate status only, while `commands.refreshCharging` separately reads battery and charging values. Optional automatic polling is disabled with `pollIntervalSeconds=0`; when enabled, its minimum interval is 300 seconds. Each cycle reads climate status first and then battery/charging status only if the phone is still free between jobs. It does not queue a charging read behind another accepted phone operation and never requests synchronization automatically. Values can become stale between reads; `operation.lastUpdated` and `battery.observedAt` record app-reading times.
+Manual reads remain separate: `commands.refresh` reads climate status, `commands.refreshCharging` reads battery and charging values, and `commands.refreshVehicleReport` reads the vehicle report. Automatic reads use the same validated app views and do not apply saved preferences.
 
 The confirmation source describes evidence from the app. Both `app_controls` and `app_overview` remain app observations; `climate.vehicleConfirmed` stays `false`. The inspected Android UI hierarchy did not expose the visible 30-minute countdown, so the adapter does not estimate or publish remaining minutes.
+
+## Automatic app reads and read age
+
+New instances use `pollIntervalSeconds=15`. Existing instances retain their saved setting: `0` stays disabled, and a missing legacy value also remains disabled. Use `0` for manual reads only, or a whole number from **15 to 86400** to enable automatic reads of **climate, battery/charging and the vehicle report**. No write permission is needed for these reads.
+
+This setting is the minimum wait **from a completed read until that same area becomes due again**. It does not promise a full update every 15 seconds. All three areas share one phone and run fairly, one after another. The adapter also rests between automatic jobs for at least **5 seconds or 25% of the last job's duration**, whichever is longer. Actual round-trip time includes all app navigation, UI reads and recovery pauses. There is no overlapping work or catch-up queue. A failing area receives a progressively longer retry wait, with error backoff limited to five minutes while respecting the configured minimum interval.
+
+Manual commands take priority. An automatic read stops at a safe step boundary before a manual command takes over; it does not interrupt an unfinished vehicle-setting change. After a control command, a read of the affected area receives priority. That follow-up only reads: it never repeats a Start, Stop, Save or other write. Automatic ticks never press **Jetzt synchronisieren** and never apply temperature, climate or charging wishes.
+
+The following metadata is read-only. Replace `<area>` with `climate`, `charging` or `vehicleReport`:
+
+| State | Meaning |
+|---|---|
+| `refresh.<area>.status` | `fresh`, `stale`, `error` or `unknown` for that area's app read |
+| `refresh.<area>.lastReadAt` | Time of its last successful app read |
+| `refresh.<area>.ageSeconds` | Age of that successful read |
+| `refresh.<area>.lastErrorCode` | Fixed code for its latest read error |
+| `refresh.<area>.lastDurationSeconds` | Duration of its latest read |
+| `refresh.<area>.maxAgeSeconds` | Read-age threshold currently in use |
+| `refresh.autoBusy` | An automatic app read is running |
+
+`fresh` means that a successful **app read** is still within its age threshold. `stale` marks an aged observation, `error` a failed read, and `unknown` the absence of a successful observation. None of these labels establishes when the vehicle measured or transmitted its data. The app's raw synchronization hint remains separate in `vehicleReport.synchronizationText`.
+
+Set `refreshMaxAgeSeconds` to **0** for an adaptive threshold, or a whole number from **30 to 86400** for an explicit read-age threshold. Automatic mode uses the greater of **90 seconds** and **twice the larger of the configured minimum interval and the estimated full cycle time**. Changing this threshold changes the age classification, not how often the phone is read or when it synchronizes with the vehicle. `operation.lastUpdated`, `battery.observedAt` and `vehicleReport.observedAt` remain the separate app-reading timestamps.
+
+Version 0.6.0 passed **437 automated tests on Linux**. In the preceding RC1 live check on the reference Galaxy A31, a configured 15-second minimum produced repeat reads of each area about **90–92 seconds** apart. With polling disabled and a 30-second age limit, expired observations retained their last values with invalid quality; preferences and synchronization-request history remained unchanged. A manual report request took over the phone from an automatic read in about **1.75 seconds**; that is the handoff time, not the time to finish reading the report. Automatic reads preserved the manual operation feedback. These live checks did not start or stop climate control, save vehicle preferences or request synchronization. Six additional simulated regression tests cover cooperative handoff through the zones page, hard cancellation, deadlines and preservation of manual drafts; they do not represent an additional physical Start/Stop test.
 
 ## Command behavior
 
 - App controls are identified from the current Android UI hierarchy, not saved screen coordinates.
 - A device identity, calibrated vehicle label and approved app version are checked before switching.
 - An already satisfied command does not send another switching request.
-- Only one operation runs at a time; additional commands are rejected rather than queued.
+- Only one phone operation runs at a time. Manual commands can take over from an automatic read at a safe step boundary; additional manual commands still receive a busy response.
 - A private command journal enforces at least 60 seconds between switching attempts, including after adapter restarts.
 - Unknown dialogs, missing controls, unexpected modes or a changed app version stop the operation.
 - After a switching attempt, an unclear outcome is reported as `outcome_unknown`; the adapter does not repeat the command automatically.
 
 Volkswagen's app may acknowledge a start with a delay. New instances allow up to **120 seconds** after a switching attempt for the app confirmation (`outcomeTimeoutSeconds`, configurable from 30 to 150 seconds), within a **300-second** overall job deadline (`commandTimeoutSeconds`, configurable from 30 to 360 seconds). Connection, navigation and temperature selection also consume that overall budget; a shorter overall limit can therefore end the wait earlier. Existing instances retain their saved overall limit. If it is still 125 or 180 seconds, change it to 300 seconds in expert settings to allow the full budget for temperature selection and starting.
 
-An exact active-climate description in the selected vehicle's overview can provide additional app confirmation. A successful read of that description is reported as `app_overview`; observations from the climate controls are reported as `app_controls`. An uncertain result clears the source to `none` rather than claiming vehicle telemetry.
+An exact active-climate description in the selected vehicle's overview can provide additional app confirmation. A successful read of that description is reported as `app_overview`; observations from the climate controls are reported as `app_controls`. An uncertain result retains the last known source with invalid quality and an error in `refresh.climate.status`; that historical value does not confirm the current outcome. No source claims independent vehicle telemetry.
 
 On **24 October 2026**, the user confirmed a real climate start on an ID.7. The app acknowledged it after an earlier adapter request had already reported `outcome_unknown`. This update allows more time for that delayed response and recognizes the observed overview description as another app signal. The on-screen countdown is not available through the inspected UI hierarchy and is not used as a fabricated confirmation source.
 
@@ -198,7 +224,7 @@ Version 0.4.0 passed **332 automated tests on Linux**. Live checks read battery 
 
 Write `true` with `ack=false` to **`commands.refreshVehicleReport`** to read the Volkswagen app's **Fahrzeugzustandsbericht**. The button resets automatically. This is the only report control: every state under `vehicleReport` is read-only. There are no report wishes or apply/save commands, and reading the report does not request synchronization or start or stop a vehicle function. The permission to change vehicle settings is not needed; the calibrated phone, vehicle and app checks still apply.
 
-The report is read only on request. Existing automatic climate and charging polling is unchanged, and `commands.refresh` remains a climate read. A report read does not wait for temperature, climate or charging preference saves; only one phone operation can run at a time.
+The report can be read on request or as part of automatic app updates. `commands.refresh` remains a climate read. A report read does not wait for temperature, climate or charging preference saves; only one phone operation can run at a time.
 
 All IDs below are relative to `vw-app.0`.
 
@@ -232,7 +258,7 @@ Each category has `vehicleReport.<category>.status` and `vehicleReport.<category
 
 `no_messages` means the app reports no messages for that category. It is not a diagnosis or an independent statement that the vehicle is healthy. Unrecognized texts are preserved and reported as `unknown`; unnamed icons do not provide an invented color or severity. Warning configurations have not yet been checked live, so they are not promoted to a confirmed interpretation.
 
-`vehicleReport.synchronizationText` is the app's own displayed hint. It is separate from `vehicleReport.observedAt`, which records the adapter's app-reading time; neither creates a new synchronization request or independently establishes when the vehicle measured the values. If the full report cannot be read or validated, only the report states are cleared and marked with invalid quality. Climate and charging observations are retained.
+`vehicleReport.synchronizationText` is the app's own displayed hint. It is separate from `vehicleReport.observedAt`, which records the adapter's app-reading time; neither creates a new synchronization request or independently establishes when the vehicle measured the values. If the full report cannot be read or validated, its last known values are retained with invalid quality and `refresh.vehicleReport.status=error`. An aged app read is marked `stale` with invalid quality. Retained values are historical observations, not a fresh report; the last successful reading time does not advance on failure. Climate and charging observations are retained independently.
 
 Version 0.5.0 passed **391 automated tests on Linux**. Real top and bottom report views were also merged locally into a complete validated model. Two live report reads on a **Galaxy A31 with Android 12 and the German Volkswagen app 4.8.1** correctly captured odometer, service information, summary, synchronization text, all seven categories, the footer and normalized JSON; the second read updated `observedAt`. All 27 actual ioBroker report objects were verified as read-only, matching the automated schema checks. On both reads, 23 monitored climate, charging, preference and synchronization-request values remained exactly unchanged. No vehicle action, Save or synchronization was triggered, and climate control remained off. Active warning configurations were neither created nor checked live.
 
@@ -262,6 +288,13 @@ Adapter source: [MIT](LICENSE). Third-party components retain their licenses; se
 Independent community project, not provided or endorsed by Volkswagen, Google or ioBroker. Volkswagen and Android are trademarks of their respective owners.
 
 ### Changelog
+
+#### 0.6.0
+
+- Refresh climate, battery/charging and the vehicle report fairly with completion-based scheduling and recovery pauses.
+- Give manual commands priority over automatic reads and prioritize a read after a control command without repeating writes.
+- Publish separate per-area read-age, duration and error metadata; distinguish app-read freshness from vehicle telemetry freshness.
+- Enable a 15-second minimum completion interval for new instances while retaining existing disabled polling settings.
 
 #### 0.5.0
 
