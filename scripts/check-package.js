@@ -6,8 +6,12 @@ const root = path.resolve(__dirname, '..');
 const pkg = require(path.join(root, 'package.json'));
 const io = require(path.join(root, 'io-package.json'));
 const ui = require(path.join(root, 'admin/jsonConfig.json'));
+const lock = require(path.join(root, 'package-lock.json'));
+const { normalizeConfig } = require(path.join(root, 'lib/config'));
 assert.equal(pkg.name, 'iobroker.' + io.common.name);
 assert.equal(pkg.version, io.common.version);
+assert.equal(pkg.version, lock.version);
+assert.equal(pkg.version, lock.packages[''].version);
 assert.equal(io.common.mode, 'daemon');
 assert.equal(io.common.compact, false);
 assert.equal(io.common.messagebox, true);
@@ -21,7 +25,26 @@ for (const key of ['_pairCode','_pairPort','_acceptRuntimeLicense']) {
 for (const key of Object.keys(io.native)) assert(!/^_/.test(key));
 for (const key of Object.keys(ui.items).filter(k => !k.startsWith('_'))) assert(key in io.native, 'UI/native mismatch: ' + key);
 assert.equal(io.native.allowWrites, false);
-assert.equal(io.native.pollIntervalSeconds, 0);
+assert.equal(io.native.pollIntervalSeconds, 15);
+assert.equal(ui.items.pollIntervalSeconds.default, 15);
+assert.equal(ui.items.pollIntervalSeconds.min, 0);
+assert.equal(ui.items.pollIntervalSeconds.max, 86400);
+assert.equal(io.native.refreshMaxAgeSeconds, 0);
+assert.equal(ui.items.refreshMaxAgeSeconds.default, 0);
+assert.equal(ui.items.refreshMaxAgeSeconds.min, 0);
+assert.equal(ui.items.refreshMaxAgeSeconds.max, 86400);
+assert.equal(normalizeConfig().pollIntervalSeconds, 0, 'Missing legacy polling must stay disabled.');
+assert.equal(normalizeConfig(io.native).pollIntervalSeconds, 15);
+assert.equal(normalizeConfig({ refreshMaxAgeSeconds: 30 }).refreshMaxAgeSeconds, 30);
+for (const config of [{ pollIntervalSeconds: 14 }, { pollIntervalSeconds: 86401 },
+    { refreshMaxAgeSeconds: 29 }, { refreshMaxAgeSeconds: 86401 }]) {
+    assert.throws(() => normalizeConfig(config), error => error.code === 'invalid_config');
+}
+for (const [name, minimum] of [['pollIntervalSeconds', 15], ['refreshMaxAgeSeconds', 30]]) {
+    const validate = new Function('data', 'return (' + ui.items[name].validator + ');');
+    for (const value of [0, minimum, 86400]) assert.equal(validate({ [name]: value }), true);
+    for (const value of [1, minimum - 1, minimum + 0.5, 86401, true]) assert.equal(validate({ [name]: value }), false);
+}
 assert.equal(ui.items.commandTimeoutSeconds.min, 30);
 assert.equal(ui.items.commandTimeoutSeconds.max, 360);
 assert(!pkg.files.some(s => /node_modules|adb-home|runtime\//.test(s)));

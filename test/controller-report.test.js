@@ -153,3 +153,19 @@ test('report operations reserve busy synchronously and respect cancellation',asy
     const active=controller.execute('vehicleReportStatus');await rejects(controller.execute('vehicleReportStatus'),'busy');
     controller.cancel();release();await rejects(active,'cancelled');assert.equal(controller.busy,false);assert.equal(phone.deadline,null);assert.equal(phone.calls.filter(call=>call[0]==='tap').length,0);
 });
+
+test('automatic keep-awake uses one verified connection before any report navigation',async()=>{
+    const {controller,phone}=setup({}, {stayAwakeOnCharge:true});
+    phone.keepAwake=async()=>{phone.calls.push(['keepAwake']);return {active:true};};
+    await controller.execute('vehicleReportStatus');
+    assert.equal(phone.calls.filter(call=>call[0]==='connect').length,1);
+    assert.equal(phone.calls.filter(call=>call[0]==='keepAwake').length,1);
+    assert.ok(phone.calls.findIndex(call=>call[0]==='connect')<phone.calls.findIndex(call=>call[0]==='keepAwake'));
+    assert.ok(phone.calls.findIndex(call=>call[0]==='keepAwake')<phone.calls.findIndex(call=>call[0]==='tap'));
+});
+
+test('failed keep-awake confirmation prevents all report app input',async()=>{
+    const {controller,phone}=setup({}, {stayAwakeOnCharge:true});phone.keepAwake=async()=>({active:false});
+    await rejects(controller.execute('vehicleReportStatus'),'phone_setting_failed');
+    assert.equal(phone.calls.filter(call=>call[0]==='tap'||call[0]==='swipe').length,0);
+});

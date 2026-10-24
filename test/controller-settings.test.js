@@ -113,6 +113,126 @@ function setup(options = {}, config = {}) {
     }, now: () => clock.now, sleep: async ms => { clock.now += ms; } });
     return { controller, phone, store };
 }
+
+function nextController(previous, phone) {
+    return new Controller({ config: previous.config, phone, store: previous.store, now: previous.now, sleep: previous.sleep });
+}
+
+test('read handoff completes the known clean zones round trip before a subsequent Start or Stop', async () => {
+    for (const trigger of ['tap', 'dump']) for (const action of ['start', 'stop']) {
+        const { controller, phone } = setup({ state: action === 'stop' ? 'on' : 'off' });
+        const saved = structuredClone(phone.savedSettings);
+        let requested = false;
+        const request = () => {
+            if (requested) return;
+            requested = true;
+            assert.equal(controller.requestReadHandoff(), true);
+        };
+        if (trigger === 'dump') phone.beforeDump = () => { if (phone.page === 'zones') request(); };
+        else {
+            const tap = phone.tap.bind(phone);
+            phone.tap = async (...coordinates) => { await tap(...coordinates); if (phone.page === 'zones') request(); };
+        }
+        await assert.rejects(controller.execute('status'), error => error.code === 'cancelled');
+        assert.equal(requested, true);
+        assert.equal(phone.page, 'settings');
+        assert.equal(phone.settingsDirty, false);
+        assert.equal(phone.saves, 0);
+        assert.equal(phone.ctas, 0);
+        assert.deepEqual(phone.mutations, []);
+        assert.deepEqual(phone.savedSettings, saved);
+        assert.equal(controller.busy, false);
+        assert.equal(controller.requestReadHandoff(), false);
+        const result = await nextController(controller, phone).execute(action);
+        assert.equal(result.appState, action === 'start' ? 'on' : 'off');
+        assert.equal(phone.ctas, 1);
+        assert.equal(phone.saves, 0);
+        assert.deepEqual(phone.savedSettings, saved);
+    }
+});
+
+test('hard cancellation in the protected zones read never sends a cleanup gesture', async () => {
+    const { controller, phone } = setup();
+    let callsAtCancel;
+    phone.beforeDump = () => {
+        if (phone.page === 'zones') {
+            callsAtCancel = phone.calls.length;
+            controller.cancel();
+        }
+    };
+    await assert.rejects(controller.execute('status'), error => error.code === 'cancelled');
+    assert.equal(phone.page, 'zones');
+    assert.equal(phone.calls.length, callsAtCancel);
+    assert.equal(phone.saves, 0);
+    assert.equal(phone.ctas, 0);
+    assert.equal(controller.requestReadHandoff(), false);
+});
+
+test('the job deadline still stops the protected zones read before any return gesture', async () => {
+    const { controller, phone } = setup();
+    let now = 1000000;
+    controller.now = () => now;
+    let callsAtExpiry;
+    phone.beforeDump = () => {
+        if (phone.page === 'zones') {
+            assert.equal(controller.requestReadHandoff(), true);
+            callsAtExpiry = phone.calls.length;
+            now = controller.deadline;
+        }
+    };
+    await assert.rejects(controller.execute('status'), error => error.code === 'phone_timeout');
+    assert.equal(phone.page, 'zones');
+    assert.equal(phone.calls.length, callsAtExpiry);
+    assert.equal(phone.ctas, 0);
+    assert.equal(phone.saves, 0);
+});
+
+test('a preexisting foreign zones draft is never adopted as an automatic read round trip', async () => {
+    const { controller, phone } = setup({ page: 'zones', frontLeft: false, frontRight: true });
+    assert.equal(controller.requestReadHandoff(), false);
+    phone.beforeDump = () => { if (phone.page === 'zones') controller.requestReadHandoff(); };
+    await assert.rejects(controller.execute('status'), error => error.code === 'cancelled');
+    delete phone.beforeDump;
+    await assert.rejects(nextController(controller, phone).execute('stop'), error => error.code === 'unsaved_settings');
+    assert.equal(phone.page, 'zones');
+    assert.equal(phone.frontLeft, false);
+    assert.equal(phone.saves, 0);
+    assert.equal(phone.ctas, 0);
+    assert.equal(phone.calls.some(call => call === 'back' || Array.isArray(call) && call[0] === 'tap'), false);
+});
+
+test('manual zone edits encountered during a read handoff remain unsaved and block the following control', async () => {
+    const { controller, phone } = setup();
+    const saved = structuredClone(phone.savedSettings);
+    phone.beforeDump = () => {
+        if (phone.page === 'zones') {
+            phone.frontLeft = false;
+            assert.equal(controller.requestReadHandoff(), true);
+        }
+    };
+    await assert.rejects(controller.execute('status'), error => error.code === 'unsaved_settings');
+    delete phone.beforeDump;
+    assert.equal(phone.page, 'settings');
+    assert.equal(phone.settingsDirty, true);
+    assert.equal(phone.frontLeft, false);
+    assert.deepEqual(phone.savedSettings, saved);
+    await assert.rejects(nextController(controller, phone).execute('start'), error => error.code === 'unsaved_settings');
+    assert.equal(phone.settingsDirty, true);
+    assert.equal(phone.saves, 0);
+    assert.equal(phone.ctas, 0);
+});
+
+test('cooperative handoff requests have no effect on a write job', async () => {
+    const { controller, phone } = setup();
+    let checks = 0;
+    phone.beforeVersion = () => { checks++; assert.equal(controller.requestReadHandoff(), false); };
+    const result = await controller.execute('start');
+    assert.equal(result.appState, 'on');
+    assert.ok(checks > 0);
+    assert.equal(phone.ctas, 1);
+    assert.equal(phone.saves, 0);
+    assert.equal(controller.requestReadHandoff(), false);
+});
 async function rejectsCode(promise, code) {
     await assert.rejects(promise, error => error instanceof BridgeError && error.code === code);
 }

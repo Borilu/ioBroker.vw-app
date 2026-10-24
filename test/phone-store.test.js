@@ -98,7 +98,7 @@ test('numeric configuration rejects booleans, NaN, out-of-range and non-decimal 
     for (const config of [{ allowWrites: 'true' }, { useBundledAdb: 1 }, { stayAwakeOnCharge: 'false' },
         { commandTimeoutSeconds: true }, { outcomeTimeoutSeconds: true }, { outcomeTimeoutSeconds: 29 },
         { outcomeTimeoutSeconds: 151 }, { outcomeTimeoutSeconds: '120\n' },
-        { cooldownSeconds: NaN }, { pollIntervalSeconds: 299 },
+        { cooldownSeconds: NaN }, { pollIntervalSeconds: 14 },
         { legacyStatePrefix: 'system.adapter.vw-app.0' }, { modeTitles: ' | ' }]) {
         throwsCode('invalid_config', () => normalizeConfig(config));
     }

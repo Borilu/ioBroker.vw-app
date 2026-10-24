@@ -255,20 +255,33 @@
     },
     "_vehicleReportHint": {
       "type": "staticText",
-      "text": "commands.refreshVehicleReport liest ausschließlich den Fahrzeugzustandsbericht auf Anforderung. Alle Werte unter vehicleReport sind nur lesbar; es gibt keine Wünsche, Schalt-, Speicher- oder Synchronisationsaktion. Eine Freigabe für Einstellungsänderungen ist zum Lesen nicht nötig. Kilometerstand, Service, Zusammenfassung und sieben Kategorien stehen getrennt bereit; additionalTexts und json enthalten zusätzliche Texte beziehungsweise den vollständigen normalisierten Bericht als JSON. synchronizationText ist der rohe App-Hinweis, observedAt nur die Auslesezeit. no_messages bedeutet laut App keine Meldungen, keine Diagnose. Unbekannte Texte bleiben unknown; Farben oder Warnstufen namenloser Symbole werden nicht erfunden. Warnkonstellationen sind noch nicht live geprüft. Das bestehende Klima-/Lade-Polling liest den Bericht nicht mit.",
+      "text": "commands.refreshVehicleReport liest ausschließlich den Fahrzeugzustandsbericht; die automatische Aktualisierung liest ihn ebenfalls. Alle Werte unter vehicleReport sind nur lesbar; es gibt keine Wünsche, Schalt-, Speicher- oder Synchronisationsaktion. Eine Freigabe für Einstellungsänderungen ist zum Lesen nicht nötig. Kilometerstand, Service, Zusammenfassung und sieben Kategorien stehen getrennt bereit; additionalTexts und json enthalten zusätzliche Texte beziehungsweise den vollständigen normalisierten Bericht als JSON. synchronizationText ist der rohe App-Hinweis, observedAt nur die Auslesezeit. no_messages bedeutet laut App keine Meldungen, keine Diagnose. Unbekannte Texte bleiben unknown; Farben oder Warnstufen namenloser Symbole werden nicht erfunden. Warnkonstellationen sind noch nicht live geprüft.",
       "sm": 12
     },
     "pollIntervalSeconds": {
       "type": "number",
-      "label": "Klima und Ladestatus automatisch abfragen (Sekunden, 0 = aus)",
+      "label": "Automatische App-Abfragen: Mindestabstand je Bereich (Sekunden, 0 = aus)",
+      "default": 15,
+      "min": 0,
+      "max": 86400,
+      "step": 1,
+      "validator": "Number.isInteger(data.pollIntervalSeconds) && (data.pollIntervalSeconds === 0 || data.pollIntervalSeconds >= 15 && data.pollIntervalSeconds <= 86400)",
+      "validatorNoSaveOnError": true,
+      "validatorErrorText": "0 zum Ausschalten oder eine ganze Zahl von 15 bis 86400 Sekunden wählen.",
+      "help": "Liest Klima, Batterie/Ladeeinstellungen und Fahrzeugzustandsbericht fair nacheinander. Der Abstand gilt vom Abschluss einer Abfrage bis zur erneuten Fälligkeit desselben Bereichs; 15 Sekunden versprechen keinen vollständigen Rundlauf alle 15 Sekunden. Zwischen automatischen Aufträgen liegt zusätzlich eine Erholungspause von mindestens 5 Sekunden oder 25 % der Auftragsdauer. Bedienbefehle haben an sicheren Schrittgrenzen Vorrang. Fehler verlängern die Wiederholungsabstände bis fünf Minuten; ein längeres eingestelltes Mindestintervall bleibt wirksam. Automatische Abfragen synchronisieren nicht und übernehmen keine Wünsche. Vorhandenes 0 bleibt ausgeschaltet; neue Instanzen beginnen mit 15.",
+      "sm": 12
+    },
+    "refreshMaxAgeSeconds": {
+      "type": "number",
+      "label": "App-Auslesung als veraltet markieren nach (Sekunden, 0 = automatisch)",
       "default": 0,
       "min": 0,
       "max": 86400,
       "step": 1,
-      "validator": "data.pollIntervalSeconds === 0 || data.pollIntervalSeconds >= 300",
+      "validator": "Number.isInteger(data.refreshMaxAgeSeconds) && (data.refreshMaxAgeSeconds === 0 || data.refreshMaxAgeSeconds >= 30 && data.refreshMaxAgeSeconds <= 86400)",
       "validatorNoSaveOnError": true,
-      "validatorErrorText": "0 zum Ausschalten oder mindestens 300 Sekunden wählen.",
-      "help": "Liest nacheinander Klima und Batterie/Ladeeinstellungen, sofern die Instanz zwischen den Aufträgen noch frei ist. Bedient die App, fordert aber keine Synchronisation an. Mit 0 wird nur auf Anforderung abgefragt; commands.refresh und commands.refreshCharging bleiben getrennte manuelle Abfragen.",
+      "validatorErrorText": "0 für automatisch oder eine ganze Zahl von 30 bis 86400 Sekunden wählen.",
+      "help": "refresh.climate, refresh.charging und refresh.vehicleReport zeigen fresh, stale, error oder unknown sowie Zeit, Alter, Fehlercode und Dauer der letzten Abfrage. Automatisch gilt der größere Wert aus 90 Sekunden und dem Doppelten des größeren Werts aus Mindestabstand und geschätzter voller Rundlaufzeit. fresh bestätigt eine kürzliche App-Auslesung, keine neuen Fahrzeugmesswerte. Diese Grenze ändert weder die Abfragefrequenz noch den Synchronisationshinweis der App.",
       "sm": 12
     },
     "commandTimeoutSeconds": {
