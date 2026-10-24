@@ -39,15 +39,29 @@ Zunächst eine Statusabfrage durchführen und deren Rückmeldung mit der Volkswa
 
 Automatische Statusabfragen sind zunächst ausgeschaltet (`0`). Wenn gewünscht, ein Intervall von mindestens 300 Sekunden einstellen. Jede Statusabfrage bedient beziehungsweise öffnet die App; sie stellt keine passive Cloud-Abfrage dar. Der angezeigte Klimazustand stammt aus der App und bestätigt nicht unabhängig den Fahrzeugzustand.
 
-Die Rückmeldung der Volkswagen-App kann nach einem Start verzögert eintreffen. Neue Instanzen warten nach einem Schaltversuch standardmäßig bis zu **120 Sekunden** auf die App-Bestätigung. In den Experteneinstellungen lässt sich die **Wartezeit auf Bestätigung in der App** zwischen 30 und 150 Sekunden wählen. Das **Zeitlimit je Auftrag** beträgt standardmäßig 180 Sekunden und umfasst Verbindung, Navigation und Bestätigung zusammen. Ein kleineres oder bereits weitgehend verbrauchtes Gesamtlimit beendet die Wartezeit früher.
+Die Rückmeldung der Volkswagen-App kann nach einem Start verzögert eintreffen. Neue Instanzen warten nach einem Schaltversuch standardmäßig bis zu **120 Sekunden** auf die App-Bestätigung. In den Experteneinstellungen lässt sich die **Wartezeit auf Bestätigung in der App** zwischen 30 und 150 Sekunden wählen. Das **Zeitlimit je Auftrag** beträgt standardmäßig 300 Sekunden und umfasst Verbindung, Navigation, Temperaturwahl und Bestätigung zusammen. Ein kleineres oder bereits weitgehend verbrauchtes Gesamtlimit beendet die Wartezeit früher.
 
-Vorhandene Instanzen behalten ihr gespeichertes Gesamtlimit. Steht dort noch 125 Sekunden, für den längeren Standardablauf 180 Sekunden einstellen und speichern. Eine längere Wartezeit löst keinen weiteren Startversuch aus.
+Vorhandene Instanzen behalten ihr gespeichertes Gesamtlimit. Steht dort noch 125 oder 180 Sekunden, für Temperaturwahl und Start zusammen 300 Sekunden einstellen und speichern. Größere Temperatursprünge werden über frisch ausgelesene Einzelschritte bedient und benötigen zusätzliche Zeit. Eine längere Wartezeit löst keinen weiteren Startversuch aus.
 
 `climate.confirmationSource` zeigt, worauf sich die Rückmeldung stützt: `app_controls` steht für die Klimabedienelemente, `app_overview` für die exakt erkannte aktive Klimabeschreibung in der Fahrzeugübersicht. Nach einem unklaren Ergebnis steht dort `none`. Alle Angaben stammen aus der App; `climate.vehicleConfirmed` bleibt `false`.
 
 Am **24. Oktober 2026** bestätigte der Nutzer einen echten Klimastart am ID.7. Die App-Rückmeldung traf dabei verzögert ein, nachdem der Adapter bereits `outcome_unknown` gemeldet hatte. Der längere Wartezeitraum und die zusätzlich erkannte Beschreibung auf der Fahrzeugkachel berücksichtigen diesen Ablauf. Der sichtbare 30-Minuten-Countdown war im ausgelesenen Android-Ansichtsbaum nicht verfügbar. Deshalb veröffentlicht der Adapter keine geschätzte Restzeit und leitet daraus keine Fahrzeugbestätigung ab.
 
 Bei unklarer Rückmeldung zuerst die Volkswagen-App prüfen. Einen Start oder Stopp nicht durch wiederholte Betätigung zu erzwingen versuchen.
+
+## 5. Zieltemperatur auswählen
+
+Im Datenpunkt `vw-app.0.climate.targetTemperature` einen unterstützten numerischen °C-Wert wählen, zum Beispiel `22.5`, und mit `ack=false` schreiben. Der geprüfte Zahlenbereich beträgt **16,0 bis 29,5 °C in 0,5-°C-Schritten**. Die daneben liegenden Sonderwerte `LO` und `HI` werden nicht unterstützt. Zeichenfolgen wie `"22.5"` werden nicht als Zahlen übernommen.
+
+Der Adapter speichert den Sollwert privat und bestätigt ihn mit `ack=true`. Das bedeutet ausschließlich **gespeichert**: Diese Auswahl allein bedient das Handy noch nicht. Ein ungültiger Wert wird durch den letzten akzeptierten Sollwert ersetzt; der feste Fehlercode `invalid_temperature` erscheint dazu in `climate.targetTemperatureError`. Eine gültige Auswahl löscht diesen Auswahlfehler. Rückmeldung und Fehler eines gleichzeitig laufenden Handyauftrags werden dadurch nicht überschrieben.
+
+Nach einer ungültigen oder nicht gespeicherten Auswahl bleiben neue Start- und Temperaturübernahme-Aufträge mit `temperature_selection_failed` gesperrt. Obwohl der frühere Sollwert wieder angezeigt wird, muss zuerst ausdrücklich ein gültiger Wert neu gewählt oder **App-Temperatur beibehalten** betätigt werden. Status und Stopp bleiben verfügbar. Ein bereits angenommener Auftrag behält seinen ursprünglichen Sollwert auch dann, wenn eine spätere Auswahl fehlschlägt.
+
+`commands.setTemperature` mit `true` und `ack=false` stellt den gespeicherten Sollwert in der App ein, ohne Start oder Stopp zu drücken. `commands.start` übernimmt ihn vor dem Klimastart. Für tatsächliche Temperaturänderungen muss die Schaltfreigabe aktiviert sein. Der getrennte Datenpunkt `climate.temperature` zeigt den zuletzt aus der App ausgelesenen Wert; wenn dieser nicht lesbar ist, enthält er `null` mit ungültiger Qualität.
+
+Der Sollwert bleibt über Adapterneustarts erhalten. Der Knopf `commands.clearTemperature` (**App-Temperatur beibehalten**) wählt, bei späteren Starts die vorhandene App-Temperatur zu verwenden. Alternativ lässt sich ein echter Nullwert (`null`, nicht der Text `"null"`) an den Sollwert schreiben. Beides ändert nur die gespeicherte Auswahl und bedient das Handy nicht. `commands.setTemperature` ohne ausgewählten Sollwert wird vor einem Handyzugriff abgewiesen.
+
+Eine Auswahl während eines laufenden Auftrags gilt für den nächsten Auftrag. Der bereits gestartete Vorgang behält seinen ursprünglichen Sollwert. Bei unklarer Rückmeldung den tatsächlichen App-Wert prüfen; eine gespeicherte Auswahl bestätigt keine Temperaturmessung am Fahrzeug.
 
 ## Schnittstelle der Einrichtungsschaltflächen
 

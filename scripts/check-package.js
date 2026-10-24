@@ -23,6 +23,6 @@ for (const key of Object.keys(ui.items).filter(k => !k.startsWith('_'))) assert(
 assert.equal(io.native.allowWrites, false);
 assert.equal(io.native.pollIntervalSeconds, 0);
 assert.equal(ui.items.commandTimeoutSeconds.min, 30);
-assert.equal(ui.items.commandTimeoutSeconds.max, 180);
+assert.equal(ui.items.commandTimeoutSeconds.max, 360);
 assert(!pkg.files.some(s => /node_modules|adb-home|runtime\//.test(s)));
 console.log('Adapter metadata, setup inputs and package boundaries are consistent.');

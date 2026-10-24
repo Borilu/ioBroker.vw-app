@@ -25,6 +25,26 @@ function climate(cta = 'cta_start', extras = [], ctaAttributes = {}, containerAt
     return hierarchy([node('clima_compose_view', { bounds: '[0,0][500,900]', ...containerAttributes }, [node(cta, { clickable: 'true', ...ctaAttributes }), ...extras])]);
 }
 
+const TEMPERATURE_BOUNDS = '[0,100][1000,400]';
+
+function temperatureOption(value, { x1 = 400, x2 = 600, degree = true, attrs = {}, numberAttrs = {}, degreeAttrs = {}, extra = [] } = {}) {
+    const numberRight = degree ? x2 - 30 : x2;
+    return node('', { class: 'android.view.View', clickable: 'true', bounds: `[${x1},140][${x2},340]`, ...attrs }, [
+        node('', { class: 'android.widget.TextView', text: String(value), bounds: `[${x1},140][${numberRight},340]`, ...numberAttrs }),
+        ...(degree ? [node('', { class: 'android.widget.TextView', text: '°', bounds: `[${numberRight},140][${x2},260]`, ...degreeAttrs })] : []),
+        ...extra,
+    ]);
+}
+
+function temperaturePicker({ options, anchorAttrs = {}, scrollAttrs = {}, anchorExtra = [], outside = [], cta = 'cta_start', outerAttrs } = {}) {
+    const choices = options || [temperatureOption(21.5, { x1: 0, x2: 200 }), temperatureOption(22),
+        temperatureOption(22.5, { x1: 800, x2: 1000, degree: false })];
+    const content = [node('clima_compose_view', { class: 'androidx.compose.ui.platform.ComposeView', bounds: TEMPERATURE_BOUNDS, ...anchorAttrs }, [
+        node('', { class: 'android.view.View', scrollable: 'true', bounds: TEMPERATURE_BOUNDS, ...scrollAttrs }, choices), ...anchorExtra,
+    ]), ...(cta ? [node(cta, { clickable: 'true', bounds: '[0,500][1000,600]' })] : []), ...outside];
+    return hierarchy(outerAttrs ? [node('', outerAttrs, content)] : content);
+}
+
 function code(expected, operation) {
     assert.throws(operation, error => error instanceof BridgeError && error.code === expected);
 }
@@ -205,6 +225,185 @@ test('prefix selectors can also require exact text and a specific resource', () 
     for (const extra of [{ text: 'Other car' }, { resourceId: 'another' }, { contentDesc: prefix + 'Synchronisiert vor 45 Minuten' }]) {
         code('wrong_vehicle', () => screen.requireVehicle({ contentDescPrefix: prefix, ...extra }));
     }
+});
+
+test('temperature picker reads the center and targets only exact currently visible values', () => {
+    for (const cta of ['cta_start', 'cta_stop']) {
+        const screen = new Screen(temperaturePicker({ cta }));
+        assert.equal(screen.climateTemperature(), 22);
+        assert.deepEqual(screen.temperatureTarget(21.5), { x: 100, y: 240, value: 21.5 });
+        assert.deepEqual(screen.temperatureTarget(22), { x: 500, y: 240, value: 22 });
+        assert.deepEqual(screen.temperatureTarget(22.5), { x: 900, y: 240, value: 22.5 });
+        code('target_unavailable', () => screen.temperatureTarget(23));
+    }
+});
+
+test('temperature reading requires the compose anchor, recognized CTA, and one observed scrollable picker', () => {
+    assert.equal(new Screen(hierarchy()).climateTemperature(), null);
+    assert.equal(new Screen(climate()).climateTemperature(), null);
+    assert.equal(new Screen(temperaturePicker({ cta: null })).climateTemperature(), null);
+    assert.equal(new Screen(temperaturePicker({ scrollAttrs: { class: 'android.widget.ScrollView' } })).climateTemperature(), null);
+    assert.equal(new Screen(temperaturePicker({ scrollAttrs: { bounds: '[0,100][1000,399]' } })).climateTemperature(), null);
+    assert.equal(new Screen(temperaturePicker({ scrollAttrs: { 'resource-id': 'another_control' } })).climateTemperature(), null);
+    const secondScroll = node('', { class: 'android.view.View', scrollable: 'true', bounds: TEMPERATURE_BOUNDS });
+    code('unknown_state', () => new Screen(temperaturePicker({ anchorExtra: [secondScroll] })).climateTemperature());
+    const secondAnchor = node('clima_compose_view', { bounds: TEMPERATURE_BOUNDS });
+    code('unknown_state', () => new Screen(temperaturePicker({ outside: [secondAnchor] })).climateTemperature());
+    code('unknown_state', () => new Screen(temperaturePicker({ outside: [node('cta_stop')] })).climateTemperature());
+});
+
+test('temperature values outside the picker and foreign package descendants are not selectable', () => {
+    const outsideValue = temperatureOption(23, { x1: 0, x2: 200 });
+    const screen = new Screen(temperaturePicker({ outside: [outsideValue] }));
+    assert.equal(screen.climateTemperature(), 22);
+    code('target_unavailable', () => screen.temperatureTarget(23));
+    assert.equal(new Screen(temperaturePicker({ anchorAttrs: { package: 'com.android.settings' } })).climateTemperature(), null);
+    const foreignCenter = temperatureOption(22, { numberAttrs: { package: 'com.android.settings' } });
+    const foreign = new Screen(temperaturePicker({ options: [temperatureOption(21.5, { x1: 0, x2: 200 }), foreignCenter] }));
+    assert.equal(foreign.climateTemperature(), null);
+    code('target_unavailable', () => foreign.temperatureTarget(22));
+});
+
+test('central temperature requires exactly one visible degree glyph and a complete numeric label', () => {
+    const left = temperatureOption(21.5, { x1: 0, x2: 200 });
+    for (const center of [temperatureOption(22, { degree: false }), temperatureOption(22, { degreeAttrs: { text: '°C' } }),
+        temperatureOption(22, { degreeAttrs: { 'visible-to-user': 'false' } }),
+        temperatureOption(22, { numberAttrs: { bounds: '[390,140][565,340]' } })]) {
+        assert.equal(new Screen(temperaturePicker({ options: [left, center] })).climateTemperature(), null);
+    }
+    const duplicateDegree = node('', { class: 'android.widget.TextView', text: '°', bounds: '[570,140][600,260]' });
+    code('unknown_state', () => new Screen(temperaturePicker({ options: [left, temperatureOption(22, { extra: [duplicateDegree] })] })).climateTemperature());
+    const clippedCenter = temperatureOption(22, { x1: 400, x2: 1000, degree: false });
+    assert.equal(new Screen(temperaturePicker({ options: [left, clippedCenter] })).climateTemperature(), null);
+});
+
+test('missing side degree glyph is accepted only at the observed right clipping edge', () => {
+    const left = temperatureOption(21.5, { x1: 0, x2: 200 });
+    const center = temperatureOption(22);
+    const clipped = new Screen(temperaturePicker({ options: [left, center, temperatureOption(22.5, { x1: 800, x2: 1000, degree: false })] }));
+    assert.equal(clipped.climateTemperature(), 22);
+    assert.equal(clipped.temperatureTarget(22.5).value, 22.5);
+    const unconfirmedEdge = new Screen(temperaturePicker({ options: [left, center, temperatureOption(22.5, { x1: 800, x2: 990, degree: false })] }));
+    assert.equal(unconfirmedEdge.climateTemperature(), null);
+    const missingLeftUnit = new Screen(temperaturePicker({ options: [temperatureOption(21.5, { x1: 0, x2: 200, degree: false }), center] }));
+    assert.equal(missingLeftUnit.climateTemperature(), null);
+});
+
+test('temperature parsing never accepts partial numbers, other locale formats, special labels, or inferred ranges', () => {
+    for (const value of ['22extra', '22,5', '22.0', 'NaN', 'Infinity', '022', '22.25', 'LO', 'HI']) {
+        const xml = temperaturePicker({ options: [temperatureOption(21.5, { x1: 0, x2: 200 }), temperatureOption(value)] });
+        assert.equal(new Screen(xml).climateTemperature(), null);
+    }
+    const numericShape = new Screen(temperaturePicker({ options: [temperatureOption(9.5, { x1: 0, x2: 200 }), temperatureOption(10)] }));
+    assert.equal(numericShape.climateTemperature(), 10); // Allowed range is a separate, device-confirmed configuration.
+});
+
+test('numeric boundary temperatures remain readable and selectable beside peripheral LO or HI', () => {
+    const minimum = new Screen(temperaturePicker({ options: [
+        temperatureOption('LO', { x1: 0, x2: 200, degree: false }), temperatureOption(16),
+        temperatureOption(16.5, { x1: 800, x2: 1000, degree: false }),
+    ] }));
+    assert.equal(minimum.climateTemperature(), 16);
+    assert.deepEqual(minimum.temperatureTarget(16), { x: 500, y: 240, value: 16 });
+    assert.deepEqual(minimum.temperatureTarget(16.5), { x: 900, y: 240, value: 16.5 });
+    code('invalid_temperature', () => minimum.temperatureTarget('LO'));
+    code('target_unavailable', () => minimum.temperatureTarget(15.5));
+    const maximum = new Screen(temperaturePicker({ options: [
+        temperatureOption(29, { x1: 0, x2: 200 }), temperatureOption(29.5),
+        temperatureOption('HI', { x1: 800, x2: 1000, degree: false }),
+    ] }));
+    assert.equal(maximum.climateTemperature(), 29.5);
+    assert.deepEqual(maximum.temperatureTarget(29), { x: 100, y: 240, value: 29 });
+    assert.deepEqual(maximum.temperatureTarget(29.5), { x: 500, y: 240, value: 29.5 });
+    code('invalid_temperature', () => maximum.temperatureTarget('HI'));
+    code('target_unavailable', () => maximum.temperatureTarget(30));
+});
+
+test('central LO or HI stays unsupported and cannot provide even a neighboring numeric tap target', () => {
+    const centralLow = new Screen(temperaturePicker({ options: [
+        temperatureOption('LO', { degree: false }), temperatureOption(16, { x1: 800, x2: 1000, degree: false }),
+    ] }));
+    assert.equal(centralLow.climateTemperature(), null);
+    code('target_unavailable', () => centralLow.temperatureTarget(16));
+    const centralHigh = new Screen(temperaturePicker({ options: [
+        temperatureOption(29.5, { x1: 0, x2: 200 }), temperatureOption('HI', { degree: false }),
+    ] }));
+    assert.equal(centralHigh.climateTemperature(), null);
+    code('target_unavailable', () => centralHigh.temperatureTarget(29.5));
+});
+
+test('LO and HI are rejected away from their confirmed peripheral numeric boundaries', () => {
+    const invalidChoices = [
+        [temperatureOption('LO', { x1: 0, x2: 200, degree: false }), temperatureOption(22)],
+        [temperatureOption(22), temperatureOption('HI', { x1: 800, x2: 1000, degree: false })],
+        [temperatureOption(16, { x1: 0, x2: 200 }), temperatureOption(16.5), temperatureOption('LO', { x1: 800, x2: 1000, degree: false })],
+        [temperatureOption('HI', { x1: 0, x2: 200, degree: false }), temperatureOption(29), temperatureOption(29.5, { x1: 800, x2: 1000 })],
+        [temperatureOption('UNKNOWN', { x1: 0, x2: 200, degree: false }), temperatureOption(16)],
+        [temperatureOption('LO', { x1: 0, x2: 200 }), temperatureOption(16)],
+    ];
+    for (const options of invalidChoices) {
+        const screen = new Screen(temperaturePicker({ options }));
+        assert.equal(screen.climateTemperature(), null);
+        code('target_unavailable', () => screen.temperatureTarget(16));
+    }
+});
+
+test('picker geometry and half-degree ordering must be unambiguous', () => {
+    const left = temperatureOption(21.5, { x1: 0, x2: 200 });
+    const center = temperatureOption(22);
+    const overlap = temperatureOption(22.5, { x1: 550, x2: 1000 });
+    code('unknown_state', () => new Screen(temperaturePicker({ options: [left, center, overlap] })).climateTemperature());
+    assert.equal(new Screen(temperaturePicker({ options: [left, temperatureOption(23)] })).climateTemperature(), null);
+    assert.equal(new Screen(temperaturePicker({ options: [temperatureOption(22.5, { x1: 0, x2: 200 }), center] })).climateTemperature(), null);
+    assert.equal(new Screen(temperaturePicker({ options: [center] })).climateTemperature(), null);
+    const duplicateNumber = node('', { class: 'android.widget.TextView', text: '22', bounds: '[400,140][565,340]' });
+    code('unknown_state', () => new Screen(temperaturePicker({ options: [left, temperatureOption(22, { extra: [duplicateNumber] })] })).climateTemperature());
+    const extra = temperatureOption(23, { x1: 700, x2: 780 });
+    code('unknown_state', () => new Screen(temperaturePicker({ options: [left, center, extra, temperatureOption(23.5, { x1: 800, x2: 1000 })] })).climateTemperature());
+});
+
+test('temperature controls respect visible bounds, enabled ancestors, and actual clickability', () => {
+    for (const options of [
+        { anchorAttrs: { enabled: 'false' } }, { anchorAttrs: { 'visible-to-user': 'false' } },
+        { scrollAttrs: { enabled: 'false' } }, { outerAttrs: { enabled: 'false' } },
+    ]) {
+        const screen = new Screen(temperaturePicker(options));
+        assert.equal(screen.climateTemperature(), null);
+        code('target_unavailable', () => screen.temperatureTarget(22));
+    }
+    const left = temperatureOption(21.5, { x1: 0, x2: 200 });
+    const right = temperatureOption(22.5, { x1: 800, x2: 1000 });
+    for (const attrs of [{ clickable: 'false' }, { enabled: 'false' }, { 'visible-to-user': 'false' }, { bounds: '[0,0][0,0]' }]) {
+        assert.equal(new Screen(temperaturePicker({ options: [left, temperatureOption(22, { attrs }), right] })).climateTemperature(), null);
+    }
+    const disabledSide = new Screen(temperaturePicker({ options: [left, temperatureOption(22),
+        temperatureOption(22.5, { x1: 800, x2: 1000, attrs: { enabled: 'false' } })] }));
+    assert.equal(disabledSide.climateTemperature(), 22);
+    code('target_unavailable', () => disabledSide.temperatureTarget(22.5));
+    assert.equal(disabledSide.temperatureTarget(21.5).value, 21.5);
+});
+
+test('temperature target accepts only numeric half-degrees and never returns a climate CTA', () => {
+    const screen = new Screen(temperaturePicker());
+    for (const value of [undefined, null, '22.5', false, NaN, Infinity, 22.25]) {
+        code('invalid_temperature', () => screen.temperatureTarget(value));
+    }
+    assert.ok(screen.temperatureTarget(22.5).y < 400);
+    assert.equal(screen.target('cta_start').y, 550);
+    const misleading = temperatureOption(22, { attrs: { 'resource-id': 'cta_start' } });
+    code('unknown_state', () => new Screen(temperaturePicker({ options: [temperatureOption(21.5, { x1: 0, x2: 200 }), misleading] })).temperatureTarget(22));
+});
+
+test('each fresh picker snapshot resolves the current and neighboring values independently', () => {
+    const before = new Screen(temperaturePicker());
+    const after = new Screen(temperaturePicker({ options: [temperatureOption(22, { x1: 0, x2: 200 }), temperatureOption(22.5),
+        temperatureOption(23, { x1: 800, x2: 1000, degree: false })] }));
+    assert.equal(before.climateTemperature(), 22);
+    assert.equal(after.climateTemperature(), 22.5);
+    assert.deepEqual(before.temperatureTarget(22.5), { x: 900, y: 240, value: 22.5 });
+    assert.deepEqual(after.temperatureTarget(22.5), { x: 500, y: 240, value: 22.5 });
+    code('target_unavailable', () => before.temperatureTarget(23));
+    assert.equal(after.temperatureTarget(23).value, 23);
 });
 
 test('A/C picker requires exactly the configured title inside the picker', () => {

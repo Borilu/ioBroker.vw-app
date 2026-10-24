@@ -11,6 +11,8 @@ const { integer, validateHost, endpoint, validateEndpoint, normalizeConfig } = r
 const { StateStore } = require('../lib/store');
 const { DeviceLease } = require('../lib/lease');
 const { BridgeError } = require('../lib/errors');
+const { MIN_TEMPERATURE_CELSIUS, MAX_TEMPERATURE_CELSIUS, TEMPERATURE_STEP_CELSIUS,
+    isTemperature, validateTargetTemperature } = require('../lib/temperature');
 
 const ENDPOINT = '192.0.2.14:37123';
 const SERIAL = 'serial:A31-TEST';
@@ -104,7 +106,7 @@ test('numeric configuration rejects booleans, NaN, out-of-range and non-decimal 
 
 test('confirmation wait defaults and bounds allow a shorter overall deadline without extending it', () => {
     const defaults = normalizeConfig();
-    assert.equal(defaults.commandTimeoutSeconds, 180);
+    assert.equal(defaults.commandTimeoutSeconds, 300);
     assert.equal(defaults.outcomeTimeoutSeconds, 120);
     for (const outcomeTimeoutSeconds of [30, 150, '120']) {
         assert.equal(normalizeConfig({ outcomeTimeoutSeconds }).outcomeTimeoutSeconds, Number(outcomeTimeoutSeconds));
@@ -120,6 +122,23 @@ test('confirmation wait defaults and bounds allow a shorter overall deadline wit
     }
     assert.equal(admin.outcomeTimeoutSeconds.min, 30);
     assert.equal(admin.outcomeTimeoutSeconds.max, 150);
+    assert.equal(admin.commandTimeoutSeconds.max, 360);
+});
+
+test('target temperatures accept only finite numeric 0.5-degree values in the verified 16 to 29.5 range or null', () => {
+    assert.equal(MIN_TEMPERATURE_CELSIUS, 16);
+    assert.equal(MAX_TEMPERATURE_CELSIUS, 29.5);
+    assert.equal(TEMPERATURE_STEP_CELSIUS, 0.5);
+    for (let value = MIN_TEMPERATURE_CELSIUS; value <= MAX_TEMPERATURE_CELSIUS; value += TEMPERATURE_STEP_CELSIUS) {
+        assert.equal(isTemperature(value), true);
+        assert.equal(validateTargetTemperature(value), value);
+    }
+    assert.equal(validateTargetTemperature(null), null);
+    assert.equal(isTemperature(null), false);
+    for (const value of [15.5, 30, 22.25, NaN, Infinity, -Infinity, true, false, undefined, '22.5', 'LO', 'HI', '', {}, []]) {
+        assert.equal(isTemperature(value), false);
+        throwsCode('invalid_temperature', () => validateTargetTemperature(value));
+    }
 });
 
 test('configuration preserves the complete vehicle prefix and its trailing delimiter', () => {
@@ -320,6 +339,21 @@ test('journal reservation persists cooldown across new StateStore instances', as
     await restarted.write('command-journal', { lastAttempt: Date.now() - 61000 });
     await restarted.reserveCommand(60);
     assert.ok((await restarted.read('command-journal')).lastAttempt > saved.lastAttempt - 61000);
+});
+
+test('temperature preference persists independently of enrollment and the command cooldown journal', async t => {
+    const directory = await temporaryDirectory(t);
+    const store = new StateStore(directory);
+    await store.write('enrollment', { deviceId: SERIAL });
+    await store.write('command-journal', { lastAttempt: 123 });
+    await store.write('temperature-preference', { targetCelsius: 22.5 });
+    const restored = new StateStore(directory);
+    assert.equal(path.basename(restored.file('temperature-preference')), 'temperature-preference.json');
+    assert.deepEqual(await restored.read('temperature-preference'), { targetCelsius: 22.5 });
+    await restored.write('temperature-preference', { targetCelsius: null });
+    assert.deepEqual(await store.read('temperature-preference'), { targetCelsius: null });
+    assert.deepEqual(await store.read('enrollment'), { deviceId: SERIAL });
+    assert.deepEqual(await store.read('command-journal'), { lastAttempt: 123 });
 });
 
 test('invalid or damaged journal never resets the cooldown by assuming a fresh state', async t => {
