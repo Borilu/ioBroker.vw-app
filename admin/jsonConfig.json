@@ -5,7 +5,7 @@
   "items": {
     "_intro": {
       "type": "staticText",
-      "text": "Verbinde dein Android-Handy und prüfe die Volkswagen-App. Danach kannst du ihre Klimatisierung aus ioBroker bedienen. Die Anmeldung bei Volkswagen bleibt auf dem Handy.",
+      "text": "Verbinde dein Android-Handy und prüfe die Volkswagen-App. Danach kannst du Klimatisierung und Ladeeinstellungen aus ioBroker bedienen sowie Batterie und Restreichweite auslesen. Die Anmeldung bei Volkswagen bleibt auf dem Handy.",
       "newLine": true,
       "sm": 12
     },
@@ -217,10 +217,10 @@
     },
     "allowWrites": {
       "type": "checkbox",
-      "label": "Klimastart, Stopp und Änderungen der Klimaeinstellungen erlauben",
+      "label": "Klimastart, Stopp und Änderungen der Fahrzeugeinstellungen erlauben",
       "default": false,
       "disabled": "!data.approvedAppVersion || !data.vehicleMarker",
-      "help": "Erst nach erfolgreicher Einrichtung aktivieren und speichern. Ohne Freigabe sind nur Statusabfragen möglich.",
+      "help": "Erst nach erfolgreicher Einrichtung aktivieren und speichern. Gilt auch für Ladeeinstellungen. Ohne Freigabe können App-Werte gelesen und Wünsche gespeichert werden; tatsächliche Änderungen bleiben gesperrt.",
       "sm": 12
     },
     "stayAwakeOnCharge": {
@@ -248,9 +248,14 @@
       "result": { "keep_awake_applied": "Wachhalten am Ladekabel auf dem Android-Handy aktiviert." },
       "sm": 12
     },
+    "_chargingHint": {
+      "type": "staticText",
+      "text": "commands.refreshCharging liest die in der App vorhandenen Batterie- und Ladeinformationen: battery.soc in %, battery.rangeKm in km. battery.observedAt ist die App-Auslesezeit, kein Fahrzeugtelemetrie-Zeitstempel. commands.synchronize fordert ausdrücklich eine Synchronisation in der App an; Erfolg bestätigt nur die Anfrage, nicht deren Abschluss am Fahrzeug. Das kann einige Minuten dauern. battery.lastSyncRequestAt protokolliert die letzte an die App gesendete Anfrage. Normales Lesen und automatische Abfragen synchronisieren nicht. Unter charging speichern targetSoc (50, 60, 70, 80, 90 oder 100), targetReducedAcCurrent, targetAutoUnlockAc und targetOptimizedBatteryUse Wünsche; null behält die App-Einstellung bei. Eine Bestätigung bedeutet nur gespeichert. commands.applyChargingSettings übernimmt nur diese vier Wünsche, speichert einmal und prüft die Werte nach erneutem Öffnen. commands.clearChargingSettings löscht nur diese vier Wünsche. Offene manuelle Entwürfe zuerst am Handy speichern oder verwerfen. Optimierte Batterienutzung erlaubt laut App die Hochvoltbatterie für App-Fernbedienung und kann die Reichweite beeinflussen; sie ist keine 80-%-Batteriepflegeautomatik. Die Ladegrenze gilt laut App nicht an festgelegten Ladeorten. Keine Lade-Start/Stopp-Funktion.",
+      "sm": 12
+    },
     "pollIntervalSeconds": {
       "type": "number",
-      "label": "Status automatisch abfragen (Sekunden, 0 = aus)",
+      "label": "Klima und Ladestatus automatisch abfragen (Sekunden, 0 = aus)",
       "default": 0,
       "min": 0,
       "max": 86400,
@@ -258,7 +263,7 @@
       "validator": "data.pollIntervalSeconds === 0 || data.pollIntervalSeconds >= 300",
       "validatorNoSaveOnError": true,
       "validatorErrorText": "0 zum Ausschalten oder mindestens 300 Sekunden wählen.",
-      "help": "Jede Abfrage öffnet die VW-App auf dem Handy. Mit 0 wird nur auf Anforderung abgefragt.",
+      "help": "Liest nacheinander Klima und Batterie/Ladeeinstellungen, sofern die Instanz zwischen den Aufträgen noch frei ist. Bedient die App, fordert aber keine Synchronisation an. Mit 0 wird nur auf Anforderung abgefragt; commands.refresh und commands.refreshCharging bleiben getrennte manuelle Abfragen.",
       "sm": 12
     },
     "commandTimeoutSeconds": {
@@ -269,7 +274,7 @@
       "max": 360,
       "step": 1,
       "expertMode": true,
-      "help": "Begrenzt die Übernahme der Klimaeinstellungen, Temperaturwahl, Verbindung und Wartezeit auf die App-Rückmeldung zusammen. Umfangreiche Änderungen brauchen zusätzliche Zeit. Bei unklarer Rückmeldung wird kein Schaltbefehl wiederholt.",
+      "help": "Begrenzt die Übernahme der Fahrzeug- oder Ladeeinstellungen, Temperaturwahl, Verbindung und Wartezeit auf die App-Rückmeldung zusammen. Umfangreiche Änderungen brauchen zusätzliche Zeit. Bei unklarer Rückmeldung wird kein Schaltbefehl wiederholt.",
       "sm": 6
     },
     "outcomeTimeoutSeconds": {
