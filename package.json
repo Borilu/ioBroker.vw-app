@@ -1,17 +1,43 @@
 {
   "name": "iobroker.vw-app",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Control the official Volkswagen Android app over Wi-Fi from ioBroker",
   "main": "main.js",
   "type": "commonjs",
   "license": "MIT",
-  "author": { "name": "Borilu", "url": "https://github.com/Borilu" },
+  "author": {
+    "name": "Borilu",
+    "url": "https://github.com/Borilu"
+  },
   "homepage": "https://github.com/Borilu/ioBroker.vw-app#readme",
-  "repository": { "type": "git", "url": "git+https://github.com/Borilu/ioBroker.vw-app.git" },
-  "bugs": { "url": "https://github.com/Borilu/ioBroker.vw-app/issues" },
-  "engines": { "node": ">=20" },
-  "keywords": ["ioBroker", "volkswagen", "android", "climate", "smart-home"],
-  "files": ["main.js", "lib/", "admin/", "scripts/", "io-package.json", "README.md", "docs/", "LICENSE", "NOTICE"],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Borilu/ioBroker.vw-app.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Borilu/ioBroker.vw-app/issues"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "keywords": [
+    "ioBroker",
+    "volkswagen",
+    "android",
+    "climate",
+    "smart-home"
+  ],
+  "files": [
+    "main.js",
+    "lib/",
+    "admin/",
+    "scripts/",
+    "io-package.json",
+    "README.md",
+    "docs/",
+    "LICENSE",
+    "NOTICE"
+  ],
   "scripts": {
     "test": "node --test",
     "check": "node scripts/check-package.js",

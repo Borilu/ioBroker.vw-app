@@ -1,8 +1,11 @@
 {
   "common": {
     "name": "vw-app",
-    "version": "0.1.0",
-    "news": { "0.1.0": { "en": "Initial experimental adapter: manage Android Wi-Fi pairing and Volkswagen climate controls inside ioBroker.", "de": "Erster experimenteller Adapter: Android-WLAN-Kopplung und VW-Klimatisierung direkt in ioBroker verwalten." } },
+    "version": "0.1.1",
+    "news": {
+      "0.1.1": { "en": "Allow normal vehicle response delays and report additional climate-tile confirmation from the app overview.", "de": "Normale Fahrzeug-Verzögerungen abwarten und die Bestätigungsquelle aus der Klima-Kachel zusätzlich anzeigen." },
+      "0.1.0": { "en": "Initial experimental adapter: manage Android Wi-Fi pairing and Volkswagen climate controls inside ioBroker.", "de": "Erster experimenteller Adapter: Android-WLAN-Kopplung und VW-Klimatisierung direkt in ioBroker verwalten." }
+    },
     "titleLang": { "en": "Volkswagen App Control", "de": "Volkswagen App-Steuerung" },
     "desc": { "en": "Operate the official Volkswagen Android app over Wi-Fi using an adapter-managed ADB runtime.", "de": "Die offizielle Volkswagen-Android-App über WLAN mit einer vom Adapter verwalteten ADB-Laufzeit bedienen." },
     "authors": ["Borilu"],
@@ -29,7 +32,8 @@
   "native": {
     "hostIp": "", "connectPort": 0, "approvedAppVersion": "", "vehicleMarker": "",
     "modeTitles": "Klimatisierung|Air conditioning", "allowWrites": false,
-    "adbPath": "", "useBundledAdb": true, "commandTimeoutSeconds": 125,
+    "adbPath": "", "useBundledAdb": true, "commandTimeoutSeconds": 180,
+    "outcomeTimeoutSeconds": 120,
     "cooldownSeconds": 60, "pollIntervalSeconds": 0, "stayAwakeOnCharge": false,
     "legacyStatePrefix": ""
   },

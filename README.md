@@ -65,6 +65,7 @@ All IDs are relative to `vw-app.0` (replace `0` with the instance number).
 | `commands.stop` | Write `true`, `ack=false` to stop the shown climate operation |
 | `commands.refresh` | Write `true`, `ack=false` to read the app state |
 | `climate.appState` | `on`, `off` or `unknown` as observed in the VW app |
+| `climate.confirmationSource` | `none`, `app_controls` (climate controls) or `app_overview` (the exact active-climate description in the vehicle overview) |
 | `climate.active` | Boolean observation; invalid quality on a failed read |
 | `climate.vehicleConfirmed` | Always `false`; no independent vehicle telemetry confirmation |
 | `operation.busy` | One operation is running |
@@ -81,6 +82,8 @@ Buttons reset automatically. Temperature stays at the value already selected in 
 
 Status is read on request by default. Optional automatic polling is limited to one read every five minutes or slower. Status can become stale between reads; check `operation.lastUpdated`.
 
+The confirmation source describes evidence from the app. Both `app_controls` and `app_overview` remain app observations; `climate.vehicleConfirmed` stays `false`. The inspected Android UI hierarchy did not expose the visible 30-minute countdown, so the adapter does not estimate or publish remaining minutes.
+
 ## Command behavior
 
 - App controls are identified from the current Android UI hierarchy, not saved screen coordinates.
@@ -90,6 +93,12 @@ Status is read on request by default. Optional automatic polling is limited to o
 - A private command journal enforces at least 60 seconds between switching attempts, including after adapter restarts.
 - Unknown dialogs, missing controls, unexpected modes or a changed app version stop the operation.
 - After a switching attempt, an unclear outcome is reported as `outcome_unknown`; the adapter does not repeat the command automatically.
+
+Volkswagen's app may acknowledge a start with a delay. New instances allow up to **120 seconds** after a switching attempt for the app confirmation (`outcomeTimeoutSeconds`, configurable from 30 to 150 seconds), within a **180-second** overall job deadline (`commandTimeoutSeconds`, configurable from 30 to 180 seconds). Connection and navigation also consume that overall budget; a shorter overall limit can therefore end the wait earlier. Existing instances retain their saved overall limit. If it is still 125 seconds, change it to 180 seconds in expert settings to use the longer default budget.
+
+An exact active-climate description in the selected vehicle's overview can provide additional app confirmation. A successful read of that description is reported as `app_overview`; observations from the climate controls are reported as `app_controls`. An uncertain result clears the source to `none` rather than claiming vehicle telemetry.
+
+On **24 October 2026**, the user confirmed a real climate start on an ID.7. The app acknowledged it after an earlier adapter request had already reported `outcome_unknown`. This update allows more time for that delayed response and recognizes the observed overview description as another app signal. The on-screen countdown is not available through the inspected UI hierarchy and is not used as a fabricated confirmation source.
 
 These checks cannot guarantee compatibility with a future app UI. Check the official app after any uncertain result. Recalibrate after app updates.
 
@@ -119,6 +128,12 @@ Adapter source: [MIT](LICENSE). Third-party components retain their licenses; se
 Independent community project, not provided or endorsed by Volkswagen, Google or ioBroker. Volkswagen and Android are trademarks of their respective owners.
 
 ### Changelog
+
+#### 0.1.1
+
+- Wait up to 120 seconds for a delayed app response within a 180-second overall job budget.
+- Read the active climate description on the vehicle overview and expose the app confirmation source.
+- Keep waiting when the overview does not yet confirm the active detail screen; never repeat a start automatically.
 
 #### 0.1.0
 
