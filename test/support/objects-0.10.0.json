@@ -1,0 +1,6041 @@
+{
+  "vw-app.0.battery": {
+    "type": "channel",
+    "common": {
+      "name": "battery"
+    },
+    "native": {},
+    "_id": "vw-app.0.battery",
+    "acl": {
+      "object": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.battery.lastSyncRequestAt": {
+    "type": "state",
+    "common": {
+      "name": "Letzte an die App gesendete Synchronisationsanfrage",
+      "type": "string",
+      "role": "date",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.battery.lastSyncRequestAt",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.battery.observedAt": {
+    "type": "state",
+    "common": {
+      "name": "battery.observedAt",
+      "type": "string",
+      "role": "date",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.battery.observedAt",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.battery.rangeKm": {
+    "type": "state",
+    "common": {
+      "name": "battery.rangeKm",
+      "type": "number",
+      "role": "value.distance",
+      "read": true,
+      "write": false,
+      "unit": "km",
+      "min": 0
+    },
+    "native": {},
+    "_id": "vw-app.0.battery.rangeKm",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.battery.soc": {
+    "type": "state",
+    "common": {
+      "name": "battery.soc",
+      "type": "number",
+      "role": "value.battery",
+      "read": true,
+      "write": false,
+      "unit": "%",
+      "min": 0,
+      "max": 100
+    },
+    "native": {},
+    "_id": "vw-app.0.battery.soc",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.charging": {
+    "type": "channel",
+    "common": {
+      "name": "charging"
+    },
+    "native": {},
+    "_id": "vw-app.0.charging",
+    "acl": {
+      "object": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.charging.autoUnlockAc": {
+    "type": "state",
+    "common": {
+      "name": "charging.autoUnlockAc",
+      "type": "boolean",
+      "role": "indicator",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.charging.autoUnlockAc",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.charging.optimizedBatteryUse": {
+    "type": "state",
+    "common": {
+      "name": "charging.optimizedBatteryUse",
+      "type": "boolean",
+      "role": "indicator",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.charging.optimizedBatteryUse",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.charging.reducedAcCurrent": {
+    "type": "state",
+    "common": {
+      "name": "charging.reducedAcCurrent",
+      "type": "boolean",
+      "role": "indicator",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.charging.reducedAcCurrent",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.charging.socLimit": {
+    "type": "state",
+    "common": {
+      "name": "charging.socLimit",
+      "type": "number",
+      "role": "value.battery",
+      "read": true,
+      "write": false,
+      "unit": "%",
+      "min": 0,
+      "max": 100
+    },
+    "native": {},
+    "_id": "vw-app.0.charging.socLimit",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.charging.targetAutoUnlockAc": {
+    "type": "state",
+    "common": {
+      "name": "charging.targetAutoUnlockAc",
+      "type": "boolean",
+      "role": "switch",
+      "read": true,
+      "write": true
+    },
+    "native": {},
+    "_id": "vw-app.0.charging.targetAutoUnlockAc",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.charging.targetOptimizedBatteryUse": {
+    "type": "state",
+    "common": {
+      "name": "charging.targetOptimizedBatteryUse",
+      "type": "boolean",
+      "role": "switch",
+      "read": true,
+      "write": true
+    },
+    "native": {},
+    "_id": "vw-app.0.charging.targetOptimizedBatteryUse",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.charging.targetReducedAcCurrent": {
+    "type": "state",
+    "common": {
+      "name": "charging.targetReducedAcCurrent",
+      "type": "boolean",
+      "role": "switch",
+      "read": true,
+      "write": true
+    },
+    "native": {},
+    "_id": "vw-app.0.charging.targetReducedAcCurrent",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.charging.targetSettingsError": {
+    "type": "state",
+    "common": {
+      "name": "charging.targetSettingsError",
+      "type": "string",
+      "role": "text",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.charging.targetSettingsError",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.charging.targetSoc": {
+    "type": "state",
+    "common": {
+      "name": "Gewünschte Ladegrenze",
+      "type": "number",
+      "role": "level",
+      "read": true,
+      "write": true,
+      "unit": "%",
+      "min": 50,
+      "max": 100,
+      "step": 10
+    },
+    "native": {},
+    "_id": "vw-app.0.charging.targetSoc",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.chargingLocations": {
+    "type": "channel",
+    "common": {
+      "name": "chargingLocations"
+    },
+    "native": {},
+    "_id": "vw-app.0.chargingLocations",
+    "acl": {
+      "object": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.chargingLocations.count": {
+    "type": "state",
+    "common": {
+      "name": "chargingLocations.count",
+      "type": "number",
+      "role": "value",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.chargingLocations.count",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.chargingLocations.json": {
+    "type": "state",
+    "common": {
+      "name": "chargingLocations.json",
+      "type": "string",
+      "role": "json",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.chargingLocations.json",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.chargingLocations.loc_000000000000000000000001": {
+    "type": "channel",
+    "common": {
+      "name": "chargingLocations.loc_000000000000000000000001"
+    },
+    "native": {},
+    "_id": "vw-app.0.chargingLocations.loc_000000000000000000000001",
+    "acl": {
+      "object": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.chargingLocations.loc_000000000000000000000001.activeTimerCount": {
+    "type": "state",
+    "common": {
+      "name": "chargingLocations.loc_000000000000000000000001.activeTimerCount",
+      "type": "number",
+      "role": "value",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.chargingLocations.loc_000000000000000000000001.activeTimerCount",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.chargingLocations.loc_000000000000000000000001.bindingStatus": {
+    "type": "state",
+    "common": {
+      "name": "chargingLocations.loc_000000000000000000000001.bindingStatus",
+      "type": "string",
+      "role": "text",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.chargingLocations.loc_000000000000000000000001.bindingStatus",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.chargingLocations.loc_000000000000000000000001.commands": {
+    "type": "channel",
+    "common": {
+      "name": "chargingLocations.loc_000000000000000000000001.commands"
+    },
+    "native": {},
+    "_id": "vw-app.0.chargingLocations.loc_000000000000000000000001.commands",
+    "acl": {
+      "object": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.chargingLocations.loc_000000000000000000000001.commands.refresh": {
+    "type": "state",
+    "common": {
+      "name": "chargingLocations.loc_000000000000000000000001.commands.refresh",
+      "type": "boolean",
+      "role": "button",
+      "read": true,
+      "write": true
+    },
+    "native": {},
+    "_id": "vw-app.0.chargingLocations.loc_000000000000000000000001.commands.refresh",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.chargingLocations.loc_000000000000000000000001.name": {
+    "type": "state",
+    "common": {
+      "name": "chargingLocations.loc_000000000000000000000001.name",
+      "type": "string",
+      "role": "text",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.chargingLocations.loc_000000000000000000000001.name",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.chargingLocations.loc_000000000000000000000001.observedAt": {
+    "type": "state",
+    "common": {
+      "name": "chargingLocations.loc_000000000000000000000001.observedAt",
+      "type": "string",
+      "role": "date",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.chargingLocations.loc_000000000000000000000001.observedAt",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.chargingLocations.loc_000000000000000000000001.preferredTimes": {
+    "type": "channel",
+    "common": {
+      "name": "chargingLocations.loc_000000000000000000000001.preferredTimes"
+    },
+    "native": {},
+    "_id": "vw-app.0.chargingLocations.loc_000000000000000000000001.preferredTimes",
+    "acl": {
+      "object": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.chargingLocations.loc_000000000000000000000001.preferredTimes.commands": {
+    "type": "channel",
+    "common": {
+      "name": "chargingLocations.loc_000000000000000000000001.preferredTimes.commands"
+    },
+    "native": {},
+    "_id": "vw-app.0.chargingLocations.loc_000000000000000000000001.preferredTimes.commands",
+    "acl": {
+      "object": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.chargingLocations.loc_000000000000000000000001.preferredTimes.commands.apply": {
+    "type": "state",
+    "common": {
+      "name": "chargingLocations.loc_000000000000000000000001.preferredTimes.commands.apply",
+      "type": "boolean",
+      "role": "button",
+      "read": true,
+      "write": true
+    },
+    "native": {},
+    "_id": "vw-app.0.chargingLocations.loc_000000000000000000000001.preferredTimes.commands.apply",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.chargingLocations.loc_000000000000000000000001.preferredTimes.commands.clear": {
+    "type": "state",
+    "common": {
+      "name": "chargingLocations.loc_000000000000000000000001.preferredTimes.commands.clear",
+      "type": "boolean",
+      "role": "button",
+      "read": true,
+      "write": true
+    },
+    "native": {},
+    "_id": "vw-app.0.chargingLocations.loc_000000000000000000000001.preferredTimes.commands.clear",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.chargingLocations.loc_000000000000000000000001.preferredTimes.notice": {
+    "type": "state",
+    "common": {
+      "name": "chargingLocations.loc_000000000000000000000001.preferredTimes.notice",
+      "type": "string",
+      "role": "text",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.chargingLocations.loc_000000000000000000000001.preferredTimes.notice",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.chargingLocations.loc_000000000000000000000001.preferredTimes.targetError": {
+    "type": "state",
+    "common": {
+      "name": "chargingLocations.loc_000000000000000000000001.preferredTimes.targetError",
+      "type": "string",
+      "role": "text",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.chargingLocations.loc_000000000000000000000001.preferredTimes.targetError",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.chargingLocations.loc_000000000000000000000001.preferredTimes.window1": {
+    "type": "channel",
+    "common": {
+      "name": "chargingLocations.loc_000000000000000000000001.preferredTimes.window1"
+    },
+    "native": {},
+    "_id": "vw-app.0.chargingLocations.loc_000000000000000000000001.preferredTimes.window1",
+    "acl": {
+      "object": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.chargingLocations.loc_000000000000000000000001.preferredTimes.window1.editable": {
+    "type": "state",
+    "common": {
+      "name": "chargingLocations.loc_000000000000000000000001.preferredTimes.window1.editable",
+      "type": "boolean",
+      "role": "indicator",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.chargingLocations.loc_000000000000000000000001.preferredTimes.window1.editable",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.chargingLocations.loc_000000000000000000000001.preferredTimes.window1.enabled": {
+    "type": "state",
+    "common": {
+      "name": "chargingLocations.loc_000000000000000000000001.preferredTimes.window1.enabled",
+      "type": "boolean",
+      "role": "indicator",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.chargingLocations.loc_000000000000000000000001.preferredTimes.window1.enabled",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.chargingLocations.loc_000000000000000000000001.preferredTimes.window1.end": {
+    "type": "state",
+    "common": {
+      "name": "chargingLocations.loc_000000000000000000000001.preferredTimes.window1.end",
+      "type": "string",
+      "role": "text",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.chargingLocations.loc_000000000000000000000001.preferredTimes.window1.end",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.chargingLocations.loc_000000000000000000000001.preferredTimes.window1.start": {
+    "type": "state",
+    "common": {
+      "name": "chargingLocations.loc_000000000000000000000001.preferredTimes.window1.start",
+      "type": "string",
+      "role": "text",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.chargingLocations.loc_000000000000000000000001.preferredTimes.window1.start",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.chargingLocations.loc_000000000000000000000001.preferredTimes.window1.targetEnabled": {
+    "type": "state",
+    "common": {
+      "name": "chargingLocations.loc_000000000000000000000001.preferredTimes.window1.targetEnabled",
+      "type": "boolean",
+      "role": "switch",
+      "read": true,
+      "write": true
+    },
+    "native": {},
+    "_id": "vw-app.0.chargingLocations.loc_000000000000000000000001.preferredTimes.window1.targetEnabled",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.chargingLocations.loc_000000000000000000000001.preferredTimes.window2": {
+    "type": "channel",
+    "common": {
+      "name": "chargingLocations.loc_000000000000000000000001.preferredTimes.window2"
+    },
+    "native": {},
+    "_id": "vw-app.0.chargingLocations.loc_000000000000000000000001.preferredTimes.window2",
+    "acl": {
+      "object": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.chargingLocations.loc_000000000000000000000001.preferredTimes.window2.editable": {
+    "type": "state",
+    "common": {
+      "name": "chargingLocations.loc_000000000000000000000001.preferredTimes.window2.editable",
+      "type": "boolean",
+      "role": "indicator",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.chargingLocations.loc_000000000000000000000001.preferredTimes.window2.editable",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.chargingLocations.loc_000000000000000000000001.preferredTimes.window2.enabled": {
+    "type": "state",
+    "common": {
+      "name": "chargingLocations.loc_000000000000000000000001.preferredTimes.window2.enabled",
+      "type": "boolean",
+      "role": "indicator",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.chargingLocations.loc_000000000000000000000001.preferredTimes.window2.enabled",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.chargingLocations.loc_000000000000000000000001.preferredTimes.window2.end": {
+    "type": "state",
+    "common": {
+      "name": "chargingLocations.loc_000000000000000000000001.preferredTimes.window2.end",
+      "type": "string",
+      "role": "text",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.chargingLocations.loc_000000000000000000000001.preferredTimes.window2.end",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.chargingLocations.loc_000000000000000000000001.preferredTimes.window2.start": {
+    "type": "state",
+    "common": {
+      "name": "chargingLocations.loc_000000000000000000000001.preferredTimes.window2.start",
+      "type": "string",
+      "role": "text",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.chargingLocations.loc_000000000000000000000001.preferredTimes.window2.start",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.chargingLocations.loc_000000000000000000000001.preferredTimes.window2.targetEnabled": {
+    "type": "state",
+    "common": {
+      "name": "chargingLocations.loc_000000000000000000000001.preferredTimes.window2.targetEnabled",
+      "type": "boolean",
+      "role": "switch",
+      "read": true,
+      "write": true
+    },
+    "native": {},
+    "_id": "vw-app.0.chargingLocations.loc_000000000000000000000001.preferredTimes.window2.targetEnabled",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.chargingLocations.loc_000000000000000000000001.preferredTimes.window3": {
+    "type": "channel",
+    "common": {
+      "name": "chargingLocations.loc_000000000000000000000001.preferredTimes.window3"
+    },
+    "native": {},
+    "_id": "vw-app.0.chargingLocations.loc_000000000000000000000001.preferredTimes.window3",
+    "acl": {
+      "object": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.chargingLocations.loc_000000000000000000000001.preferredTimes.window3.editable": {
+    "type": "state",
+    "common": {
+      "name": "chargingLocations.loc_000000000000000000000001.preferredTimes.window3.editable",
+      "type": "boolean",
+      "role": "indicator",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.chargingLocations.loc_000000000000000000000001.preferredTimes.window3.editable",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.chargingLocations.loc_000000000000000000000001.preferredTimes.window3.enabled": {
+    "type": "state",
+    "common": {
+      "name": "chargingLocations.loc_000000000000000000000001.preferredTimes.window3.enabled",
+      "type": "boolean",
+      "role": "indicator",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.chargingLocations.loc_000000000000000000000001.preferredTimes.window3.enabled",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.chargingLocations.loc_000000000000000000000001.preferredTimes.window3.end": {
+    "type": "state",
+    "common": {
+      "name": "chargingLocations.loc_000000000000000000000001.preferredTimes.window3.end",
+      "type": "string",
+      "role": "text",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.chargingLocations.loc_000000000000000000000001.preferredTimes.window3.end",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.chargingLocations.loc_000000000000000000000001.preferredTimes.window3.start": {
+    "type": "state",
+    "common": {
+      "name": "chargingLocations.loc_000000000000000000000001.preferredTimes.window3.start",
+      "type": "string",
+      "role": "text",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.chargingLocations.loc_000000000000000000000001.preferredTimes.window3.start",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.chargingLocations.loc_000000000000000000000001.preferredTimes.window3.targetEnabled": {
+    "type": "state",
+    "common": {
+      "name": "chargingLocations.loc_000000000000000000000001.preferredTimes.window3.targetEnabled",
+      "type": "boolean",
+      "role": "switch",
+      "read": true,
+      "write": true
+    },
+    "native": {},
+    "_id": "vw-app.0.chargingLocations.loc_000000000000000000000001.preferredTimes.window3.targetEnabled",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.chargingLocations.loc_000000000000000000000001.preferredTimes.window4": {
+    "type": "channel",
+    "common": {
+      "name": "chargingLocations.loc_000000000000000000000001.preferredTimes.window4"
+    },
+    "native": {},
+    "_id": "vw-app.0.chargingLocations.loc_000000000000000000000001.preferredTimes.window4",
+    "acl": {
+      "object": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.chargingLocations.loc_000000000000000000000001.preferredTimes.window4.editable": {
+    "type": "state",
+    "common": {
+      "name": "chargingLocations.loc_000000000000000000000001.preferredTimes.window4.editable",
+      "type": "boolean",
+      "role": "indicator",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.chargingLocations.loc_000000000000000000000001.preferredTimes.window4.editable",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.chargingLocations.loc_000000000000000000000001.preferredTimes.window4.enabled": {
+    "type": "state",
+    "common": {
+      "name": "chargingLocations.loc_000000000000000000000001.preferredTimes.window4.enabled",
+      "type": "boolean",
+      "role": "indicator",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.chargingLocations.loc_000000000000000000000001.preferredTimes.window4.enabled",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.chargingLocations.loc_000000000000000000000001.preferredTimes.window4.end": {
+    "type": "state",
+    "common": {
+      "name": "chargingLocations.loc_000000000000000000000001.preferredTimes.window4.end",
+      "type": "string",
+      "role": "text",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.chargingLocations.loc_000000000000000000000001.preferredTimes.window4.end",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.chargingLocations.loc_000000000000000000000001.preferredTimes.window4.start": {
+    "type": "state",
+    "common": {
+      "name": "chargingLocations.loc_000000000000000000000001.preferredTimes.window4.start",
+      "type": "string",
+      "role": "text",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.chargingLocations.loc_000000000000000000000001.preferredTimes.window4.start",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.chargingLocations.loc_000000000000000000000001.preferredTimes.window4.targetEnabled": {
+    "type": "state",
+    "common": {
+      "name": "chargingLocations.loc_000000000000000000000001.preferredTimes.window4.targetEnabled",
+      "type": "boolean",
+      "role": "switch",
+      "read": true,
+      "write": true
+    },
+    "native": {},
+    "_id": "vw-app.0.chargingLocations.loc_000000000000000000000001.preferredTimes.window4.targetEnabled",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.chargingLocations.loc_000000000000000000000001.present": {
+    "type": "state",
+    "common": {
+      "name": "chargingLocations.loc_000000000000000000000001.present",
+      "type": "boolean",
+      "role": "indicator",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.chargingLocations.loc_000000000000000000000001.present",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.chargingLocations.loc_000000000000000000000001.settings": {
+    "type": "channel",
+    "common": {
+      "name": "chargingLocations.loc_000000000000000000000001.settings"
+    },
+    "native": {},
+    "_id": "vw-app.0.chargingLocations.loc_000000000000000000000001.settings",
+    "acl": {
+      "object": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.chargingLocations.loc_000000000000000000000001.settings.autoUnlockAc": {
+    "type": "state",
+    "common": {
+      "name": "chargingLocations.loc_000000000000000000000001.settings.autoUnlockAc",
+      "type": "boolean",
+      "role": "indicator",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.chargingLocations.loc_000000000000000000000001.settings.autoUnlockAc",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.chargingLocations.loc_000000000000000000000001.settings.commands": {
+    "type": "channel",
+    "common": {
+      "name": "chargingLocations.loc_000000000000000000000001.settings.commands"
+    },
+    "native": {},
+    "_id": "vw-app.0.chargingLocations.loc_000000000000000000000001.settings.commands",
+    "acl": {
+      "object": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.chargingLocations.loc_000000000000000000000001.settings.commands.apply": {
+    "type": "state",
+    "common": {
+      "name": "chargingLocations.loc_000000000000000000000001.settings.commands.apply",
+      "type": "boolean",
+      "role": "button",
+      "read": true,
+      "write": true
+    },
+    "native": {},
+    "_id": "vw-app.0.chargingLocations.loc_000000000000000000000001.settings.commands.apply",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.chargingLocations.loc_000000000000000000000001.settings.commands.clear": {
+    "type": "state",
+    "common": {
+      "name": "chargingLocations.loc_000000000000000000000001.settings.commands.clear",
+      "type": "boolean",
+      "role": "button",
+      "read": true,
+      "write": true
+    },
+    "native": {},
+    "_id": "vw-app.0.chargingLocations.loc_000000000000000000000001.settings.commands.clear",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.chargingLocations.loc_000000000000000000000001.settings.directSoc": {
+    "type": "state",
+    "common": {
+      "name": "chargingLocations.loc_000000000000000000000001.settings.directSoc",
+      "type": "number",
+      "role": "value.battery",
+      "read": true,
+      "write": false,
+      "unit": "%",
+      "min": 0,
+      "max": 100
+    },
+    "native": {},
+    "_id": "vw-app.0.chargingLocations.loc_000000000000000000000001.settings.directSoc",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.chargingLocations.loc_000000000000000000000001.settings.name": {
+    "type": "state",
+    "common": {
+      "name": "chargingLocations.loc_000000000000000000000001.settings.name",
+      "type": "string",
+      "role": "text",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.chargingLocations.loc_000000000000000000000001.settings.name",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.chargingLocations.loc_000000000000000000000001.settings.reducedAcCurrent": {
+    "type": "state",
+    "common": {
+      "name": "chargingLocations.loc_000000000000000000000001.settings.reducedAcCurrent",
+      "type": "boolean",
+      "role": "indicator",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.chargingLocations.loc_000000000000000000000001.settings.reducedAcCurrent",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.chargingLocations.loc_000000000000000000000001.settings.socLimit": {
+    "type": "state",
+    "common": {
+      "name": "chargingLocations.loc_000000000000000000000001.settings.socLimit",
+      "type": "number",
+      "role": "value.battery",
+      "read": true,
+      "write": false,
+      "unit": "%",
+      "min": 0,
+      "max": 100
+    },
+    "native": {},
+    "_id": "vw-app.0.chargingLocations.loc_000000000000000000000001.settings.socLimit",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.chargingLocations.loc_000000000000000000000001.settings.socReadCapability": {
+    "type": "state",
+    "common": {
+      "name": "chargingLocations.loc_000000000000000000000001.settings.socReadCapability",
+      "type": "string",
+      "role": "text",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.chargingLocations.loc_000000000000000000000001.settings.socReadCapability",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.chargingLocations.loc_000000000000000000000001.settings.targetAutoUnlockAc": {
+    "type": "state",
+    "common": {
+      "name": "chargingLocations.loc_000000000000000000000001.settings.targetAutoUnlockAc",
+      "type": "boolean",
+      "role": "switch",
+      "read": true,
+      "write": true
+    },
+    "native": {},
+    "_id": "vw-app.0.chargingLocations.loc_000000000000000000000001.settings.targetAutoUnlockAc",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.chargingLocations.loc_000000000000000000000001.settings.targetError": {
+    "type": "state",
+    "common": {
+      "name": "chargingLocations.loc_000000000000000000000001.settings.targetError",
+      "type": "string",
+      "role": "text",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.chargingLocations.loc_000000000000000000000001.settings.targetError",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.chargingLocations.loc_000000000000000000000001.settings.targetName": {
+    "type": "state",
+    "common": {
+      "name": "chargingLocations.loc_000000000000000000000001.settings.targetName",
+      "type": "string",
+      "role": "text",
+      "read": true,
+      "write": true
+    },
+    "native": {},
+    "_id": "vw-app.0.chargingLocations.loc_000000000000000000000001.settings.targetName",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.chargingLocations.loc_000000000000000000000001.settings.targetReducedAcCurrent": {
+    "type": "state",
+    "common": {
+      "name": "chargingLocations.loc_000000000000000000000001.settings.targetReducedAcCurrent",
+      "type": "boolean",
+      "role": "switch",
+      "read": true,
+      "write": true
+    },
+    "native": {},
+    "_id": "vw-app.0.chargingLocations.loc_000000000000000000000001.settings.targetReducedAcCurrent",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.chargingLocations.loc_000000000000000000000001.timer1": {
+    "type": "channel",
+    "common": {
+      "name": "chargingLocations.loc_000000000000000000000001.timer1"
+    },
+    "native": {},
+    "_id": "vw-app.0.chargingLocations.loc_000000000000000000000001.timer1",
+    "acl": {
+      "object": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.chargingLocations.loc_000000000000000000000001.timer1.climatisation": {
+    "type": "state",
+    "common": {
+      "name": "chargingLocations.loc_000000000000000000000001.timer1.climatisation",
+      "type": "boolean",
+      "role": "indicator",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.chargingLocations.loc_000000000000000000000001.timer1.climatisation",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.chargingLocations.loc_000000000000000000000001.timer1.commands": {
+    "type": "channel",
+    "common": {
+      "name": "chargingLocations.loc_000000000000000000000001.timer1.commands"
+    },
+    "native": {},
+    "_id": "vw-app.0.chargingLocations.loc_000000000000000000000001.timer1.commands",
+    "acl": {
+      "object": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.chargingLocations.loc_000000000000000000000001.timer1.commands.apply": {
+    "type": "state",
+    "common": {
+      "name": "chargingLocations.loc_000000000000000000000001.timer1.commands.apply",
+      "type": "boolean",
+      "role": "button",
+      "read": true,
+      "write": true
+    },
+    "native": {},
+    "_id": "vw-app.0.chargingLocations.loc_000000000000000000000001.timer1.commands.apply",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.chargingLocations.loc_000000000000000000000001.timer1.commands.clear": {
+    "type": "state",
+    "common": {
+      "name": "chargingLocations.loc_000000000000000000000001.timer1.commands.clear",
+      "type": "boolean",
+      "role": "button",
+      "read": true,
+      "write": true
+    },
+    "native": {},
+    "_id": "vw-app.0.chargingLocations.loc_000000000000000000000001.timer1.commands.clear",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.chargingLocations.loc_000000000000000000000001.timer1.date": {
+    "type": "state",
+    "common": {
+      "name": "chargingLocations.loc_000000000000000000000001.timer1.date",
+      "type": "string",
+      "role": "date",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.chargingLocations.loc_000000000000000000000001.timer1.date",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.chargingLocations.loc_000000000000000000000001.timer1.days": {
+    "type": "state",
+    "common": {
+      "name": "chargingLocations.loc_000000000000000000000001.timer1.days",
+      "type": "string",
+      "role": "json",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.chargingLocations.loc_000000000000000000000001.timer1.days",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.chargingLocations.loc_000000000000000000000001.timer1.daysSummary": {
+    "type": "state",
+    "common": {
+      "name": "chargingLocations.loc_000000000000000000000001.timer1.daysSummary",
+      "type": "string",
+      "role": "text",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.chargingLocations.loc_000000000000000000000001.timer1.daysSummary",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.chargingLocations.loc_000000000000000000000001.timer1.daysSummaryRecognized": {
+    "type": "state",
+    "common": {
+      "name": "chargingLocations.loc_000000000000000000000001.timer1.daysSummaryRecognized",
+      "type": "boolean",
+      "role": "indicator",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.chargingLocations.loc_000000000000000000000001.timer1.daysSummaryRecognized",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.chargingLocations.loc_000000000000000000000001.timer1.enabled": {
+    "type": "state",
+    "common": {
+      "name": "chargingLocations.loc_000000000000000000000001.timer1.enabled",
+      "type": "boolean",
+      "role": "indicator",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.chargingLocations.loc_000000000000000000000001.timer1.enabled",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.chargingLocations.loc_000000000000000000000001.timer1.isLocalVehicleTime": {
+    "type": "state",
+    "common": {
+      "name": "chargingLocations.loc_000000000000000000000001.timer1.isLocalVehicleTime",
+      "type": "boolean",
+      "role": "indicator",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.chargingLocations.loc_000000000000000000000001.timer1.isLocalVehicleTime",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.chargingLocations.loc_000000000000000000000001.timer1.isPreferredTimesAvailable": {
+    "type": "state",
+    "common": {
+      "name": "chargingLocations.loc_000000000000000000000001.timer1.isPreferredTimesAvailable",
+      "type": "boolean",
+      "role": "indicator",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.chargingLocations.loc_000000000000000000000001.timer1.isPreferredTimesAvailable",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.chargingLocations.loc_000000000000000000000001.timer1.profileId": {
+    "type": "state",
+    "common": {
+      "name": "chargingLocations.loc_000000000000000000000001.timer1.profileId",
+      "type": "string",
+      "role": "text",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.chargingLocations.loc_000000000000000000000001.timer1.profileId",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.chargingLocations.loc_000000000000000000000001.timer1.repeat": {
+    "type": "state",
+    "common": {
+      "name": "chargingLocations.loc_000000000000000000000001.timer1.repeat",
+      "type": "boolean",
+      "role": "indicator",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.chargingLocations.loc_000000000000000000000001.timer1.repeat",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.chargingLocations.loc_000000000000000000000001.timer1.source": {
+    "type": "state",
+    "common": {
+      "name": "chargingLocations.loc_000000000000000000000001.timer1.source",
+      "type": "string",
+      "role": "text",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.chargingLocations.loc_000000000000000000000001.timer1.source",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.chargingLocations.loc_000000000000000000000001.timer1.targetDays": {
+    "type": "state",
+    "common": {
+      "name": "chargingLocations.loc_000000000000000000000001.timer1.targetDays",
+      "type": "string",
+      "role": "json",
+      "read": true,
+      "write": true
+    },
+    "native": {},
+    "_id": "vw-app.0.chargingLocations.loc_000000000000000000000001.timer1.targetDays",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.chargingLocations.loc_000000000000000000000001.timer1.targetEnabled": {
+    "type": "state",
+    "common": {
+      "name": "chargingLocations.loc_000000000000000000000001.timer1.targetEnabled",
+      "type": "boolean",
+      "role": "switch",
+      "read": true,
+      "write": true
+    },
+    "native": {},
+    "_id": "vw-app.0.chargingLocations.loc_000000000000000000000001.timer1.targetEnabled",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.chargingLocations.loc_000000000000000000000001.timer1.targetError": {
+    "type": "state",
+    "common": {
+      "name": "chargingLocations.loc_000000000000000000000001.timer1.targetError",
+      "type": "string",
+      "role": "text",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.chargingLocations.loc_000000000000000000000001.timer1.targetError",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.chargingLocations.loc_000000000000000000000001.timer1.targetRepeat": {
+    "type": "state",
+    "common": {
+      "name": "chargingLocations.loc_000000000000000000000001.timer1.targetRepeat",
+      "type": "boolean",
+      "role": "switch",
+      "read": true,
+      "write": true
+    },
+    "native": {},
+    "_id": "vw-app.0.chargingLocations.loc_000000000000000000000001.timer1.targetRepeat",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.chargingLocations.loc_000000000000000000000001.timer1.targetTime": {
+    "type": "state",
+    "common": {
+      "name": "chargingLocations.loc_000000000000000000000001.timer1.targetTime",
+      "type": "string",
+      "role": "text",
+      "read": true,
+      "write": true
+    },
+    "native": {},
+    "_id": "vw-app.0.chargingLocations.loc_000000000000000000000001.timer1.targetTime",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.chargingLocations.loc_000000000000000000000001.timer1.time": {
+    "type": "state",
+    "common": {
+      "name": "chargingLocations.loc_000000000000000000000001.timer1.time",
+      "type": "string",
+      "role": "text",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.chargingLocations.loc_000000000000000000000001.timer1.time",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.chargingLocations.loc_000000000000000000000001.timer1.vehicleOffset": {
+    "type": "state",
+    "common": {
+      "name": "chargingLocations.loc_000000000000000000000001.timer1.vehicleOffset",
+      "type": "string",
+      "role": "text",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.chargingLocations.loc_000000000000000000000001.timer1.vehicleOffset",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.chargingLocations.loc_000000000000000000000001.timer2": {
+    "type": "channel",
+    "common": {
+      "name": "chargingLocations.loc_000000000000000000000001.timer2"
+    },
+    "native": {},
+    "_id": "vw-app.0.chargingLocations.loc_000000000000000000000001.timer2",
+    "acl": {
+      "object": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.chargingLocations.loc_000000000000000000000001.timer2.climatisation": {
+    "type": "state",
+    "common": {
+      "name": "chargingLocations.loc_000000000000000000000001.timer2.climatisation",
+      "type": "boolean",
+      "role": "indicator",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.chargingLocations.loc_000000000000000000000001.timer2.climatisation",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.chargingLocations.loc_000000000000000000000001.timer2.commands": {
+    "type": "channel",
+    "common": {
+      "name": "chargingLocations.loc_000000000000000000000001.timer2.commands"
+    },
+    "native": {},
+    "_id": "vw-app.0.chargingLocations.loc_000000000000000000000001.timer2.commands",
+    "acl": {
+      "object": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.chargingLocations.loc_000000000000000000000001.timer2.commands.apply": {
+    "type": "state",
+    "common": {
+      "name": "chargingLocations.loc_000000000000000000000001.timer2.commands.apply",
+      "type": "boolean",
+      "role": "button",
+      "read": true,
+      "write": true
+    },
+    "native": {},
+    "_id": "vw-app.0.chargingLocations.loc_000000000000000000000001.timer2.commands.apply",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.chargingLocations.loc_000000000000000000000001.timer2.commands.clear": {
+    "type": "state",
+    "common": {
+      "name": "chargingLocations.loc_000000000000000000000001.timer2.commands.clear",
+      "type": "boolean",
+      "role": "button",
+      "read": true,
+      "write": true
+    },
+    "native": {},
+    "_id": "vw-app.0.chargingLocations.loc_000000000000000000000001.timer2.commands.clear",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.chargingLocations.loc_000000000000000000000001.timer2.date": {
+    "type": "state",
+    "common": {
+      "name": "chargingLocations.loc_000000000000000000000001.timer2.date",
+      "type": "string",
+      "role": "date",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.chargingLocations.loc_000000000000000000000001.timer2.date",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.chargingLocations.loc_000000000000000000000001.timer2.days": {
+    "type": "state",
+    "common": {
+      "name": "chargingLocations.loc_000000000000000000000001.timer2.days",
+      "type": "string",
+      "role": "json",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.chargingLocations.loc_000000000000000000000001.timer2.days",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.chargingLocations.loc_000000000000000000000001.timer2.daysSummary": {
+    "type": "state",
+    "common": {
+      "name": "chargingLocations.loc_000000000000000000000001.timer2.daysSummary",
+      "type": "string",
+      "role": "text",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.chargingLocations.loc_000000000000000000000001.timer2.daysSummary",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.chargingLocations.loc_000000000000000000000001.timer2.daysSummaryRecognized": {
+    "type": "state",
+    "common": {
+      "name": "chargingLocations.loc_000000000000000000000001.timer2.daysSummaryRecognized",
+      "type": "boolean",
+      "role": "indicator",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.chargingLocations.loc_000000000000000000000001.timer2.daysSummaryRecognized",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.chargingLocations.loc_000000000000000000000001.timer2.enabled": {
+    "type": "state",
+    "common": {
+      "name": "chargingLocations.loc_000000000000000000000001.timer2.enabled",
+      "type": "boolean",
+      "role": "indicator",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.chargingLocations.loc_000000000000000000000001.timer2.enabled",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.chargingLocations.loc_000000000000000000000001.timer2.isLocalVehicleTime": {
+    "type": "state",
+    "common": {
+      "name": "chargingLocations.loc_000000000000000000000001.timer2.isLocalVehicleTime",
+      "type": "boolean",
+      "role": "indicator",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.chargingLocations.loc_000000000000000000000001.timer2.isLocalVehicleTime",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.chargingLocations.loc_000000000000000000000001.timer2.isPreferredTimesAvailable": {
+    "type": "state",
+    "common": {
+      "name": "chargingLocations.loc_000000000000000000000001.timer2.isPreferredTimesAvailable",
+      "type": "boolean",
+      "role": "indicator",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.chargingLocations.loc_000000000000000000000001.timer2.isPreferredTimesAvailable",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.chargingLocations.loc_000000000000000000000001.timer2.profileId": {
+    "type": "state",
+    "common": {
+      "name": "chargingLocations.loc_000000000000000000000001.timer2.profileId",
+      "type": "string",
+      "role": "text",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.chargingLocations.loc_000000000000000000000001.timer2.profileId",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.chargingLocations.loc_000000000000000000000001.timer2.repeat": {
+    "type": "state",
+    "common": {
+      "name": "chargingLocations.loc_000000000000000000000001.timer2.repeat",
+      "type": "boolean",
+      "role": "indicator",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.chargingLocations.loc_000000000000000000000001.timer2.repeat",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.chargingLocations.loc_000000000000000000000001.timer2.source": {
+    "type": "state",
+    "common": {
+      "name": "chargingLocations.loc_000000000000000000000001.timer2.source",
+      "type": "string",
+      "role": "text",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.chargingLocations.loc_000000000000000000000001.timer2.source",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.chargingLocations.loc_000000000000000000000001.timer2.targetDays": {
+    "type": "state",
+    "common": {
+      "name": "chargingLocations.loc_000000000000000000000001.timer2.targetDays",
+      "type": "string",
+      "role": "json",
+      "read": true,
+      "write": true
+    },
+    "native": {},
+    "_id": "vw-app.0.chargingLocations.loc_000000000000000000000001.timer2.targetDays",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.chargingLocations.loc_000000000000000000000001.timer2.targetEnabled": {
+    "type": "state",
+    "common": {
+      "name": "chargingLocations.loc_000000000000000000000001.timer2.targetEnabled",
+      "type": "boolean",
+      "role": "switch",
+      "read": true,
+      "write": true
+    },
+    "native": {},
+    "_id": "vw-app.0.chargingLocations.loc_000000000000000000000001.timer2.targetEnabled",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.chargingLocations.loc_000000000000000000000001.timer2.targetError": {
+    "type": "state",
+    "common": {
+      "name": "chargingLocations.loc_000000000000000000000001.timer2.targetError",
+      "type": "string",
+      "role": "text",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.chargingLocations.loc_000000000000000000000001.timer2.targetError",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.chargingLocations.loc_000000000000000000000001.timer2.targetRepeat": {
+    "type": "state",
+    "common": {
+      "name": "chargingLocations.loc_000000000000000000000001.timer2.targetRepeat",
+      "type": "boolean",
+      "role": "switch",
+      "read": true,
+      "write": true
+    },
+    "native": {},
+    "_id": "vw-app.0.chargingLocations.loc_000000000000000000000001.timer2.targetRepeat",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.chargingLocations.loc_000000000000000000000001.timer2.targetTime": {
+    "type": "state",
+    "common": {
+      "name": "chargingLocations.loc_000000000000000000000001.timer2.targetTime",
+      "type": "string",
+      "role": "text",
+      "read": true,
+      "write": true
+    },
+    "native": {},
+    "_id": "vw-app.0.chargingLocations.loc_000000000000000000000001.timer2.targetTime",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.chargingLocations.loc_000000000000000000000001.timer2.time": {
+    "type": "state",
+    "common": {
+      "name": "chargingLocations.loc_000000000000000000000001.timer2.time",
+      "type": "string",
+      "role": "text",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.chargingLocations.loc_000000000000000000000001.timer2.time",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.chargingLocations.loc_000000000000000000000001.timer2.vehicleOffset": {
+    "type": "state",
+    "common": {
+      "name": "chargingLocations.loc_000000000000000000000001.timer2.vehicleOffset",
+      "type": "string",
+      "role": "text",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.chargingLocations.loc_000000000000000000000001.timer2.vehicleOffset",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.chargingLocations.loc_000000000000000000000001.timer3": {
+    "type": "channel",
+    "common": {
+      "name": "chargingLocations.loc_000000000000000000000001.timer3"
+    },
+    "native": {},
+    "_id": "vw-app.0.chargingLocations.loc_000000000000000000000001.timer3",
+    "acl": {
+      "object": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.chargingLocations.loc_000000000000000000000001.timer3.climatisation": {
+    "type": "state",
+    "common": {
+      "name": "chargingLocations.loc_000000000000000000000001.timer3.climatisation",
+      "type": "boolean",
+      "role": "indicator",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.chargingLocations.loc_000000000000000000000001.timer3.climatisation",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.chargingLocations.loc_000000000000000000000001.timer3.commands": {
+    "type": "channel",
+    "common": {
+      "name": "chargingLocations.loc_000000000000000000000001.timer3.commands"
+    },
+    "native": {},
+    "_id": "vw-app.0.chargingLocations.loc_000000000000000000000001.timer3.commands",
+    "acl": {
+      "object": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.chargingLocations.loc_000000000000000000000001.timer3.commands.apply": {
+    "type": "state",
+    "common": {
+      "name": "chargingLocations.loc_000000000000000000000001.timer3.commands.apply",
+      "type": "boolean",
+      "role": "button",
+      "read": true,
+      "write": true
+    },
+    "native": {},
+    "_id": "vw-app.0.chargingLocations.loc_000000000000000000000001.timer3.commands.apply",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.chargingLocations.loc_000000000000000000000001.timer3.commands.clear": {
+    "type": "state",
+    "common": {
+      "name": "chargingLocations.loc_000000000000000000000001.timer3.commands.clear",
+      "type": "boolean",
+      "role": "button",
+      "read": true,
+      "write": true
+    },
+    "native": {},
+    "_id": "vw-app.0.chargingLocations.loc_000000000000000000000001.timer3.commands.clear",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.chargingLocations.loc_000000000000000000000001.timer3.date": {
+    "type": "state",
+    "common": {
+      "name": "chargingLocations.loc_000000000000000000000001.timer3.date",
+      "type": "string",
+      "role": "date",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.chargingLocations.loc_000000000000000000000001.timer3.date",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.chargingLocations.loc_000000000000000000000001.timer3.days": {
+    "type": "state",
+    "common": {
+      "name": "chargingLocations.loc_000000000000000000000001.timer3.days",
+      "type": "string",
+      "role": "json",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.chargingLocations.loc_000000000000000000000001.timer3.days",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.chargingLocations.loc_000000000000000000000001.timer3.daysSummary": {
+    "type": "state",
+    "common": {
+      "name": "chargingLocations.loc_000000000000000000000001.timer3.daysSummary",
+      "type": "string",
+      "role": "text",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.chargingLocations.loc_000000000000000000000001.timer3.daysSummary",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.chargingLocations.loc_000000000000000000000001.timer3.daysSummaryRecognized": {
+    "type": "state",
+    "common": {
+      "name": "chargingLocations.loc_000000000000000000000001.timer3.daysSummaryRecognized",
+      "type": "boolean",
+      "role": "indicator",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.chargingLocations.loc_000000000000000000000001.timer3.daysSummaryRecognized",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.chargingLocations.loc_000000000000000000000001.timer3.enabled": {
+    "type": "state",
+    "common": {
+      "name": "chargingLocations.loc_000000000000000000000001.timer3.enabled",
+      "type": "boolean",
+      "role": "indicator",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.chargingLocations.loc_000000000000000000000001.timer3.enabled",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.chargingLocations.loc_000000000000000000000001.timer3.isLocalVehicleTime": {
+    "type": "state",
+    "common": {
+      "name": "chargingLocations.loc_000000000000000000000001.timer3.isLocalVehicleTime",
+      "type": "boolean",
+      "role": "indicator",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.chargingLocations.loc_000000000000000000000001.timer3.isLocalVehicleTime",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.chargingLocations.loc_000000000000000000000001.timer3.isPreferredTimesAvailable": {
+    "type": "state",
+    "common": {
+      "name": "chargingLocations.loc_000000000000000000000001.timer3.isPreferredTimesAvailable",
+      "type": "boolean",
+      "role": "indicator",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.chargingLocations.loc_000000000000000000000001.timer3.isPreferredTimesAvailable",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.chargingLocations.loc_000000000000000000000001.timer3.profileId": {
+    "type": "state",
+    "common": {
+      "name": "chargingLocations.loc_000000000000000000000001.timer3.profileId",
+      "type": "string",
+      "role": "text",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.chargingLocations.loc_000000000000000000000001.timer3.profileId",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.chargingLocations.loc_000000000000000000000001.timer3.repeat": {
+    "type": "state",
+    "common": {
+      "name": "chargingLocations.loc_000000000000000000000001.timer3.repeat",
+      "type": "boolean",
+      "role": "indicator",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.chargingLocations.loc_000000000000000000000001.timer3.repeat",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.chargingLocations.loc_000000000000000000000001.timer3.source": {
+    "type": "state",
+    "common": {
+      "name": "chargingLocations.loc_000000000000000000000001.timer3.source",
+      "type": "string",
+      "role": "text",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.chargingLocations.loc_000000000000000000000001.timer3.source",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.chargingLocations.loc_000000000000000000000001.timer3.targetDays": {
+    "type": "state",
+    "common": {
+      "name": "chargingLocations.loc_000000000000000000000001.timer3.targetDays",
+      "type": "string",
+      "role": "json",
+      "read": true,
+      "write": true
+    },
+    "native": {},
+    "_id": "vw-app.0.chargingLocations.loc_000000000000000000000001.timer3.targetDays",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.chargingLocations.loc_000000000000000000000001.timer3.targetEnabled": {
+    "type": "state",
+    "common": {
+      "name": "chargingLocations.loc_000000000000000000000001.timer3.targetEnabled",
+      "type": "boolean",
+      "role": "switch",
+      "read": true,
+      "write": true
+    },
+    "native": {},
+    "_id": "vw-app.0.chargingLocations.loc_000000000000000000000001.timer3.targetEnabled",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.chargingLocations.loc_000000000000000000000001.timer3.targetError": {
+    "type": "state",
+    "common": {
+      "name": "chargingLocations.loc_000000000000000000000001.timer3.targetError",
+      "type": "string",
+      "role": "text",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.chargingLocations.loc_000000000000000000000001.timer3.targetError",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.chargingLocations.loc_000000000000000000000001.timer3.targetRepeat": {
+    "type": "state",
+    "common": {
+      "name": "chargingLocations.loc_000000000000000000000001.timer3.targetRepeat",
+      "type": "boolean",
+      "role": "switch",
+      "read": true,
+      "write": true
+    },
+    "native": {},
+    "_id": "vw-app.0.chargingLocations.loc_000000000000000000000001.timer3.targetRepeat",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.chargingLocations.loc_000000000000000000000001.timer3.targetTime": {
+    "type": "state",
+    "common": {
+      "name": "chargingLocations.loc_000000000000000000000001.timer3.targetTime",
+      "type": "string",
+      "role": "text",
+      "read": true,
+      "write": true
+    },
+    "native": {},
+    "_id": "vw-app.0.chargingLocations.loc_000000000000000000000001.timer3.targetTime",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.chargingLocations.loc_000000000000000000000001.timer3.time": {
+    "type": "state",
+    "common": {
+      "name": "chargingLocations.loc_000000000000000000000001.timer3.time",
+      "type": "string",
+      "role": "text",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.chargingLocations.loc_000000000000000000000001.timer3.time",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.chargingLocations.loc_000000000000000000000001.timer3.vehicleOffset": {
+    "type": "state",
+    "common": {
+      "name": "chargingLocations.loc_000000000000000000000001.timer3.vehicleOffset",
+      "type": "string",
+      "role": "text",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.chargingLocations.loc_000000000000000000000001.timer3.vehicleOffset",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.chargingLocations.observedAt": {
+    "type": "state",
+    "common": {
+      "name": "chargingLocations.observedAt",
+      "type": "string",
+      "role": "date",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.chargingLocations.observedAt",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.climate": {
+    "type": "channel",
+    "common": {
+      "name": "climate"
+    },
+    "native": {},
+    "_id": "vw-app.0.climate",
+    "acl": {
+      "object": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.climate.active": {
+    "type": "state",
+    "common": {
+      "name": "climate.active",
+      "type": "boolean",
+      "role": "indicator",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.climate.active",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.climate.appState": {
+    "type": "state",
+    "common": {
+      "name": "climate.appState",
+      "type": "string",
+      "role": "text",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.climate.appState",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.climate.autoWindowHeating": {
+    "type": "state",
+    "common": {
+      "name": "climate.autoWindowHeating",
+      "type": "boolean",
+      "role": "indicator",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.climate.autoWindowHeating",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.climate.climateOnUnlock": {
+    "type": "state",
+    "common": {
+      "name": "climate.climateOnUnlock",
+      "type": "boolean",
+      "role": "indicator",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.climate.climateOnUnlock",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.climate.confirmationSource": {
+    "type": "state",
+    "common": {
+      "name": "climate.confirmationSource",
+      "type": "string",
+      "role": "text",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.climate.confirmationSource",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.climate.mode": {
+    "type": "state",
+    "common": {
+      "name": "climate.mode",
+      "type": "string",
+      "role": "text",
+      "read": true,
+      "write": false,
+      "states": {
+        "climate": "Klimatisierung",
+        "windowHeating": "Scheibenheizung"
+      }
+    },
+    "native": {},
+    "_id": "vw-app.0.climate.mode",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.climate.targetAutoWindowHeating": {
+    "type": "state",
+    "common": {
+      "name": "climate.targetAutoWindowHeating",
+      "type": "boolean",
+      "role": "switch",
+      "read": true,
+      "write": true
+    },
+    "native": {},
+    "_id": "vw-app.0.climate.targetAutoWindowHeating",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.climate.targetClimateOnUnlock": {
+    "type": "state",
+    "common": {
+      "name": "climate.targetClimateOnUnlock",
+      "type": "boolean",
+      "role": "switch",
+      "read": true,
+      "write": true
+    },
+    "native": {},
+    "_id": "vw-app.0.climate.targetClimateOnUnlock",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.climate.targetMode": {
+    "type": "state",
+    "common": {
+      "name": "climate.targetMode",
+      "type": "string",
+      "role": "text",
+      "read": true,
+      "write": true,
+      "states": {
+        "climate": "Klimatisierung",
+        "windowHeating": "Scheibenheizung"
+      }
+    },
+    "native": {},
+    "_id": "vw-app.0.climate.targetMode",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.climate.targetSettingsError": {
+    "type": "state",
+    "common": {
+      "name": "climate.targetSettingsError",
+      "type": "string",
+      "role": "text",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.climate.targetSettingsError",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.climate.targetTemperature": {
+    "type": "state",
+    "common": {
+      "name": "Gewünschte Temperatur für nächsten Start",
+      "type": "number",
+      "role": "level.temperature",
+      "read": true,
+      "write": true,
+      "unit": "°C",
+      "min": 16,
+      "max": 29.5,
+      "step": 0.5
+    },
+    "native": {},
+    "_id": "vw-app.0.climate.targetTemperature",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.climate.targetTemperatureError": {
+    "type": "state",
+    "common": {
+      "name": "climate.targetTemperatureError",
+      "type": "string",
+      "role": "text",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.climate.targetTemperatureError",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.climate.targetZones": {
+    "type": "state",
+    "common": {
+      "name": "climate.targetZones",
+      "type": "string",
+      "role": "text",
+      "read": true,
+      "write": true,
+      "states": {
+        "frontLeft": "Vorne links",
+        "frontRight": "Vorne rechts",
+        "both": "Beide vorderen Zonen"
+      }
+    },
+    "native": {},
+    "_id": "vw-app.0.climate.targetZones",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.climate.temperature": {
+    "type": "state",
+    "common": {
+      "name": "climate.temperature",
+      "type": "number",
+      "role": "value.temperature",
+      "read": true,
+      "write": false,
+      "unit": "°C",
+      "min": 16,
+      "max": 29.5,
+      "step": 0.5
+    },
+    "native": {},
+    "_id": "vw-app.0.climate.temperature",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.climate.vehicleConfirmed": {
+    "type": "state",
+    "common": {
+      "name": "climate.vehicleConfirmed",
+      "type": "boolean",
+      "role": "indicator",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.climate.vehicleConfirmed",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.climate.zones": {
+    "type": "state",
+    "common": {
+      "name": "climate.zones",
+      "type": "string",
+      "role": "text",
+      "read": true,
+      "write": false,
+      "states": {
+        "frontLeft": "Vorne links",
+        "frontRight": "Vorne rechts",
+        "both": "Beide vorderen Zonen",
+        "none": "Keine vordere Zone"
+      }
+    },
+    "native": {},
+    "_id": "vw-app.0.climate.zones",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.commands": {
+    "type": "channel",
+    "common": {
+      "name": "commands"
+    },
+    "native": {},
+    "_id": "vw-app.0.commands",
+    "acl": {
+      "object": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.commands.applyChargingSettings": {
+    "type": "state",
+    "common": {
+      "name": "Ladeeinstellungen übernehmen",
+      "type": "boolean",
+      "role": "button",
+      "read": true,
+      "write": true
+    },
+    "native": {},
+    "_id": "vw-app.0.commands.applyChargingSettings",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.commands.applySettings": {
+    "type": "state",
+    "common": {
+      "name": "Klimaeinstellungen übernehmen",
+      "type": "boolean",
+      "role": "button",
+      "read": true,
+      "write": true
+    },
+    "native": {},
+    "_id": "vw-app.0.commands.applySettings",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.commands.clearChargingSettings": {
+    "type": "state",
+    "common": {
+      "name": "App-Ladeeinstellungen beibehalten",
+      "type": "boolean",
+      "role": "button",
+      "read": true,
+      "write": true
+    },
+    "native": {},
+    "_id": "vw-app.0.commands.clearChargingSettings",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.commands.clearSettings": {
+    "type": "state",
+    "common": {
+      "name": "Zusätzliche App-Einstellungen beibehalten",
+      "type": "boolean",
+      "role": "button",
+      "read": true,
+      "write": true
+    },
+    "native": {},
+    "_id": "vw-app.0.commands.clearSettings",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.commands.clearTemperature": {
+    "type": "state",
+    "common": {
+      "name": "App-Temperatur beibehalten",
+      "type": "boolean",
+      "role": "button",
+      "read": true,
+      "write": true
+    },
+    "native": {},
+    "_id": "vw-app.0.commands.clearTemperature",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.commands.lockVehicle": {
+    "type": "state",
+    "common": {
+      "name": "Fahrzeug ausdrücklich verriegeln",
+      "type": "boolean",
+      "role": "button",
+      "read": true,
+      "write": true
+    },
+    "native": {},
+    "_id": "vw-app.0.commands.lockVehicle",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.commands.refresh": {
+    "type": "state",
+    "common": {
+      "name": "commands.refresh",
+      "type": "boolean",
+      "role": "button",
+      "read": true,
+      "write": true
+    },
+    "native": {},
+    "_id": "vw-app.0.commands.refresh",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.commands.refreshCharging": {
+    "type": "state",
+    "common": {
+      "name": "Batterie und Ladeeinstellungen lesen",
+      "type": "boolean",
+      "role": "button",
+      "read": true,
+      "write": true
+    },
+    "native": {},
+    "_id": "vw-app.0.commands.refreshCharging",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.commands.refreshDepartureClimate": {
+    "type": "state",
+    "common": {
+      "name": "commands.refreshDepartureClimate",
+      "type": "boolean",
+      "role": "button",
+      "read": true,
+      "write": true
+    },
+    "native": {},
+    "_id": "vw-app.0.commands.refreshDepartureClimate",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.commands.refreshDepartureLocations": {
+    "type": "state",
+    "common": {
+      "name": "commands.refreshDepartureLocations",
+      "type": "boolean",
+      "role": "button",
+      "read": true,
+      "write": true
+    },
+    "native": {},
+    "_id": "vw-app.0.commands.refreshDepartureLocations",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.commands.refreshVehicleAccess": {
+    "type": "state",
+    "common": {
+      "name": "Türen, Fenster und Verriegelung lesen",
+      "type": "boolean",
+      "role": "button",
+      "read": true,
+      "write": true
+    },
+    "native": {},
+    "_id": "vw-app.0.commands.refreshVehicleAccess",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.commands.refreshVehicleInfo": {
+    "type": "state",
+    "common": {
+      "name": "FIN aus der Fahrzeugverwaltung lesen",
+      "type": "boolean",
+      "role": "button",
+      "read": true,
+      "write": true
+    },
+    "native": {},
+    "_id": "vw-app.0.commands.refreshVehicleInfo",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.commands.refreshVehicleReport": {
+    "type": "state",
+    "common": {
+      "name": "Fahrzeugzustandsbericht lesen",
+      "type": "boolean",
+      "role": "button",
+      "read": true,
+      "write": true
+    },
+    "native": {},
+    "_id": "vw-app.0.commands.refreshVehicleReport",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.commands.setTemperature": {
+    "type": "state",
+    "common": {
+      "name": "commands.setTemperature",
+      "type": "boolean",
+      "role": "button",
+      "read": true,
+      "write": true
+    },
+    "native": {},
+    "_id": "vw-app.0.commands.setTemperature",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.commands.start": {
+    "type": "state",
+    "common": {
+      "name": "commands.start",
+      "type": "boolean",
+      "role": "button",
+      "read": true,
+      "write": true
+    },
+    "native": {},
+    "_id": "vw-app.0.commands.start",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.commands.stop": {
+    "type": "state",
+    "common": {
+      "name": "commands.stop",
+      "type": "boolean",
+      "role": "button",
+      "read": true,
+      "write": true
+    },
+    "native": {},
+    "_id": "vw-app.0.commands.stop",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.commands.synchronize": {
+    "type": "state",
+    "common": {
+      "name": "Synchronisation mit dem Fahrzeug in der App anfordern",
+      "type": "boolean",
+      "role": "button",
+      "read": true,
+      "write": true
+    },
+    "native": {},
+    "_id": "vw-app.0.commands.synchronize",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.commands.unlockVehicle": {
+    "type": "state",
+    "common": {
+      "name": "Fahrzeug ausdrücklich entriegeln",
+      "type": "boolean",
+      "role": "button",
+      "read": true,
+      "write": true
+    },
+    "native": {},
+    "_id": "vw-app.0.commands.unlockVehicle",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.departures": {
+    "type": "channel",
+    "common": {
+      "name": "departures"
+    },
+    "native": {},
+    "_id": "vw-app.0.departures",
+    "acl": {
+      "object": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.departures.climate": {
+    "type": "channel",
+    "common": {
+      "name": "departures.climate"
+    },
+    "native": {},
+    "_id": "vw-app.0.departures.climate",
+    "acl": {
+      "object": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.departures.climate.observedAt": {
+    "type": "state",
+    "common": {
+      "name": "departures.climate.observedAt",
+      "type": "string",
+      "role": "date",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.departures.climate.observedAt",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.departures.climate.timer1": {
+    "type": "channel",
+    "common": {
+      "name": "departures.climate.timer1"
+    },
+    "native": {},
+    "_id": "vw-app.0.departures.climate.timer1",
+    "acl": {
+      "object": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.departures.climate.timer1.commands": {
+    "type": "channel",
+    "common": {
+      "name": "departures.climate.timer1.commands"
+    },
+    "native": {},
+    "_id": "vw-app.0.departures.climate.timer1.commands",
+    "acl": {
+      "object": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.departures.climate.timer1.commands.apply": {
+    "type": "state",
+    "common": {
+      "name": "departures.climate.timer1.commands.apply",
+      "type": "boolean",
+      "role": "button",
+      "read": true,
+      "write": true
+    },
+    "native": {},
+    "_id": "vw-app.0.departures.climate.timer1.commands.apply",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.departures.climate.timer1.commands.clear": {
+    "type": "state",
+    "common": {
+      "name": "departures.climate.timer1.commands.clear",
+      "type": "boolean",
+      "role": "button",
+      "read": true,
+      "write": true
+    },
+    "native": {},
+    "_id": "vw-app.0.departures.climate.timer1.commands.clear",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.departures.climate.timer1.date": {
+    "type": "state",
+    "common": {
+      "name": "departures.climate.timer1.date",
+      "type": "string",
+      "role": "date",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.departures.climate.timer1.date",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.departures.climate.timer1.days": {
+    "type": "state",
+    "common": {
+      "name": "departures.climate.timer1.days",
+      "type": "string",
+      "role": "json",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.departures.climate.timer1.days",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.departures.climate.timer1.daysSummary": {
+    "type": "state",
+    "common": {
+      "name": "departures.climate.timer1.daysSummary",
+      "type": "string",
+      "role": "text",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.departures.climate.timer1.daysSummary",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.departures.climate.timer1.daysSummaryRecognized": {
+    "type": "state",
+    "common": {
+      "name": "departures.climate.timer1.daysSummaryRecognized",
+      "type": "boolean",
+      "role": "indicator",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.departures.climate.timer1.daysSummaryRecognized",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.departures.climate.timer1.enabled": {
+    "type": "state",
+    "common": {
+      "name": "departures.climate.timer1.enabled",
+      "type": "boolean",
+      "role": "indicator",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.departures.climate.timer1.enabled",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.departures.climate.timer1.isLocalVehicleTime": {
+    "type": "state",
+    "common": {
+      "name": "departures.climate.timer1.isLocalVehicleTime",
+      "type": "boolean",
+      "role": "indicator",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.departures.climate.timer1.isLocalVehicleTime",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.departures.climate.timer1.repeat": {
+    "type": "state",
+    "common": {
+      "name": "departures.climate.timer1.repeat",
+      "type": "boolean",
+      "role": "indicator",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.departures.climate.timer1.repeat",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.departures.climate.timer1.source": {
+    "type": "state",
+    "common": {
+      "name": "departures.climate.timer1.source",
+      "type": "string",
+      "role": "text",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.departures.climate.timer1.source",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.departures.climate.timer1.targetDays": {
+    "type": "state",
+    "common": {
+      "name": "departures.climate.timer1.targetDays",
+      "type": "string",
+      "role": "json",
+      "read": true,
+      "write": true
+    },
+    "native": {},
+    "_id": "vw-app.0.departures.climate.timer1.targetDays",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.departures.climate.timer1.targetEnabled": {
+    "type": "state",
+    "common": {
+      "name": "departures.climate.timer1.targetEnabled",
+      "type": "boolean",
+      "role": "switch",
+      "read": true,
+      "write": true
+    },
+    "native": {},
+    "_id": "vw-app.0.departures.climate.timer1.targetEnabled",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.departures.climate.timer1.targetError": {
+    "type": "state",
+    "common": {
+      "name": "departures.climate.timer1.targetError",
+      "type": "string",
+      "role": "text",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.departures.climate.timer1.targetError",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.departures.climate.timer1.targetRepeat": {
+    "type": "state",
+    "common": {
+      "name": "departures.climate.timer1.targetRepeat",
+      "type": "boolean",
+      "role": "switch",
+      "read": true,
+      "write": true
+    },
+    "native": {},
+    "_id": "vw-app.0.departures.climate.timer1.targetRepeat",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.departures.climate.timer1.targetTime": {
+    "type": "state",
+    "common": {
+      "name": "departures.climate.timer1.targetTime",
+      "type": "string",
+      "role": "text",
+      "read": true,
+      "write": true
+    },
+    "native": {},
+    "_id": "vw-app.0.departures.climate.timer1.targetTime",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.departures.climate.timer1.time": {
+    "type": "state",
+    "common": {
+      "name": "departures.climate.timer1.time",
+      "type": "string",
+      "role": "text",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.departures.climate.timer1.time",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.departures.climate.timer1.vehicleOffset": {
+    "type": "state",
+    "common": {
+      "name": "departures.climate.timer1.vehicleOffset",
+      "type": "string",
+      "role": "text",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.departures.climate.timer1.vehicleOffset",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.departures.climate.timer2": {
+    "type": "channel",
+    "common": {
+      "name": "departures.climate.timer2"
+    },
+    "native": {},
+    "_id": "vw-app.0.departures.climate.timer2",
+    "acl": {
+      "object": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.departures.climate.timer2.commands": {
+    "type": "channel",
+    "common": {
+      "name": "departures.climate.timer2.commands"
+    },
+    "native": {},
+    "_id": "vw-app.0.departures.climate.timer2.commands",
+    "acl": {
+      "object": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.departures.climate.timer2.commands.apply": {
+    "type": "state",
+    "common": {
+      "name": "departures.climate.timer2.commands.apply",
+      "type": "boolean",
+      "role": "button",
+      "read": true,
+      "write": true
+    },
+    "native": {},
+    "_id": "vw-app.0.departures.climate.timer2.commands.apply",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.departures.climate.timer2.commands.clear": {
+    "type": "state",
+    "common": {
+      "name": "departures.climate.timer2.commands.clear",
+      "type": "boolean",
+      "role": "button",
+      "read": true,
+      "write": true
+    },
+    "native": {},
+    "_id": "vw-app.0.departures.climate.timer2.commands.clear",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.departures.climate.timer2.date": {
+    "type": "state",
+    "common": {
+      "name": "departures.climate.timer2.date",
+      "type": "string",
+      "role": "date",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.departures.climate.timer2.date",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.departures.climate.timer2.days": {
+    "type": "state",
+    "common": {
+      "name": "departures.climate.timer2.days",
+      "type": "string",
+      "role": "json",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.departures.climate.timer2.days",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.departures.climate.timer2.daysSummary": {
+    "type": "state",
+    "common": {
+      "name": "departures.climate.timer2.daysSummary",
+      "type": "string",
+      "role": "text",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.departures.climate.timer2.daysSummary",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.departures.climate.timer2.daysSummaryRecognized": {
+    "type": "state",
+    "common": {
+      "name": "departures.climate.timer2.daysSummaryRecognized",
+      "type": "boolean",
+      "role": "indicator",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.departures.climate.timer2.daysSummaryRecognized",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.departures.climate.timer2.enabled": {
+    "type": "state",
+    "common": {
+      "name": "departures.climate.timer2.enabled",
+      "type": "boolean",
+      "role": "indicator",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.departures.climate.timer2.enabled",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.departures.climate.timer2.isLocalVehicleTime": {
+    "type": "state",
+    "common": {
+      "name": "departures.climate.timer2.isLocalVehicleTime",
+      "type": "boolean",
+      "role": "indicator",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.departures.climate.timer2.isLocalVehicleTime",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.departures.climate.timer2.repeat": {
+    "type": "state",
+    "common": {
+      "name": "departures.climate.timer2.repeat",
+      "type": "boolean",
+      "role": "indicator",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.departures.climate.timer2.repeat",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.departures.climate.timer2.source": {
+    "type": "state",
+    "common": {
+      "name": "departures.climate.timer2.source",
+      "type": "string",
+      "role": "text",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.departures.climate.timer2.source",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.departures.climate.timer2.targetDays": {
+    "type": "state",
+    "common": {
+      "name": "departures.climate.timer2.targetDays",
+      "type": "string",
+      "role": "json",
+      "read": true,
+      "write": true
+    },
+    "native": {},
+    "_id": "vw-app.0.departures.climate.timer2.targetDays",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.departures.climate.timer2.targetEnabled": {
+    "type": "state",
+    "common": {
+      "name": "departures.climate.timer2.targetEnabled",
+      "type": "boolean",
+      "role": "switch",
+      "read": true,
+      "write": true
+    },
+    "native": {},
+    "_id": "vw-app.0.departures.climate.timer2.targetEnabled",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.departures.climate.timer2.targetError": {
+    "type": "state",
+    "common": {
+      "name": "departures.climate.timer2.targetError",
+      "type": "string",
+      "role": "text",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.departures.climate.timer2.targetError",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.departures.climate.timer2.targetRepeat": {
+    "type": "state",
+    "common": {
+      "name": "departures.climate.timer2.targetRepeat",
+      "type": "boolean",
+      "role": "switch",
+      "read": true,
+      "write": true
+    },
+    "native": {},
+    "_id": "vw-app.0.departures.climate.timer2.targetRepeat",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.departures.climate.timer2.targetTime": {
+    "type": "state",
+    "common": {
+      "name": "departures.climate.timer2.targetTime",
+      "type": "string",
+      "role": "text",
+      "read": true,
+      "write": true
+    },
+    "native": {},
+    "_id": "vw-app.0.departures.climate.timer2.targetTime",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.departures.climate.timer2.time": {
+    "type": "state",
+    "common": {
+      "name": "departures.climate.timer2.time",
+      "type": "string",
+      "role": "text",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.departures.climate.timer2.time",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.departures.climate.timer2.vehicleOffset": {
+    "type": "state",
+    "common": {
+      "name": "departures.climate.timer2.vehicleOffset",
+      "type": "string",
+      "role": "text",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.departures.climate.timer2.vehicleOffset",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.info": {
+    "type": "channel",
+    "common": {
+      "name": "info"
+    },
+    "native": {},
+    "_id": "vw-app.0.info",
+    "acl": {
+      "object": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.info.appVersion": {
+    "type": "state",
+    "common": {
+      "name": "info.appVersion",
+      "type": "string",
+      "role": "text",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.info.appVersion",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.info.connection": {
+    "type": "state",
+    "common": {
+      "name": "info.connection",
+      "type": "boolean",
+      "role": "indicator.connected",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.info.connection",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.info.runtimeReady": {
+    "type": "state",
+    "common": {
+      "name": "info.runtimeReady",
+      "type": "boolean",
+      "role": "indicator",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.info.runtimeReady",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.info.status": {
+    "type": "state",
+    "common": {
+      "name": "info.status",
+      "type": "string",
+      "role": "text",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.info.status",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.operation": {
+    "type": "channel",
+    "common": {
+      "name": "operation"
+    },
+    "native": {},
+    "_id": "vw-app.0.operation",
+    "acl": {
+      "object": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.operation.busy": {
+    "type": "state",
+    "common": {
+      "name": "operation.busy",
+      "type": "boolean",
+      "role": "indicator",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.operation.busy",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.operation.lastError": {
+    "type": "state",
+    "common": {
+      "name": "operation.lastError",
+      "type": "string",
+      "role": "text",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.operation.lastError",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.operation.lastErrorCode": {
+    "type": "state",
+    "common": {
+      "name": "operation.lastErrorCode",
+      "type": "string",
+      "role": "text",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.operation.lastErrorCode",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.operation.lastResult": {
+    "type": "state",
+    "common": {
+      "name": "operation.lastResult",
+      "type": "string",
+      "role": "text",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.operation.lastResult",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.operation.lastUpdated": {
+    "type": "state",
+    "common": {
+      "name": "operation.lastUpdated",
+      "type": "string",
+      "role": "date",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.operation.lastUpdated",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.refresh": {
+    "type": "channel",
+    "common": {
+      "name": "refresh"
+    },
+    "native": {},
+    "_id": "vw-app.0.refresh",
+    "acl": {
+      "object": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.refresh.autoBusy": {
+    "type": "state",
+    "common": {
+      "name": "refresh.autoBusy",
+      "type": "boolean",
+      "role": "indicator",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.refresh.autoBusy",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.refresh.charging": {
+    "type": "channel",
+    "common": {
+      "name": "Batterie und Laden"
+    },
+    "native": {},
+    "_id": "vw-app.0.refresh.charging",
+    "acl": {
+      "object": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.refresh.charging.ageSeconds": {
+    "type": "state",
+    "common": {
+      "name": "refresh.charging.ageSeconds",
+      "type": "number",
+      "role": "value",
+      "read": true,
+      "write": false,
+      "unit": "s",
+      "min": 0
+    },
+    "native": {},
+    "_id": "vw-app.0.refresh.charging.ageSeconds",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.refresh.charging.lastDurationSeconds": {
+    "type": "state",
+    "common": {
+      "name": "refresh.charging.lastDurationSeconds",
+      "type": "number",
+      "role": "value",
+      "read": true,
+      "write": false,
+      "unit": "s",
+      "min": 0
+    },
+    "native": {},
+    "_id": "vw-app.0.refresh.charging.lastDurationSeconds",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.refresh.charging.lastErrorCode": {
+    "type": "state",
+    "common": {
+      "name": "refresh.charging.lastErrorCode",
+      "type": "string",
+      "role": "text",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.refresh.charging.lastErrorCode",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.refresh.charging.lastReadAt": {
+    "type": "state",
+    "common": {
+      "name": "refresh.charging.lastReadAt",
+      "type": "string",
+      "role": "date",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.refresh.charging.lastReadAt",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.refresh.charging.maxAgeSeconds": {
+    "type": "state",
+    "common": {
+      "name": "refresh.charging.maxAgeSeconds",
+      "type": "number",
+      "role": "value",
+      "read": true,
+      "write": false,
+      "unit": "s",
+      "min": 0
+    },
+    "native": {},
+    "_id": "vw-app.0.refresh.charging.maxAgeSeconds",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.refresh.charging.status": {
+    "type": "state",
+    "common": {
+      "name": "refresh.charging.status",
+      "type": "string",
+      "role": "text",
+      "read": true,
+      "write": false,
+      "states": {
+        "unknown": "Noch nicht gelesen",
+        "fresh": "Aktuell aus der App gelesen",
+        "stale": "App-Auslesezeit überschritten",
+        "error": "Lesefehler"
+      }
+    },
+    "native": {},
+    "_id": "vw-app.0.refresh.charging.status",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.refresh.climate": {
+    "type": "channel",
+    "common": {
+      "name": "Klima"
+    },
+    "native": {},
+    "_id": "vw-app.0.refresh.climate",
+    "acl": {
+      "object": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.refresh.climate.ageSeconds": {
+    "type": "state",
+    "common": {
+      "name": "refresh.climate.ageSeconds",
+      "type": "number",
+      "role": "value",
+      "read": true,
+      "write": false,
+      "unit": "s",
+      "min": 0
+    },
+    "native": {},
+    "_id": "vw-app.0.refresh.climate.ageSeconds",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.refresh.climate.lastDurationSeconds": {
+    "type": "state",
+    "common": {
+      "name": "refresh.climate.lastDurationSeconds",
+      "type": "number",
+      "role": "value",
+      "read": true,
+      "write": false,
+      "unit": "s",
+      "min": 0
+    },
+    "native": {},
+    "_id": "vw-app.0.refresh.climate.lastDurationSeconds",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.refresh.climate.lastErrorCode": {
+    "type": "state",
+    "common": {
+      "name": "refresh.climate.lastErrorCode",
+      "type": "string",
+      "role": "text",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.refresh.climate.lastErrorCode",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.refresh.climate.lastReadAt": {
+    "type": "state",
+    "common": {
+      "name": "refresh.climate.lastReadAt",
+      "type": "string",
+      "role": "date",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.refresh.climate.lastReadAt",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.refresh.climate.maxAgeSeconds": {
+    "type": "state",
+    "common": {
+      "name": "refresh.climate.maxAgeSeconds",
+      "type": "number",
+      "role": "value",
+      "read": true,
+      "write": false,
+      "unit": "s",
+      "min": 0
+    },
+    "native": {},
+    "_id": "vw-app.0.refresh.climate.maxAgeSeconds",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.refresh.climate.status": {
+    "type": "state",
+    "common": {
+      "name": "refresh.climate.status",
+      "type": "string",
+      "role": "text",
+      "read": true,
+      "write": false,
+      "states": {
+        "unknown": "Noch nicht gelesen",
+        "fresh": "Aktuell aus der App gelesen",
+        "stale": "App-Auslesezeit überschritten",
+        "error": "Lesefehler"
+      }
+    },
+    "native": {},
+    "_id": "vw-app.0.refresh.climate.status",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.refresh.departureClimate": {
+    "type": "channel",
+    "common": {
+      "name": "departureClimate"
+    },
+    "native": {},
+    "_id": "vw-app.0.refresh.departureClimate",
+    "acl": {
+      "object": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.refresh.departureClimate.ageSeconds": {
+    "type": "state",
+    "common": {
+      "name": "refresh.departureClimate.ageSeconds",
+      "type": "number",
+      "role": "value",
+      "read": true,
+      "write": false,
+      "unit": "s",
+      "min": 0
+    },
+    "native": {},
+    "_id": "vw-app.0.refresh.departureClimate.ageSeconds",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.refresh.departureClimate.lastDurationSeconds": {
+    "type": "state",
+    "common": {
+      "name": "refresh.departureClimate.lastDurationSeconds",
+      "type": "number",
+      "role": "value",
+      "read": true,
+      "write": false,
+      "unit": "s",
+      "min": 0
+    },
+    "native": {},
+    "_id": "vw-app.0.refresh.departureClimate.lastDurationSeconds",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.refresh.departureClimate.lastErrorCode": {
+    "type": "state",
+    "common": {
+      "name": "refresh.departureClimate.lastErrorCode",
+      "type": "string",
+      "role": "text",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.refresh.departureClimate.lastErrorCode",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.refresh.departureClimate.lastReadAt": {
+    "type": "state",
+    "common": {
+      "name": "refresh.departureClimate.lastReadAt",
+      "type": "string",
+      "role": "date",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.refresh.departureClimate.lastReadAt",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.refresh.departureClimate.maxAgeSeconds": {
+    "type": "state",
+    "common": {
+      "name": "refresh.departureClimate.maxAgeSeconds",
+      "type": "number",
+      "role": "value",
+      "read": true,
+      "write": false,
+      "unit": "s",
+      "min": 0
+    },
+    "native": {},
+    "_id": "vw-app.0.refresh.departureClimate.maxAgeSeconds",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.refresh.departureClimate.status": {
+    "type": "state",
+    "common": {
+      "name": "refresh.departureClimate.status",
+      "type": "string",
+      "role": "text",
+      "read": true,
+      "write": false,
+      "states": {
+        "unknown": "Noch nicht gelesen",
+        "fresh": "Aktuell aus der App gelesen",
+        "stale": "App-Auslesezeit überschritten",
+        "error": "Lesefehler"
+      }
+    },
+    "native": {},
+    "_id": "vw-app.0.refresh.departureClimate.status",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.refresh.departureLocation_loc_000000000000000000000001": {
+    "type": "channel",
+    "common": {
+      "name": "departureLocation_loc_000000000000000000000001"
+    },
+    "native": {},
+    "_id": "vw-app.0.refresh.departureLocation_loc_000000000000000000000001",
+    "acl": {
+      "object": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.refresh.departureLocation_loc_000000000000000000000001.ageSeconds": {
+    "type": "state",
+    "common": {
+      "name": "refresh.departureLocation_loc_000000000000000000000001.ageSeconds",
+      "type": "number",
+      "role": "value",
+      "read": true,
+      "write": false,
+      "unit": "s",
+      "min": 0
+    },
+    "native": {},
+    "_id": "vw-app.0.refresh.departureLocation_loc_000000000000000000000001.ageSeconds",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.refresh.departureLocation_loc_000000000000000000000001.lastDurationSeconds": {
+    "type": "state",
+    "common": {
+      "name": "refresh.departureLocation_loc_000000000000000000000001.lastDurationSeconds",
+      "type": "number",
+      "role": "value",
+      "read": true,
+      "write": false,
+      "unit": "s",
+      "min": 0
+    },
+    "native": {},
+    "_id": "vw-app.0.refresh.departureLocation_loc_000000000000000000000001.lastDurationSeconds",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.refresh.departureLocation_loc_000000000000000000000001.lastErrorCode": {
+    "type": "state",
+    "common": {
+      "name": "refresh.departureLocation_loc_000000000000000000000001.lastErrorCode",
+      "type": "string",
+      "role": "text",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.refresh.departureLocation_loc_000000000000000000000001.lastErrorCode",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.refresh.departureLocation_loc_000000000000000000000001.lastReadAt": {
+    "type": "state",
+    "common": {
+      "name": "refresh.departureLocation_loc_000000000000000000000001.lastReadAt",
+      "type": "string",
+      "role": "date",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.refresh.departureLocation_loc_000000000000000000000001.lastReadAt",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.refresh.departureLocation_loc_000000000000000000000001.maxAgeSeconds": {
+    "type": "state",
+    "common": {
+      "name": "refresh.departureLocation_loc_000000000000000000000001.maxAgeSeconds",
+      "type": "number",
+      "role": "value",
+      "read": true,
+      "write": false,
+      "unit": "s",
+      "min": 0
+    },
+    "native": {},
+    "_id": "vw-app.0.refresh.departureLocation_loc_000000000000000000000001.maxAgeSeconds",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.refresh.departureLocation_loc_000000000000000000000001.status": {
+    "type": "state",
+    "common": {
+      "name": "refresh.departureLocation_loc_000000000000000000000001.status",
+      "type": "string",
+      "role": "text",
+      "read": true,
+      "write": false,
+      "states": {
+        "unknown": "Noch nicht gelesen",
+        "fresh": "Aktuell aus der App gelesen",
+        "stale": "App-Auslesezeit überschritten",
+        "error": "Lesefehler"
+      }
+    },
+    "native": {},
+    "_id": "vw-app.0.refresh.departureLocation_loc_000000000000000000000001.status",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.refresh.departureLocations": {
+    "type": "channel",
+    "common": {
+      "name": "departureLocations"
+    },
+    "native": {},
+    "_id": "vw-app.0.refresh.departureLocations",
+    "acl": {
+      "object": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.refresh.departureLocations.ageSeconds": {
+    "type": "state",
+    "common": {
+      "name": "refresh.departureLocations.ageSeconds",
+      "type": "number",
+      "role": "value",
+      "read": true,
+      "write": false,
+      "unit": "s",
+      "min": 0
+    },
+    "native": {},
+    "_id": "vw-app.0.refresh.departureLocations.ageSeconds",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.refresh.departureLocations.lastDurationSeconds": {
+    "type": "state",
+    "common": {
+      "name": "refresh.departureLocations.lastDurationSeconds",
+      "type": "number",
+      "role": "value",
+      "read": true,
+      "write": false,
+      "unit": "s",
+      "min": 0
+    },
+    "native": {},
+    "_id": "vw-app.0.refresh.departureLocations.lastDurationSeconds",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.refresh.departureLocations.lastErrorCode": {
+    "type": "state",
+    "common": {
+      "name": "refresh.departureLocations.lastErrorCode",
+      "type": "string",
+      "role": "text",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.refresh.departureLocations.lastErrorCode",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.refresh.departureLocations.lastReadAt": {
+    "type": "state",
+    "common": {
+      "name": "refresh.departureLocations.lastReadAt",
+      "type": "string",
+      "role": "date",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.refresh.departureLocations.lastReadAt",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.refresh.departureLocations.maxAgeSeconds": {
+    "type": "state",
+    "common": {
+      "name": "refresh.departureLocations.maxAgeSeconds",
+      "type": "number",
+      "role": "value",
+      "read": true,
+      "write": false,
+      "unit": "s",
+      "min": 0
+    },
+    "native": {},
+    "_id": "vw-app.0.refresh.departureLocations.maxAgeSeconds",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.refresh.departureLocations.status": {
+    "type": "state",
+    "common": {
+      "name": "refresh.departureLocations.status",
+      "type": "string",
+      "role": "text",
+      "read": true,
+      "write": false,
+      "states": {
+        "unknown": "Noch nicht gelesen",
+        "fresh": "Aktuell aus der App gelesen",
+        "stale": "App-Auslesezeit überschritten",
+        "error": "Lesefehler"
+      }
+    },
+    "native": {},
+    "_id": "vw-app.0.refresh.departureLocations.status",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.refresh.vehicleAccess": {
+    "type": "channel",
+    "common": {
+      "name": "Türen, Fenster und Verriegelung"
+    },
+    "native": {},
+    "_id": "vw-app.0.refresh.vehicleAccess",
+    "acl": {
+      "object": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.refresh.vehicleAccess.ageSeconds": {
+    "type": "state",
+    "common": {
+      "name": "refresh.vehicleAccess.ageSeconds",
+      "type": "number",
+      "role": "value",
+      "read": true,
+      "write": false,
+      "unit": "s",
+      "min": 0
+    },
+    "native": {},
+    "_id": "vw-app.0.refresh.vehicleAccess.ageSeconds",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.refresh.vehicleAccess.lastDurationSeconds": {
+    "type": "state",
+    "common": {
+      "name": "refresh.vehicleAccess.lastDurationSeconds",
+      "type": "number",
+      "role": "value",
+      "read": true,
+      "write": false,
+      "unit": "s",
+      "min": 0
+    },
+    "native": {},
+    "_id": "vw-app.0.refresh.vehicleAccess.lastDurationSeconds",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.refresh.vehicleAccess.lastErrorCode": {
+    "type": "state",
+    "common": {
+      "name": "refresh.vehicleAccess.lastErrorCode",
+      "type": "string",
+      "role": "text",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.refresh.vehicleAccess.lastErrorCode",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.refresh.vehicleAccess.lastReadAt": {
+    "type": "state",
+    "common": {
+      "name": "refresh.vehicleAccess.lastReadAt",
+      "type": "string",
+      "role": "date",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.refresh.vehicleAccess.lastReadAt",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.refresh.vehicleAccess.maxAgeSeconds": {
+    "type": "state",
+    "common": {
+      "name": "refresh.vehicleAccess.maxAgeSeconds",
+      "type": "number",
+      "role": "value",
+      "read": true,
+      "write": false,
+      "unit": "s",
+      "min": 0
+    },
+    "native": {},
+    "_id": "vw-app.0.refresh.vehicleAccess.maxAgeSeconds",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.refresh.vehicleAccess.status": {
+    "type": "state",
+    "common": {
+      "name": "refresh.vehicleAccess.status",
+      "type": "string",
+      "role": "text",
+      "read": true,
+      "write": false,
+      "states": {
+        "unknown": "Noch nicht gelesen",
+        "fresh": "Aktuell aus der App gelesen",
+        "stale": "App-Auslesezeit überschritten",
+        "error": "Lesefehler"
+      }
+    },
+    "native": {},
+    "_id": "vw-app.0.refresh.vehicleAccess.status",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.refresh.vehicleInfo": {
+    "type": "channel",
+    "common": {
+      "name": "Fahrzeugidentifikation"
+    },
+    "native": {},
+    "_id": "vw-app.0.refresh.vehicleInfo",
+    "acl": {
+      "object": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.refresh.vehicleInfo.ageSeconds": {
+    "type": "state",
+    "common": {
+      "name": "refresh.vehicleInfo.ageSeconds",
+      "type": "number",
+      "role": "value",
+      "read": true,
+      "write": false,
+      "unit": "s",
+      "min": 0
+    },
+    "native": {},
+    "_id": "vw-app.0.refresh.vehicleInfo.ageSeconds",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.refresh.vehicleInfo.lastDurationSeconds": {
+    "type": "state",
+    "common": {
+      "name": "refresh.vehicleInfo.lastDurationSeconds",
+      "type": "number",
+      "role": "value",
+      "read": true,
+      "write": false,
+      "unit": "s",
+      "min": 0
+    },
+    "native": {},
+    "_id": "vw-app.0.refresh.vehicleInfo.lastDurationSeconds",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.refresh.vehicleInfo.lastErrorCode": {
+    "type": "state",
+    "common": {
+      "name": "refresh.vehicleInfo.lastErrorCode",
+      "type": "string",
+      "role": "text",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.refresh.vehicleInfo.lastErrorCode",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.refresh.vehicleInfo.lastReadAt": {
+    "type": "state",
+    "common": {
+      "name": "refresh.vehicleInfo.lastReadAt",
+      "type": "string",
+      "role": "date",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.refresh.vehicleInfo.lastReadAt",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.refresh.vehicleInfo.maxAgeSeconds": {
+    "type": "state",
+    "common": {
+      "name": "refresh.vehicleInfo.maxAgeSeconds",
+      "type": "number",
+      "role": "value",
+      "read": true,
+      "write": false,
+      "unit": "s",
+      "min": 0
+    },
+    "native": {},
+    "_id": "vw-app.0.refresh.vehicleInfo.maxAgeSeconds",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.refresh.vehicleInfo.status": {
+    "type": "state",
+    "common": {
+      "name": "refresh.vehicleInfo.status",
+      "type": "string",
+      "role": "text",
+      "read": true,
+      "write": false,
+      "states": {
+        "unknown": "Noch nicht gelesen",
+        "fresh": "Aktuell aus der App gelesen",
+        "stale": "App-Auslesezeit überschritten",
+        "error": "Lesefehler"
+      }
+    },
+    "native": {},
+    "_id": "vw-app.0.refresh.vehicleInfo.status",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.refresh.vehicleReport": {
+    "type": "channel",
+    "common": {
+      "name": "Fahrzeugzustandsbericht"
+    },
+    "native": {},
+    "_id": "vw-app.0.refresh.vehicleReport",
+    "acl": {
+      "object": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.refresh.vehicleReport.ageSeconds": {
+    "type": "state",
+    "common": {
+      "name": "refresh.vehicleReport.ageSeconds",
+      "type": "number",
+      "role": "value",
+      "read": true,
+      "write": false,
+      "unit": "s",
+      "min": 0
+    },
+    "native": {},
+    "_id": "vw-app.0.refresh.vehicleReport.ageSeconds",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.refresh.vehicleReport.lastDurationSeconds": {
+    "type": "state",
+    "common": {
+      "name": "refresh.vehicleReport.lastDurationSeconds",
+      "type": "number",
+      "role": "value",
+      "read": true,
+      "write": false,
+      "unit": "s",
+      "min": 0
+    },
+    "native": {},
+    "_id": "vw-app.0.refresh.vehicleReport.lastDurationSeconds",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.refresh.vehicleReport.lastErrorCode": {
+    "type": "state",
+    "common": {
+      "name": "refresh.vehicleReport.lastErrorCode",
+      "type": "string",
+      "role": "text",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.refresh.vehicleReport.lastErrorCode",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.refresh.vehicleReport.lastReadAt": {
+    "type": "state",
+    "common": {
+      "name": "refresh.vehicleReport.lastReadAt",
+      "type": "string",
+      "role": "date",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.refresh.vehicleReport.lastReadAt",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.refresh.vehicleReport.maxAgeSeconds": {
+    "type": "state",
+    "common": {
+      "name": "refresh.vehicleReport.maxAgeSeconds",
+      "type": "number",
+      "role": "value",
+      "read": true,
+      "write": false,
+      "unit": "s",
+      "min": 0
+    },
+    "native": {},
+    "_id": "vw-app.0.refresh.vehicleReport.maxAgeSeconds",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.refresh.vehicleReport.status": {
+    "type": "state",
+    "common": {
+      "name": "refresh.vehicleReport.status",
+      "type": "string",
+      "role": "text",
+      "read": true,
+      "write": false,
+      "states": {
+        "unknown": "Noch nicht gelesen",
+        "fresh": "Aktuell aus der App gelesen",
+        "stale": "App-Auslesezeit überschritten",
+        "error": "Lesefehler"
+      }
+    },
+    "native": {},
+    "_id": "vw-app.0.refresh.vehicleReport.status",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.security": {
+    "type": "channel",
+    "common": {
+      "name": "Lokale Sicherheitssperre"
+    },
+    "native": {},
+    "_id": "vw-app.0.security",
+    "acl": {
+      "object": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.security.blocked": {
+    "type": "state",
+    "common": {
+      "name": "S-PIN-Übermittlung durch Sicherheitssperre blockiert",
+      "type": "boolean",
+      "role": "indicator",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.security.blocked",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.security.reason": {
+    "type": "state",
+    "common": {
+      "name": "Grund der lokalen Sicherheitssperre",
+      "type": "string",
+      "role": "text",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.security.reason",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.vehicleAccess": {
+    "type": "channel",
+    "common": {
+      "name": "Türen, Fenster und Verriegelung"
+    },
+    "native": {},
+    "_id": "vw-app.0.vehicleAccess",
+    "acl": {
+      "object": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.vehicleAccess.doors": {
+    "type": "channel",
+    "common": {
+      "name": "Türen"
+    },
+    "native": {},
+    "_id": "vw-app.0.vehicleAccess.doors",
+    "acl": {
+      "object": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.vehicleAccess.doors.frontLeftOpen": {
+    "type": "state",
+    "common": {
+      "name": "Tür vorne links offen laut App",
+      "type": "boolean",
+      "role": "indicator.open",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.vehicleAccess.doors.frontLeftOpen",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.vehicleAccess.doors.frontRightOpen": {
+    "type": "state",
+    "common": {
+      "name": "Tür vorne rechts offen laut App",
+      "type": "boolean",
+      "role": "indicator.open",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.vehicleAccess.doors.frontRightOpen",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.vehicleAccess.doors.rearLeftOpen": {
+    "type": "state",
+    "common": {
+      "name": "Tür hinten links offen laut App",
+      "type": "boolean",
+      "role": "indicator.open",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.vehicleAccess.doors.rearLeftOpen",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.vehicleAccess.doors.rearRightOpen": {
+    "type": "state",
+    "common": {
+      "name": "Tür hinten rechts offen laut App",
+      "type": "boolean",
+      "role": "indicator.open",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.vehicleAccess.doors.rearRightOpen",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.vehicleAccess.locked": {
+    "type": "state",
+    "common": {
+      "name": "Fahrzeug verriegelt laut App",
+      "type": "boolean",
+      "role": "indicator.locked",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.vehicleAccess.locked",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.vehicleAccess.observedAt": {
+    "type": "state",
+    "common": {
+      "name": "Türen und Fenster aus der App gelesen am",
+      "type": "string",
+      "role": "date",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.vehicleAccess.observedAt",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.vehicleAccess.synchronizationText": {
+    "type": "state",
+    "common": {
+      "name": "Synchronisationshinweis der App",
+      "type": "string",
+      "role": "text",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.vehicleAccess.synchronizationText",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.vehicleAccess.trunkOpen": {
+    "type": "state",
+    "common": {
+      "name": "Kofferraum offen laut App",
+      "type": "boolean",
+      "role": "indicator.open",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.vehicleAccess.trunkOpen",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.vehicleAccess.warningText": {
+    "type": "state",
+    "common": {
+      "name": "Hinweis zu offenen Komponenten aus der App",
+      "type": "string",
+      "role": "text",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.vehicleAccess.warningText",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.vehicleAccess.windows": {
+    "type": "channel",
+    "common": {
+      "name": "Fenster"
+    },
+    "native": {},
+    "_id": "vw-app.0.vehicleAccess.windows",
+    "acl": {
+      "object": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.vehicleAccess.windows.frontLeftOpen": {
+    "type": "state",
+    "common": {
+      "name": "Fenster vorne links offen laut App",
+      "type": "boolean",
+      "role": "indicator.open",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.vehicleAccess.windows.frontLeftOpen",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.vehicleAccess.windows.frontRightOpen": {
+    "type": "state",
+    "common": {
+      "name": "Fenster vorne rechts offen laut App",
+      "type": "boolean",
+      "role": "indicator.open",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.vehicleAccess.windows.frontRightOpen",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.vehicleAccess.windows.rearLeftOpen": {
+    "type": "state",
+    "common": {
+      "name": "Fenster hinten links offen laut App",
+      "type": "boolean",
+      "role": "indicator.open",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.vehicleAccess.windows.rearLeftOpen",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.vehicleAccess.windows.rearRightOpen": {
+    "type": "state",
+    "common": {
+      "name": "Fenster hinten rechts offen laut App",
+      "type": "boolean",
+      "role": "indicator.open",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.vehicleAccess.windows.rearRightOpen",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.vehicleInfo": {
+    "type": "channel",
+    "common": {
+      "name": "Fahrzeugidentifikation"
+    },
+    "native": {},
+    "_id": "vw-app.0.vehicleInfo",
+    "acl": {
+      "object": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.vehicleInfo.observedAt": {
+    "type": "state",
+    "common": {
+      "name": "FIN aus der App gelesen am",
+      "type": "string",
+      "role": "date",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.vehicleInfo.observedAt",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.vehicleInfo.vin": {
+    "type": "state",
+    "common": {
+      "name": "FIN (Fahrzeug-Identifizierungsnummer) laut App",
+      "type": "string",
+      "role": "text",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.vehicleInfo.vin",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.vehicleReport": {
+    "type": "channel",
+    "common": {
+      "name": "Fahrzeugzustandsbericht"
+    },
+    "native": {},
+    "_id": "vw-app.0.vehicleReport",
+    "acl": {
+      "object": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.vehicleReport.additionalTexts": {
+    "type": "state",
+    "common": {
+      "name": "vehicleReport.additionalTexts",
+      "type": "string",
+      "role": "json",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.vehicleReport.additionalTexts",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.vehicleReport.assistance": {
+    "type": "channel",
+    "common": {
+      "name": "Assistenten"
+    },
+    "native": {},
+    "_id": "vw-app.0.vehicleReport.assistance",
+    "acl": {
+      "object": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.vehicleReport.assistance.status": {
+    "type": "state",
+    "common": {
+      "name": "vehicleReport.assistance.status",
+      "type": "string",
+      "role": "text",
+      "read": true,
+      "write": false,
+      "states": {
+        "no_messages": "Keine Meldungen laut App",
+        "unknown": "Unbekannt"
+      }
+    },
+    "native": {},
+    "_id": "vw-app.0.vehicleReport.assistance.status",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.vehicleReport.assistance.texts": {
+    "type": "state",
+    "common": {
+      "name": "vehicleReport.assistance.texts",
+      "type": "string",
+      "role": "json",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.vehicleReport.assistance.texts",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.vehicleReport.brakes": {
+    "type": "channel",
+    "common": {
+      "name": "Bremsen"
+    },
+    "native": {},
+    "_id": "vw-app.0.vehicleReport.brakes",
+    "acl": {
+      "object": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.vehicleReport.brakes.status": {
+    "type": "state",
+    "common": {
+      "name": "vehicleReport.brakes.status",
+      "type": "string",
+      "role": "text",
+      "read": true,
+      "write": false,
+      "states": {
+        "no_messages": "Keine Meldungen laut App",
+        "unknown": "Unbekannt"
+      }
+    },
+    "native": {},
+    "_id": "vw-app.0.vehicleReport.brakes.status",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.vehicleReport.brakes.texts": {
+    "type": "state",
+    "common": {
+      "name": "vehicleReport.brakes.texts",
+      "type": "string",
+      "role": "json",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.vehicleReport.brakes.texts",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.vehicleReport.comfort": {
+    "type": "channel",
+    "common": {
+      "name": "Komfort"
+    },
+    "native": {},
+    "_id": "vw-app.0.vehicleReport.comfort",
+    "acl": {
+      "object": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.vehicleReport.comfort.status": {
+    "type": "state",
+    "common": {
+      "name": "vehicleReport.comfort.status",
+      "type": "string",
+      "role": "text",
+      "read": true,
+      "write": false,
+      "states": {
+        "no_messages": "Keine Meldungen laut App",
+        "unknown": "Unbekannt"
+      }
+    },
+    "native": {},
+    "_id": "vw-app.0.vehicleReport.comfort.status",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.vehicleReport.comfort.texts": {
+    "type": "state",
+    "common": {
+      "name": "vehicleReport.comfort.texts",
+      "type": "string",
+      "role": "json",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.vehicleReport.comfort.texts",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.vehicleReport.engine": {
+    "type": "channel",
+    "common": {
+      "name": "Antrieb"
+    },
+    "native": {},
+    "_id": "vw-app.0.vehicleReport.engine",
+    "acl": {
+      "object": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.vehicleReport.engine.status": {
+    "type": "state",
+    "common": {
+      "name": "vehicleReport.engine.status",
+      "type": "string",
+      "role": "text",
+      "read": true,
+      "write": false,
+      "states": {
+        "no_messages": "Keine Meldungen laut App",
+        "unknown": "Unbekannt"
+      }
+    },
+    "native": {},
+    "_id": "vw-app.0.vehicleReport.engine.status",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.vehicleReport.engine.texts": {
+    "type": "state",
+    "common": {
+      "name": "vehicleReport.engine.texts",
+      "type": "string",
+      "role": "json",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.vehicleReport.engine.texts",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.vehicleReport.hasMessages": {
+    "type": "state",
+    "common": {
+      "name": "vehicleReport.hasMessages",
+      "type": "boolean",
+      "role": "indicator",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.vehicleReport.hasMessages",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.vehicleReport.json": {
+    "type": "state",
+    "common": {
+      "name": "vehicleReport.json",
+      "type": "string",
+      "role": "json",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.vehicleReport.json",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.vehicleReport.lighting": {
+    "type": "channel",
+    "common": {
+      "name": "Fahrlicht"
+    },
+    "native": {},
+    "_id": "vw-app.0.vehicleReport.lighting",
+    "acl": {
+      "object": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.vehicleReport.lighting.status": {
+    "type": "state",
+    "common": {
+      "name": "vehicleReport.lighting.status",
+      "type": "string",
+      "role": "text",
+      "read": true,
+      "write": false,
+      "states": {
+        "no_messages": "Keine Meldungen laut App",
+        "unknown": "Unbekannt"
+      }
+    },
+    "native": {},
+    "_id": "vw-app.0.vehicleReport.lighting.status",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.vehicleReport.lighting.texts": {
+    "type": "state",
+    "common": {
+      "name": "vehicleReport.lighting.texts",
+      "type": "string",
+      "role": "json",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.vehicleReport.lighting.texts",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.vehicleReport.messageCount": {
+    "type": "state",
+    "common": {
+      "name": "vehicleReport.messageCount",
+      "type": "number",
+      "role": "value",
+      "read": true,
+      "write": false,
+      "min": 0
+    },
+    "native": {},
+    "_id": "vw-app.0.vehicleReport.messageCount",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.vehicleReport.nextServiceDays": {
+    "type": "state",
+    "common": {
+      "name": "vehicleReport.nextServiceDays",
+      "type": "number",
+      "role": "value",
+      "read": true,
+      "write": false,
+      "unit": "d"
+    },
+    "native": {},
+    "_id": "vw-app.0.vehicleReport.nextServiceDays",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.vehicleReport.nextServiceKm": {
+    "type": "state",
+    "common": {
+      "name": "vehicleReport.nextServiceKm",
+      "type": "number",
+      "role": "value.distance",
+      "read": true,
+      "write": false,
+      "unit": "km"
+    },
+    "native": {},
+    "_id": "vw-app.0.vehicleReport.nextServiceKm",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.vehicleReport.nextServiceText": {
+    "type": "state",
+    "common": {
+      "name": "vehicleReport.nextServiceText",
+      "type": "string",
+      "role": "text",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.vehicleReport.nextServiceText",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.vehicleReport.notice": {
+    "type": "state",
+    "common": {
+      "name": "vehicleReport.notice",
+      "type": "string",
+      "role": "text",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.vehicleReport.notice",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.vehicleReport.observedAt": {
+    "type": "state",
+    "common": {
+      "name": "Fahrzeugzustandsbericht aus der App gelesen am",
+      "type": "string",
+      "role": "date",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.vehicleReport.observedAt",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.vehicleReport.odometerKm": {
+    "type": "state",
+    "common": {
+      "name": "vehicleReport.odometerKm",
+      "type": "number",
+      "role": "value.distance",
+      "read": true,
+      "write": false,
+      "unit": "km",
+      "min": 0
+    },
+    "native": {},
+    "_id": "vw-app.0.vehicleReport.odometerKm",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.vehicleReport.odometerText": {
+    "type": "state",
+    "common": {
+      "name": "vehicleReport.odometerText",
+      "type": "string",
+      "role": "text",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.vehicleReport.odometerText",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.vehicleReport.other": {
+    "type": "channel",
+    "common": {
+      "name": "Sonstige"
+    },
+    "native": {},
+    "_id": "vw-app.0.vehicleReport.other",
+    "acl": {
+      "object": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.vehicleReport.other.status": {
+    "type": "state",
+    "common": {
+      "name": "vehicleReport.other.status",
+      "type": "string",
+      "role": "text",
+      "read": true,
+      "write": false,
+      "states": {
+        "no_messages": "Keine Meldungen laut App",
+        "unknown": "Unbekannt"
+      }
+    },
+    "native": {},
+    "_id": "vw-app.0.vehicleReport.other.status",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.vehicleReport.other.texts": {
+    "type": "state",
+    "common": {
+      "name": "vehicleReport.other.texts",
+      "type": "string",
+      "role": "json",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.vehicleReport.other.texts",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.vehicleReport.summary": {
+    "type": "state",
+    "common": {
+      "name": "vehicleReport.summary",
+      "type": "string",
+      "role": "text",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.vehicleReport.summary",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.vehicleReport.synchronizationText": {
+    "type": "state",
+    "common": {
+      "name": "vehicleReport.synchronizationText",
+      "type": "string",
+      "role": "text",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.vehicleReport.synchronizationText",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.vehicleReport.tires": {
+    "type": "channel",
+    "common": {
+      "name": "Reifen"
+    },
+    "native": {},
+    "_id": "vw-app.0.vehicleReport.tires",
+    "acl": {
+      "object": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.vehicleReport.tires.status": {
+    "type": "state",
+    "common": {
+      "name": "vehicleReport.tires.status",
+      "type": "string",
+      "role": "text",
+      "read": true,
+      "write": false,
+      "states": {
+        "no_messages": "Keine Meldungen laut App",
+        "unknown": "Unbekannt"
+      }
+    },
+    "native": {},
+    "_id": "vw-app.0.vehicleReport.tires.status",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  },
+  "vw-app.0.vehicleReport.tires.texts": {
+    "type": "state",
+    "common": {
+      "name": "vehicleReport.tires.texts",
+      "type": "string",
+      "role": "json",
+      "read": true,
+      "write": false
+    },
+    "native": {},
+    "_id": "vw-app.0.vehicleReport.tires.texts",
+    "acl": {
+      "object": 1636,
+      "state": 1636,
+      "owner": "system.user.admin",
+      "ownerGroup": "system.group.administrator"
+    }
+  }
+}
