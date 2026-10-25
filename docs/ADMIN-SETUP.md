@@ -37,7 +37,7 @@ Zunächst die Klima- und Ladezustände abfragen und deren Rückmeldungen mit der
 
 **Beim Laden wachhalten jetzt aktivieren** ändert auf ausdrücklichen Klick die entsprechende Android-Einstellung. Die zusätzliche dauerhafte Option erlaubt dem Adapter, diese Einstellung bei späteren Verbindungen anzuwenden. Eine vorhandene Bildschirmsperre muss weiterhin am Handy entsperrt werden.
 
-Neue Instanzen verwenden für **Automatische App-Abfragen: Mindestabstand je Bereich** den Wert **15 Sekunden**. Vorhandene Instanzen behalten ihren gespeicherten Wert; `0` bleibt ausgeschaltet. Fehlt der Wert in einer älteren Konfiguration, bleibt die Automatik ebenfalls aus. Zulässig sind `0` oder ganze Zahlen von 15 bis 86400. Die Automatik liest Klima, Batterie/Ladeeinstellungen und den Fahrzeugzustandsbericht nacheinander. Der Wert bezeichnet den Mindestabstand nach Abschluss bis zur erneuten Fälligkeit desselben Bereichs, keinen vollständigen Rundlauf alle 15 Sekunden. App-Navigation und Erholungspausen verlängern den tatsächlichen Abstand.
+Neue Instanzen verwenden für **Automatische App-Abfragen: Mindestabstand je Bereich** den Wert **15 Sekunden**. Vorhandene Instanzen behalten ihren gespeicherten Wert; `0` bleibt ausgeschaltet. Fehlt der Wert in einer älteren Konfiguration, bleibt die Automatik ebenfalls aus. Zulässig sind `0` oder ganze Zahlen von 15 bis 86400. Die Automatik liest Klima, Batterie/Ladeeinstellungen, Fahrzeugzustandsbericht, Klima-Abfahrtszeiten, Ladeortliste und jeden vorhandenen Ladeort nacheinander. Der Wert bezeichnet den Mindestabstand nach Abschluss bis zur erneuten Fälligkeit desselben Bereichs, keinen vollständigen Rundlauf alle 15 Sekunden. Zusätzliche Ladeorte und ihre Untermenüs verlängern zusammen mit App-Navigation und Erholungspausen den tatsächlichen Rundlauf.
 
 Bedienbefehle haben Vorrang vor automatischen Leseabfragen. Die automatische Abfrage hält dafür an einer sicheren Schrittgrenze an. Sie synchronisiert nicht, übernimmt keine vorgemerkten Wünsche und wiederholt keine Fahrzeugaktion. Manuell bleiben `commands.refresh`, `commands.refreshCharging` und `commands.refreshVehicleReport` getrennt verfügbar. Jede Abfrage bedient beziehungsweise öffnet die App; die angezeigten Werte bestätigen nicht unabhängig den Fahrzeugzustand. Die zusätzlichen Aktualitätsdaten und die Einstellung **App-Auslesung als veraltet markieren nach** sind in Abschnitt 9 erklärt.
 
@@ -177,11 +177,11 @@ Version 0.5.0 bestand **391 automatisierte Tests auf Linux**. Echte obere und un
 
 ## 9. Automatische Aktualisierung und Alter der App-Auslesung
 
-Bei aktivierter Automatik werden die drei Bereiche `climate`, `charging` und `vehicleReport` fair nacheinander gelesen. Es gibt weder überlappende Abfragen noch eine Warteschlange zum Nachholen verpasster Intervalle. Zwischen automatischen Aufträgen wartet der Adapter mindestens **5 Sekunden oder 25 % der zuletzt gemessenen Auftragsdauer**, je nachdem, welcher Wert größer ist. Ein vollständiger Rundlauf umfasst die Lesezeit aller drei Bereiche und diese Pausen. Wie schnell alle Werte erneut gelesen werden können, hängt deshalb von Handy, Verbindung und App ab.
+Bei aktivierter Automatik werden `climate`, `charging`, `vehicleReport`, `departureClimate` und `departureLocations` fair nacheinander gelesen. Für jeden frisch entdeckten vorhandenen Ladeort kommt ein eigener Bereich `departureLocation_loc_<24hex>` hinzu, höchstens fünf. Es gibt weder überlappende Abfragen noch eine Warteschlange zum Nachholen verpasster Intervalle. Zwischen automatischen Aufträgen wartet der Adapter mindestens **5 Sekunden oder 25 % der zuletzt gemessenen Auftragsdauer**, je nachdem, welcher Wert größer ist. Ein vollständiger Rundlauf umfasst die Lesezeit aller Bereiche und diese Pausen. Weitere Ladeorte, Timereditoren und Untermenüs benötigen zusätzliche Zeit; der Mindestabstand von 15 Sekunden ist kein Versprechen für einen vollständigen Rundlauf in dieser Zeit.
 
 Fehler verlängern die Wiederholungsabstände bis fünf Minuten; ein längeres eingestelltes Mindestintervall bleibt wirksam. Bedienbefehle erhalten Vorrang und dürfen eine automatische Leseabfrage an einer sicheren Schrittgrenze ablösen. Nach einem Bedienauftrag wird eine Kontrollabfrage des betroffenen Bereichs bevorzugt. Sie liest ausschließlich; Start, Stopp, Speichern oder andere Änderungen werden dabei niemals automatisch wiederholt. Offene manuelle Entwürfe werden weiterhin weder gespeichert noch verworfen. **Jetzt synchronisieren** bleibt ein ausdrücklich ausgelöster Einzelauftrag.
 
-Alle folgenden Datenpunkte unter `vw-app.0` sind ausschließlich lesbar. `<Bereich>` steht für `climate`, `charging` oder `vehicleReport`:
+Alle folgenden Datenpunkte unter `vw-app.0` sind ausschließlich lesbar. `<Bereich>` steht für `climate`, `charging`, `vehicleReport`, `departureClimate`, `departureLocations` oder `departureLocation_loc_<24hex>`:
 
 | Datenpunkt | Bedeutung |
 | --- | --- |
@@ -198,6 +198,71 @@ Alle folgenden Datenpunkte unter `vw-app.0` sind ausschließlich lesbar. `<Berei
 **App-Auslesung als veraltet markieren nach** entspricht `refreshMaxAgeSeconds`. `0` wählt eine automatische Altersgrenze. Dabei gilt der größere Wert aus **90 Sekunden** und dem **Doppelten des größeren Werts aus eingestelltem Mindestabstand und geschätzter vollständiger Rundlaufzeit**. Alternativ lässt sich eine feste Grenze von 30 bis 86400 ganzen Sekunden wählen. Diese Einstellung ändert nur die Einordnung der Auslesezeit, weder die Abfragefrequenz noch den Synchronisationshinweis der App. `operation.lastUpdated`, `battery.observedAt` und `vehicleReport.observedAt` bleiben die Zeitpunkte der jeweiligen erfolgreichen App-Auslesung.
 
 Version 0.6.0 bestand **437 automatisierte Tests auf Linux**. Bei der vorangegangenen RC1-Liveprüfung auf dem Referenz-Galaxy-A31 wurde jeder Bereich mit eingestelltem Mindestabstand von 15 Sekunden etwa alle **90–92 Sekunden** erneut gelesen. Bei ausgeschalteter Automatik und einer Altersgrenze von 30 Sekunden blieben abgelaufene Werte mit ungültiger Qualität erhalten; Wünsche und Synchronisationsanfrage-Historie blieben unverändert. Die Übergabe vom automatischen Lesen an einen manuell angeforderten Bericht dauerte etwa **1,75 Sekunden**. Das ist die Übergabezeit, nicht die Dauer der anschließenden Berichtsabfrage. Automatische Abfragen bewahrten die manuelle Auftragsrückmeldung. Bei diesen Liveprüfungen wurden weder Klimastart oder -stopp noch Speichern von Fahrzeugeinstellungen oder Synchronisieren ausgelöst. Sechs zusätzliche Regressionstests mit simulierten Ansichten prüfen die kooperative Übergabe über die Zonen-Seite, harte Abbrüche, Zeitlimits und den Erhalt manueller Entwürfe; sie sind kein zusätzlicher physischer Start-/Stopp-Test.
+
+Diese Laufzeitmessung stammt aus Version 0.6.0 mit den drei ursprünglichen Bereichen. Sie sagt die längere Rundlaufzeit mit den zusätzlichen Abfahrtszeit- und Ladeortabfragen aus Version 0.7.0 nicht voraus.
+
+## 10. Abfahrtszeiten und vorhandene Ladeorte
+
+Version 0.7.0 liest die **zwei Klima-Abfahrtszeiten** und **bis zu fünf bereits im Fahrzeug angelegte Ladeorte** mit jeweils drei Timern. Die folgenden IDs stehen unter `vw-app.0`.
+
+| Datenpunkt oder Befehl | Bedeutung |
+| --- | --- |
+| `commands.refreshDepartureClimate` | Beide Klima-Abfahrtszeiten auslesen |
+| `commands.refreshDepartureLocations` | Ladeortliste und Zuordnungen neu erkennen |
+| `departures.climate.observedAt` | Letzte erfolgreiche App-Auslesung der Klima-Abfahrtszeiten |
+| `departures.climate.timer1` / `timer2` | Istwerte und Wünsche des jeweiligen Klimatimers |
+| `chargingLocations.observedAt` | Letzte erfolgreiche Auslesung der Ladeortliste |
+| `chargingLocations.loc_<24hex>` | Stabiler Schlüssel eines Ladeorts innerhalb des bestätigten Fahrzeugprofils |
+| `chargingLocations.loc_<24hex>.commands.refresh` | Drei Timer, Einstellungen und bevorzugte Zeiten dieses Ortes auslesen |
+
+Neue Ladeorte zuerst im Fahrzeug anlegen und anschließend die Liste auslesen. Der Adapter legt keine Ladeorte an und löscht sie nicht. Die Ortsdatenpunkte `name`, `present`, `activeTimerCount`, `bindingStatus` und `observedAt` zeigen Namen, Vorhandensein, aktive Timer, Bindungsrückmeldung und Auslesezeit. Der Schlüssel folgt der internen Ortskennung und bleibt unabhängig von Reihenfolge und Anzeigename. Umbenennen, Entfernen und Wiedererscheinen eines Ortes erhalten gespeicherte Wünsche und historische Werte, sperren aber deren bisherige Feldbindungen. Das gilt auch nach erfolgreichem Umbenennen durch den Adapter: Alle vorhandenen Nicht-null-Wünsche der alten Bindung, einschließlich des gerade verwendeten Namenswunsches, müssen vor einem weiteren Übernehmen ausdrücklich neu gewählt oder gelöscht werden. Nach einer Umbenennung ist außerdem eine vollständige neue Listenabfrage nötig; bis zu deren Erfolg bleibt der bisherige Gesamtbestand als veraltet markiert.
+
+Jeder Klimatimer und die drei Orts-Timer `timer1`, `timer2`, `timer3` besitzen dieselben Grundfelder:
+
+| Feld unter dem Timer | Bedeutung |
+| --- | --- |
+| `enabled`, `time`, `days`, `repeat` | Nur lesbare App-Einstellungen: Aktivierung, `HH:mm`, Wochentage als JSON-Array und Wiederholung |
+| `date` | Nur lesbares lokales Kalenderdatum eines einmaligen Timers, bei wiederkehrenden Timern `null` |
+| `vehicleOffset`, `isLocalVehicleTime`, `source` | Zeitmetadaten und Beobachtungsquelle der App |
+| `daysSummary`, `daysSummaryRecognized` | Roher Wochentagshinweis aus der Übersicht und dessen Erkennbarkeit |
+| `targetEnabled`, `targetTime`, `targetDays`, `targetRepeat` | Privat gespeicherte Wünsche; `null` behält den jeweiligen App-Wert bei |
+| `targetError` | Fehler beim Auswählen oder Speichern eines Wunsches |
+| `commands.apply` | Wünsche nur dieses Timers ausdrücklich übernehmen und gespeicherten App-Stand prüfen |
+| `commands.clear` | Wünsche nur dieses Timers löschen, ohne den App-Timer zu ändern |
+
+Wünsche mit `ack=false` schreiben. Ein Beispiel für einen wiederkehrenden Timer ist `targetTime="07:30"`, `targetDays='["mon","wed","fri"]'`, `targetRepeat=true` und der gewünschte boolesche Wert für `targetEnabled`. Die Tageskennungen lauten `mon`, `tue`, `wed`, `thu`, `fri`, `sat`, `sun`. Anschließend am **gleichen Timer** `commands.apply=true` mit `ack=false` schreiben. Für Zeitänderungen unterstützt die App **Fünf-Minuten-Schritte**. Ein einmaliger Timer mit `repeat=false` benötigt genau einen ausgewählten Wochentag. Sein Kalenderdatum bestimmt die App und liefert es als Istwert zurück; es gibt keinen zusätzlichen beschreibbaren Datumsdatenpunkt. Der Adapter rechnet diese Angaben nicht über die Zeitzone des ioBroker-Hosts um und setzt ein altes Einmaldatum durch bloßes Auslesen nicht neu.
+
+`ack=true` am Wunsch bestätigt zunächst nur die private Speicherung im Adapter. Für **Übernehmen** ist die Freigabe für Änderungen der Fahrzeugeinstellungen nötig. Der Auftrag verwendet einen festen Schnappschuss seiner angenommenen Wünsche, speichert Änderungen ausdrücklich und öffnet den Timer zur Kontrolle erneut. Dabei wird kein sofortiger Klima- oder Ladestart beziehungsweise -stopp betätigt. Einen Timer zu aktivieren erlaubt den für später geplanten Vorgang gemäß App. Offene manuelle Entwürfe werden weder heimlich gespeichert noch verworfen. Eine von Android angenommene Eingabe beweist noch keine gespeicherte Einstellung. Bei unklarem Ergebnis zuerst die App prüfen; der Adapter wiederholt Schreibaktionen nicht automatisch.
+
+Die App kann beim Speichern einen Timer einschalten; der Adapter prüft danach den gewünschten Aktivierungszustand und stellt ihn gegebenenfalls her. Bei `targetEnabled=null` ist der gewünschte Endzustand die ursprüngliche Aktivierung. Zwischen Speichern und einer anschließenden Korrektur kann der Timer durch die App vorübergehend eingeschaltet sein.
+
+Nach Speichern und direkt gespeicherten Schalteränderungen wartet der Adapter jeweils **20 Sekunden**, bevor er den gespeicherten Zustand erneut öffnet und prüft. Zusammen mit Navigation und vollständiger Kontrollabfrage können Änderungen dadurch mehrere Minuten dauern. Die Pause dient der Stabilität der App und bestätigt keine neue Fahrzeugtelemetrie.
+
+Ladetimer liefern zusätzlich die nur lesbaren Felder `climatisation`, `profileId` und `isPreferredTimesAvailable`. Die vier Timerwünsche verändern diese Zusatzangaben nicht.
+
+Unter jedem Ort enthält `settings` die Wünsche `targetName`, `targetReducedAcCurrent` und `targetAutoUnlockAc` sowie die Istwerte `name`, `reducedAcCurrent` und `autoUnlockAc`. Die eigenen `settings.commands.apply` und `.commands.clear` übernehmen beziehungsweise löschen nur diese drei Wünsche. `settings.targetError` nennt Auswahlfehler. Die beiden ortsbezogenen Ladegrenzen werden in der beobachteten App als Grafik ohne auslesbare Zahlenwerte gezeichnet. Deshalb bleiben `settings.directSoc` und `settings.socLimit` **`null` mit nicht verfügbarer Qualität**; `settings.socReadCapability` lautet `not_exposed_by_app`. Für diese Ortsgrenzen gibt es keine SOC-Wunschdatenpunkte. Die separat geprüfte globale Grenze `charging.targetSoc` mit `commands.applyChargingSettings` bleibt unverändert verfügbar; laut App gilt diese globale Grenze nicht an vordefinierten Ladeorten.
+
+`preferredTimes.window1` bis `window4` enthalten die nur lesbaren Angaben `start`, `end`, `enabled` und `editable`. Pro Fenster lässt sich ausschließlich der boolesche Wunsch `targetEnabled` oder `null` vormerken. Die gemeinsamen `preferredTimes.commands.apply` und `.commands.clear` übernehmen beziehungsweise löschen diese vier Schalterwünsche; `preferredTimes.targetError` meldet Auswahlfehler. Die Zeitfenster selbst bleiben nur lesbar: Laut App werden ihre genauen Anfangs- und Endzeiten im Infotainment-System des Fahrzeugs eingerichtet. Der App-Hinweis steht in `preferredTimes.notice`.
+
+Die automatische Aktualisierung umfasst die neuen Bereiche mit den Frische- und Fehlerregeln aus Abschnitt 9. Lesen übernimmt keine Wünsche und fordert keine Fahrzeugsynchronisation an. Eine kürzlich gelesene App bestätigt weiterhin keine neuen Fahrzeugmesswerte.
+
+Der kleine Android-Helfer ist im Adapter enthalten und läuft innerhalb derselben verwalteten ADB-Verbindung. Es sind weder ein weiterer VM-Dienst noch eine installierte Helfer-APK, ein Python-Prozess oder ein JDK für den Betrieb nötig. Nur Entwickler, die den Helfer neu bauen, benötigen das in der README beschriebene Java-Bauwerkzeug.
+
+### Belegte Prüfungen von Version 0.7.0
+
+Die Linux-RC2-Prüfung bestand **642 von 642 Tests**, einschließlich aller POSIX-Prüfungen. Der Bytevergleich umfasste **73 öffentliche Quelldateien und 42 npm-Paketdateien**. Die Liveprüfungen verwendeten ein **Galaxy A31 mit Android 12 und deutscher Volkswagen-App 4.8.1**:
+
+| Ausschließlich lesender App-Auftrag | Gemessene Dauer |
+| --- | --- |
+| Beide Klima-Abfahrtszeiten | 30,056 s |
+| Bestandsaufnahme des einen vorhandenen Ladeorts | 19,833 s |
+| Drei Timer, Einstellungen und vier bevorzugte Zeitfenster dieses Ortes | 62,688 s |
+
+Jede Leseabfrage kehrte ohne Einstellungsänderung zur Fahrzeugübersicht zurück. Der produktive Controller änderte außerdem einen deaktivierten einmaligen Ladetimer von **Samstag 08:30 auf Montag 08:35**, speicherte, wartete, korrigierte die automatische Aktivierung der App und bestätigte den abschließend deaktivierten Timer durch erneutes Öffnen und vollständiges Auslesen. Das dauerte **152,533 Sekunden**, die Wiederherstellung **151,817 Sekunden**. Danach entsprachen die gesamten Ladeort-, Timer-, Einstellungs- und Zeitfensterinhalte exakt dem Ausgangsmodell. Eine Unicode-Namensänderung zusammen mit beiden Optionen für reduzierten AC-Ladestrom und automatisches AC-Entriegeln dauerte **164,472 Sekunden**, die Wiederherstellung **167,846 Sekunden**; auch danach war das vollständige Modell wieder exakt auf dem Ausgangsstand.
+
+Das Aktivieren des bevorzugten Zeitfensters 1 mit dem produktiven Controller dauerte **155,772 Sekunden** und wurde durch eine vollständige Ortsabfrage bestätigt; alle anderen Modellwerte blieben auf dem Ausgangsstand. Die Wiederherstellung auf `false` über den **installierten Adapter 0.7**, mit `targetEnabled` und `commands.apply`, war nach **160,559 Sekunden** erfolgreich. Alle **62 ioBroker-Istwert-Datenpunkte** entsprachen dem wiederhergestellten Ausgangsmodell; die beiden absichtlich nicht verfügbaren Orts-SOC-Werte blieben `null` mit ungültiger Qualität. Bestätigung, Qualität und App-Auslesezeitpunkte wurden geprüft. Anschließend löschte `preferredTimes.commands.clear` deren vier Wünsche, ohne einen Handyauftrag zu starten. Die übrigen Wünsche und die Historie der Synchronisationsanfragen blieben unverändert.
+
+Diese Prüfungen betätigten weder Klimastart oder -stopp noch Synchronisieren. Fünf Ladeorte sind durch synthetische Tests abgedeckt; am echten Gerät war ein Ort vorhanden. Der Einmaltimer-Test zeigte einen zwischenzeitlichen Wechsel von Wiederholen im Entwurf und bestätigte abschließend einen gespeicherten Einmaltimer. Ein direkt gespeicherter wiederkehrender Timer wurde nicht live geprüft. Die Zeiten oben messen einzelne Aufträge und keinen vollständigen automatischen Aktualisierungsrundlauf; sie dürfen nicht als gemessene Gesamtrundlaufzeit ausgegeben werden.
 
 ## Schnittstelle der Einrichtungsschaltflächen
 
