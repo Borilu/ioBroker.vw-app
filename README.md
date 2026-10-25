@@ -6,7 +6,7 @@ Control the **official Volkswagen Android app over Wi-Fi** from ioBroker.
 
 Pairing, setup, climate controls, charging settings, departures, existing charging locations and explicit lock/unlock commands are managed by the adapter. App observations can be read automatically or on request. Volkswagen sign-in stays on the phone; the optional S-PIN is configured in the adapter settings.
 
-Manufacturer information: [Volkswagen app and digital services](https://www.volkswagen.de/de/besitzer-und-service/digitale-extras/volkswagen-apps-login-und-shop.html). Start with the [illustrated German installation and phone pairing guide](docs/INSTALLATION.de.md), also available as a [PDF for 0.9.2 with the same pairing steps](https://github.com/Borilu/ioBroker.vw-app/releases/download/v0.9.2/VW-App-Installation-und-Kopplung.pdf). The [German user manual](docs/BEDIENUNG.de.md) explains everyday operation, all data point paths and the order of steps for changing settings. Its [PDF for 0.10.0](https://github.com/Borilu/ioBroker.vw-app/releases/download/v0.10.0/VW-App-Bedienungsanleitung.pdf) predates the button metadata clarification in 0.10.1; use the current online manual for command feedback. The [detailed German setup reference](docs/ADMIN-SETUP.md) describes the adapter configuration.
+Manufacturer information: [Volkswagen app and digital services](https://www.volkswagen.de/de/besitzer-und-service/digitale-extras/volkswagen-apps-login-und-shop.html). Start with the [illustrated German installation and phone pairing guide](docs/INSTALLATION.de.md), also available as a [PDF for 0.9.2 with the same pairing steps](https://github.com/Borilu/ioBroker.vw-app/releases/download/v0.9.2/VW-App-Installation-und-Kopplung.pdf). The [German user manual](docs/BEDIENUNG.de.md) explains everyday operation, all data point paths and the order of steps for changing settings. Its [PDF for 0.10.0](https://github.com/Borilu/ioBroker.vw-app/releases/download/v0.10.0/VW-App-Bedienungsanleitung.pdf) predates the command-button clarification and the charging-mode controls in 0.11.0; use the current online manual for those features. The [detailed German setup reference](docs/ADMIN-SETUP.md) describes the adapter configuration.
 
 ## What runs where
 
@@ -231,11 +231,34 @@ Press `commands.applyChargingSettings` with `true`, `ack=false` to apply only th
 
 Charging preferences have their own persistence queue and errors. An invalid or unsaved field restores its last accepted value and is named in `charging.targetSettingsError`; a new Apply Charging Settings is blocked until that field is explicitly selected again with a valid value or `commands.clearChargingSettings` clears all four wishes. A successful selection of another field does not clear that error. A running job keeps the snapshot accepted for that job; later wishes apply to the next job. Climate commands and charging refresh do not wait for a pending charging preference save, and applying charging settings does not wait for climate or temperature preference saves. The phone still handles only one operation at a time.
 
-Charging reads and failures leave the climate observations intact. Climate reads and failures likewise leave battery and charging observations intact. Clearing charging wishes changes neither climate wishes nor the separate temperature wish. These commands do not start or stop charging or climate control.
+Charging reads and failures leave the climate observations intact. Climate reads and failures likewise leave battery and charging observations intact. Clearing charging wishes changes neither climate wishes nor the separate temperature wish. The four charging-setting controls do not select a charging mode; the explicit mode control below is separate.
 
 According to the app, **optimized battery use** permits use of the high-voltage battery for app remote functions and can affect range. This option is separate from an 80-% battery-care charging limit. The app also states that the selected charge limit does not apply at predefined charging locations. Check the descriptions in the app for the selected vehicle.
 
 Version 0.4.0 passed **332 automated tests on Linux**. Live checks read battery percentage and km range from the real app, saved charge limits of 50 and 100 % and verified them after reopening, and exercised all three Boolean options in both positions. Charging wishes survived an adapter restart. The original app settings were restored and all four wishes were cleared; climate control remained off and unchanged. A live `commands.synchronize` check sent exactly one request, observed the disabled app link, recorded `battery.lastSyncRequestAt` and then read battery/charging values without changing settings. This confirms the app request, not a completed vehicle synchronization. These new battery and charging functions have only been checked with the **German Volkswagen app 4.8.1 on a Galaxy A31 running Android 12**.
+
+## Charging mode
+
+Version 0.11.0 adds a separate charging-mode wish and explicit command. The app applies a mode selection immediately, without **Save**. A mode change can therefore start charging; the adapter never presses an additional charging Start control.
+
+| State relative to `vw-app.0` | Access and meaning |
+|---|---|
+| `charging.mode` | Read-only: `immediate` (charge immediately), `departure` (charge for departure), `departureClimate` (charge and climate for departure), or `null` before a known observation; check quality |
+| `charging.modeObservedAt` | Read-only: ISO UTC time of the last successful mode-reading snapshot, or empty; neither battery-read time nor vehicle telemetry time |
+| `charging.targetMode` | Saved wish: one of the three exact strings, or `null` to keep the app mode; write with `ack=false` |
+| `charging.targetModeError` | Read-only: fixed selection/save error, empty after a valid saved selection or clear |
+| `commands.applyChargingMode` | Write-only: write `true`, `ack=false` once to apply the saved mode; vehicle-setting write permission required |
+| `commands.clearChargingMode` | Write-only: write `true`, `ack=false` to clear only this wish without phone access |
+
+The enum list contains the three named modes. A real `null` clears the wish; it is neither a fourth mode nor the string `"null"`. If the UI does not offer a null selection, use `commands.clearChargingMode`.
+
+Select `charging.targetMode`, wait for `ack=true` and an empty `charging.targetModeError`, then trigger `commands.applyChargingMode` once. Check `operation.lastResult` and `operation.lastErrorCode`, followed by a valid `charging.mode` and a fresh `charging.modeObservedAt`. The configured common switching-attempt cooldown is **60–3600 seconds**, default **60**, and is reserved before a potentially effective mode tap. After an unknown result, inspect the app and request a read before deciding what to do; do not automatically retry. No S-PIN is needed.
+
+The mode wish persists separately from the four charge-limit/charging-option wishes. `commands.applyChargingSettings` never applies a mode wish; its clear command never clears one. A mode selection or save error blocks only mode apply until a valid reselect or mode clear. Later changes cannot alter an accepted command's snapshot. Startup, reconnect and automatic reads never apply the wish or repeat the mode change.
+
+`commands.refreshCharging` and the existing automatic `charging` read domain also read the mode. An unreadable mode or missing valid snapshot time preserves the previous mode/time as history and marks the mode invalid (`q=0x82`); battery readings and the domain may still be fresh. The mode also expires according to its own snapshot time. Its timestamp remains the last successful observation after an error, expiry or restart.
+
+**Planned charging at a charging location requires `departure` or `departureClimate`.** Configure and enable the desired location timer first, then explicitly choose and apply the appropriate charging mode and verify its fresh observed value. A timer can be edited while `immediate` is selected. Timer apply never changes the charging mode, and `enabled=true` alone does not prove that planned charging will execute.
 
 ## Read the vehicle status report
 
@@ -429,11 +452,17 @@ The script checks the tool checksum, compiles only the two listed implementation
 
 ### Publishing a version
 
-Keep the version in `package.json`, `io-package.json` and `package-lock.json` synchronized, add a dated changelog entry and update the translated adapter news. Merge the release commit into `main` after its checks pass, then create a matching GitHub tag such as `v0.10.1` on that commit.
+Keep the version in `package.json`, `io-package.json` and `package-lock.json` synchronized, add a dated changelog entry and update the translated adapter news. Merge the release commit into `main` after its checks pass, then create a matching GitHub tag such as `v0.11.0` on that commit.
 
 The tag triggers `.github/workflows/test-and-release.yml`. Package, lint and Linux integration checks must pass before deployment. The deployment job checks that the tag matches the package version and that the commit belongs to `main`; an existing npm version is retained without another publication attempt. For a new version, the job is configured to publish to npm using GitHub OIDC trusted publishing with provenance. npm's trusted-publisher binding must match this public repository and workflow file. No npm access token is stored in the repository.
 
 ## Changelog
+
+### 0.11.0 (2026-10-25)
+
+- Read the three charging modes in regular charging queries and publish a separate successful mode-observation timestamp with historical-value and quality handling.
+- Add a separately persisted nullable mode wish, explicit apply/clear commands, selection-error isolation and the common switching cooldown before a mode change that may start charging.
+- Keep the four existing charging settings and timer controls independent; document the departure-mode requirement for planned charging at charging locations.
 
 ### 0.10.1 (2026-10-25)
 

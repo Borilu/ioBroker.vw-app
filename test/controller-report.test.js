@@ -5,6 +5,7 @@ const { Controller } = require('../lib/controller');
 const { BridgeError } = require('../lib/errors');
 const { overviewReportScreen, reportScreen, POINTS, NOTICE, LABELS } = require('./support/report-fixtures.cjs');
 const { chargingSettingsScreen } = require('./support/charging-fixtures.cjs');
+const { nativeObservationFromXml } = require('./support/charging-mode-fixtures.cjs');
 const MARKER = 'Ihr Fahrzeug: Testwagen. ';
 
 class ReportApp {
@@ -16,12 +17,16 @@ class ReportApp {
     async connect(){this.calls.push(['connect']);if(this.connectGate)await this.connectGate;}
     async version(){this.calls.push(['version']);if(this.beforeVersion)await this.beforeVersion();return this.versionValue;}
     async launch(){this.calls.push(['launch']);}
-    async departureView(){this.homeSnapshot=Object.freeze({});return {xml:await this.dump(),observation:this.homeSnapshot};}
+    async departureView(){
+        const xml=await this.dump();this.homeSnapshot=Object.freeze(nativeObservationFromXml(xml));
+        return {xml,observation:this.homeSnapshot};
+    }
     async departureAction(request){
         assert.equal(request.snapshot,this.homeSnapshot);assert.equal(request.action,'scrollBackward');
         assert.equal(request.header,'Ihr Fahrzeug: Testwagen. Gerade synchronisiert');
         this.calls.push(['homeNativeAction','scrollBackward']);this.lower=false;
-        return {beforeMatched:true,actionAttempted:true,actionAccepted:true,success:true,errorCode:null,postRead:{xml:await this.dump()}};
+        const xml=await this.dump();
+        return {beforeMatched:true,actionAttempted:true,actionAccepted:true,success:true,errorCode:null,postRead:{xml,observation:nativeObservationFromXml(xml)}};
     }
     async dump(){
         if(this.beforeDump)await this.beforeDump();
