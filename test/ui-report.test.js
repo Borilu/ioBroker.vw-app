@@ -3,7 +3,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { Screen } = require('../lib/ui');
-const { overviewReportScreen, reportScreen, POINTS, NOTICE, node, hierarchy } = require('./support/report-fixtures.cjs');
+const { overviewReportScreen, reportScreen, POINTS, NOTICE, node } = require('./support/report-fixtures.cjs');
 function fails(code) { return error => error.code === code; }
 function editNode(xml, marker, changes) {
     return xml.replace(/<node [^>]*>/g, tag => {
@@ -87,7 +87,7 @@ test('category texts stay inside the exact labeled row and retain only actual te
 test('unknown report text is preserved while outside navigation, vehicle markers and foreign text are excluded', () => {
     let xml = reportScreen({ position: 'bottom', additionalTexts: ['Unbekannter Berichtshinweis', 'Unbekannter Berichtshinweis'] });
     const marker = node('', { 'content-desc': 'Ihr Fahrzeug: Anderes Merkmal. Synchronisiert', bounds: '[50,1170][950,1210]' });
-    const outside = node('', { text: 'Text außerhalb des Berichts', bounds: '[0,0][100,50]' });
+    const outside = node('', { text: 'Text auÃŸerhalb des Berichts', bounds: '[0,0][100,50]' });
     const beforeBodyEnd = xml.lastIndexOf('</node></node></hierarchy>');
     xml = xml.slice(0, beforeBodyEnd) + marker + xml.slice(beforeBodyEnd);
     xml = xml.replace('</hierarchy>', outside + '</hierarchy>');
@@ -160,11 +160,11 @@ test('report identity and body geometry reject ambiguous, disabled or malformed 
 
 test('report navigation refuses duplicate, foreign, disabled or unrelated overview entries', () => {
     const xml = overviewReportScreen({ lower: true });
-    const duplicate = xml.replace(/<node [^>]*content-desc="Fahrzeugzustandsbericht\. Details öffnen"[^>]*><\/node>/, '$&$&');
+    const duplicate = xml.replace(/<node [^>]*content-desc="Fahrzeugzustandsbericht\. Details Ã¶ffnen"[^>]*><\/node>/, '$&$&');
     assert.throws(() => new Screen(duplicate).reportNavigationTarget('open'), fails('unknown_state'));
-    assert.throws(() => new Screen(editNode(xml, 'content-desc="Fahrzeugzustandsbericht. Details öffnen"', { package: 'other.app' })).reportNavigationTarget('open'), fails('target_unavailable'));
+    assert.throws(() => new Screen(editNode(xml, 'content-desc="Fahrzeugzustandsbericht. Details Ã¶ffnen"', { package: 'other.app' })).reportNavigationTarget('open'), fails('target_unavailable'));
     assert.throws(() => new Screen(editNode(xml, 'bounds="[50,900][950,1100]"', { enabled: 'false' })).reportNavigationTarget('open'), fails('unknown_state'));
     assert.throws(() => new Screen(editNode(reportScreen(), 'resource-id="vehicleHealthBack"', { clickable: 'false' })).reportNavigationTarget('back'), fails('target_unavailable'));
-    const outside = node('', { 'content-desc': 'Fahrzeugzustandsbericht. Details öffnen', clickable: 'true', bounds: '[0,0][100,50]' });
+    const outside = node('', { 'content-desc': 'Fahrzeugzustandsbericht. Details Ã¶ffnen', clickable: 'true', bounds: '[0,0][100,50]' });
     assert.throws(() => new Screen(overviewReportScreen().replace('</hierarchy>', outside + '</hierarchy>')).reportNavigationTarget('open'), fails('target_unavailable'));
 });
