@@ -114,7 +114,7 @@ Die Modus-Auswahlliste enthält die drei benannten Modi. `null` ist ein echter N
 4. Warte auf das Auftragsende und prüfe `operation.lastResult` und `operation.lastErrorCode`.
 5. Prüfe den gewünschten Istwert in `charging.mode`, seine gültige Qualität und die frische erfolgreiche Auslesezeit `charging.modeObservedAt`.
 
-**Die App übernimmt die Auswahl sofort, ohne Speichern-Knopf. Ein Moduswechsel kann dadurch unmittelbar Laden auslösen.** Der Adapter betätigt keinen zusätzlichen Lade-Startknopf. Er benötigt die Freigabe für Klima- und Fahrzeugeinstellungen, keine S-PIN. Vor einem möglicherweise wirksamen Modustipp gilt der gemeinsame Mindestabstand zwischen Schaltversuchen: **60 bis 3600 Sekunden**, Standard **60**. Bei unklarem Ergebnis zuerst die App prüfen und über `commands.refreshCharging` neu lesen; den Befehl nicht automatisch wiederholen.
+**Die App übernimmt die Auswahl sofort, ohne Speichern-Knopf. Ein Moduswechsel kann dadurch unmittelbar Laden auslösen.** Der Adapter betätigt keinen zusätzlichen Lade-Startknopf. Für einen tatsächlichen Wechsel benötigt er die Freigabe für Klima- und Fahrzeugeinstellungen, keine S-PIN. Ohne diese Freigabe kann der Modusbefehl nur einen bereits erfüllten Wunsch frisch lesend bestätigen; ein abweichender Modus wird vor Auswahlmenü, Schaltreservierung und Modustipp abgelehnt. Vor einem möglicherweise wirksamen Modustipp gilt der gemeinsame Mindestabstand zwischen Schaltversuchen: **60 bis 3600 Sekunden**, Standard **60**. Bei unklarem Ergebnis zuerst die App prüfen und über `commands.refreshCharging` neu lesen; den Befehl nicht automatisch wiederholen.
 
 Die sichtbare App-Bestätigung kann später eintreffen als die Übernahme der Auswahl. Der Adapter wartet innerhalb der eingestellten Bestätigungszeit und der Gesamtauftragsfrist mit reinen Leseabfragen. Bei Bedarf öffnet er die Reichweitendetails erneut aus der bestätigten Fahrzeugübersicht. Nach einer einzigen nativen Zurück-Aktion im Auswahlmenü wartet er ebenfalls nur lesend. Weder Modusauswahl noch Zurück-Aktion werden zur Bestätigung erneut gesendet. Ein unklarer Ausgang bedeutet deshalb nicht sicher, dass keine Änderung erfolgt ist; zuerst den aktuellen Modus neu lesen.
 
@@ -259,7 +259,7 @@ Alle folgenden Datenpunkte sind boolesche **Befehle**. Schreibe einmal `true` mi
 | `commands.synchronize` | Einmal **Jetzt synchronisieren** in der App anfordern, anschließend Ladebereich lesen. Keine Schaltfreigabe nötig. |
 | `commands.applyChargingSettings` | Die vier globalen Ladewünsche speichern und zurücklesen. Schaltfreigabe nötig. |
 | `commands.clearChargingSettings` | Nur die vier globalen Ladewünsche löschen; kein Handyzugriff. |
-| `commands.applyChargingMode` | Nur den gespeicherten Lademodus übernehmen; kann unmittelbar Laden auslösen. Schaltfreigabe und gemeinsamer Schaltabstand nötig, keine S-PIN. |
+| `commands.applyChargingMode` | Nur den gespeicherten Lademodus übernehmen; kann unmittelbar Laden auslösen. Tatsächlicher Wechsel braucht Schaltfreigabe und gemeinsamen Schaltabstand, keine S-PIN. |
 | `commands.clearChargingMode` | Nur den Moduswunsch auf `null` setzen; kein Handyzugriff. |
 | `commands.refreshVehicleReport` | Gesamten Fahrzeugzustandsbericht lesen. |
 | `commands.refreshVehicleAccess` | Türen, Fenster, Kofferraum und Verriegelung lesen. |

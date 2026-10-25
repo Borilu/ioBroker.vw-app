@@ -166,12 +166,14 @@ Ab 0.11.0 liest der vorhandene Ladebereich auch den Modus in den Reichweitendeta
 | `charging.modeObservedAt` | Lesen | ISO-UTC-Zeit der letzten erfolgreichen Modusbeobachtung, sonst leer; keine Fahrzeugmesszeit |
 | `charging.targetMode` | Wunsch | Einer der drei Moduswerte oder `null` zum Beibehalten; mit `ack=false` schreiben |
 | `charging.targetModeError` | Lesen | Fester Auswahl-/Speicherfehler; leer nach gültig gespeicherter Auswahl oder Löschen |
-| `commands.applyChargingMode` | Nur schreiben | Einmal `true`, `ack=false`: gespeicherten Modus übernehmen, Schaltfreigabe erforderlich |
+| `commands.applyChargingMode` | Nur schreiben | Einmal `true`, `ack=false`: gespeicherten Modus übernehmen, tatsächlicher Wechsel braucht Schaltfreigabe |
 | `commands.clearChargingMode` | Nur schreiben | Einmal `true`, `ack=false`: nur den Moduswunsch löschen, ohne Handyzugriff |
 
 Die Modus-Auswahlliste enthält nur die drei benannten Modi. `null` ist ein echter Nullwert zum Löschen des Wunschs, kein weiterer Modus und nicht der Text `"null"`. Falls die Oberfläche keinen Nullwert anbietet, dafür `commands.clearChargingMode` verwenden.
 
 Zuerst `charging.targetMode` auswählen und auf dessen Bestätigung `ack=true` sowie ein leeres Fehlerfeld warten. Dann `commands.applyChargingMode` einmal auslösen. Nach dem Auftrag dessen Rückmeldung sowie `charging.mode`, gültige Qualität und eine frische `charging.modeObservedAt` prüfen. Ein bestätigter Wunsch bedeutet nur gespeichert; erst der ausdrückliche Befehl bedient die App.
+
+Ohne Schaltfreigabe kann dieser Modusbefehl ausschließlich einen bereits erfüllten Wunsch durch frisches Lesen bestätigen; einen abweichenden Modus weist er vor Auswahlmenü, Schaltreservierung und Modustipp zurück.
 
 **Die App speichert den Modus sofort beim Antippen, ohne Speichern-Knopf. Der Wechsel kann unmittelbar Laden auslösen.** Der Adapter betätigt keinen zusätzlichen Startknopf. Vor dem möglicherweise wirksamen Tipp gilt der gemeinsame Schalt-Mindestabstand von **60 bis 3600 Sekunden**, Standard **60**. Keine S-PIN ist erforderlich. Bei unklarem Ergebnis die App prüfen und neu lesen; weder einen automatischen Wiederholungsversuch noch einen zusätzlichen Start nachschieben.
 
