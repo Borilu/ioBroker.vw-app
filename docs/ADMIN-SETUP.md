@@ -177,11 +177,11 @@ Version 0.5.0 bestand **391 automatisierte Tests auf Linux**. Echte obere und un
 
 ## 9. Automatische Aktualisierung und Alter der App-Auslesung
 
-Bei aktivierter Automatik werden `climate`, `charging`, `vehicleReport`, `departureClimate` und `departureLocations` fair nacheinander gelesen. Für jeden frisch entdeckten vorhandenen Ladeort kommt ein eigener Bereich `departureLocation_loc_<24hex>` hinzu, höchstens fünf. Es gibt weder überlappende Abfragen noch eine Warteschlange zum Nachholen verpasster Intervalle. Zwischen automatischen Aufträgen wartet der Adapter mindestens **5 Sekunden oder 25 % der zuletzt gemessenen Auftragsdauer**, je nachdem, welcher Wert größer ist. Ein vollständiger Rundlauf umfasst die Lesezeit aller Bereiche und diese Pausen. Weitere Ladeorte, Timereditoren und Untermenüs benötigen zusätzliche Zeit; der Mindestabstand von 15 Sekunden ist kein Versprechen für einen vollständigen Rundlauf in dieser Zeit.
+Bei aktivierter Automatik werden `climate`, `charging`, `vehicleReport`, `vehicleAccess`, `departureClimate` und `departureLocations` fair nacheinander gelesen. Für jeden frisch entdeckten vorhandenen Ladeort kommt ein eigener Bereich `departureLocation_loc_<24hex>` hinzu, höchstens fünf. Es gibt weder überlappende Abfragen noch eine Warteschlange zum Nachholen verpasster Intervalle. Zwischen automatischen Aufträgen wartet der Adapter mindestens **5 Sekunden oder 25 % der zuletzt gemessenen Auftragsdauer**, je nachdem, welcher Wert größer ist. Ein vollständiger Rundlauf umfasst die Lesezeit aller Bereiche und diese Pausen. Weitere Ladeorte, Timereditoren und Untermenüs benötigen zusätzliche Zeit; der Mindestabstand von 15 Sekunden ist kein Versprechen für einen vollständigen Rundlauf in dieser Zeit.
 
 Fehler verlängern die Wiederholungsabstände bis fünf Minuten; ein längeres eingestelltes Mindestintervall bleibt wirksam. Bedienbefehle erhalten Vorrang und dürfen eine automatische Leseabfrage an einer sicheren Schrittgrenze ablösen. Nach einem Bedienauftrag wird eine Kontrollabfrage des betroffenen Bereichs bevorzugt. Sie liest ausschließlich; Start, Stopp, Speichern oder andere Änderungen werden dabei niemals automatisch wiederholt. Offene manuelle Entwürfe werden weiterhin weder gespeichert noch verworfen. **Jetzt synchronisieren** bleibt ein ausdrücklich ausgelöster Einzelauftrag.
 
-Alle folgenden Datenpunkte unter `vw-app.0` sind ausschließlich lesbar. `<Bereich>` steht für `climate`, `charging`, `vehicleReport`, `departureClimate`, `departureLocations` oder `departureLocation_loc_<24hex>`:
+Alle folgenden Datenpunkte unter `vw-app.0` sind ausschließlich lesbar. `<Bereich>` steht für `climate`, `charging`, `vehicleReport`, `vehicleAccess`, `departureClimate`, `departureLocations` oder `departureLocation_loc_<24hex>`:
 
 | Datenpunkt | Bedeutung |
 | --- | --- |
@@ -263,6 +263,28 @@ Jede Leseabfrage kehrte ohne Einstellungsänderung zur Fahrzeugübersicht zurüc
 Das Aktivieren des bevorzugten Zeitfensters 1 mit dem produktiven Controller dauerte **155,772 Sekunden** und wurde durch eine vollständige Ortsabfrage bestätigt; alle anderen Modellwerte blieben auf dem Ausgangsstand. Die Wiederherstellung auf `false` über den **installierten Adapter 0.7**, mit `targetEnabled` und `commands.apply`, war nach **160,559 Sekunden** erfolgreich. Alle **62 ioBroker-Istwert-Datenpunkte** entsprachen dem wiederhergestellten Ausgangsmodell; die beiden absichtlich nicht verfügbaren Orts-SOC-Werte blieben `null` mit ungültiger Qualität. Bestätigung, Qualität und App-Auslesezeitpunkte wurden geprüft. Anschließend löschte `preferredTimes.commands.clear` deren vier Wünsche, ohne einen Handyauftrag zu starten. Die übrigen Wünsche und die Historie der Synchronisationsanfragen blieben unverändert.
 
 Diese Prüfungen betätigten weder Klimastart oder -stopp noch Synchronisieren. Fünf Ladeorte sind durch synthetische Tests abgedeckt; am echten Gerät war ein Ort vorhanden. Der Einmaltimer-Test zeigte einen zwischenzeitlichen Wechsel von Wiederholen im Entwurf und bestätigte abschließend einen gespeicherten Einmaltimer. Ein direkt gespeicherter wiederkehrender Timer wurde nicht live geprüft. Die Zeiten oben messen einzelne Aufträge und keinen vollständigen automatischen Aktualisierungsrundlauf; sie dürfen nicht als gemessene Gesamtrundlaufzeit ausgegeben werden.
+
+## 11. Türen, Fenster, Kofferraum und Verriegelung
+
+Ab Version 0.8.0 stehen unter `vw-app.0.vehicleAccess` einzelne, ausschließlich lesbare Zustände bereit:
+
+| Datenpunkt | Bedeutung |
+| --- | --- |
+| `doors.frontLeftOpen`, `doors.frontRightOpen`, `doors.rearLeftOpen`, `doors.rearRightOpen` | Jede Tür einzeln: `true` offen, `false` geschlossen, `null` unbekannt |
+| `windows.frontLeftOpen`, `windows.frontRightOpen`, `windows.rearLeftOpen`, `windows.rearRightOpen` | Jedes Fenster einzeln: `true` offen, `false` geschlossen, `null` unbekannt |
+| `trunkOpen` | Kofferraum: `true` offen, `false` geschlossen, `null` unbekannt |
+| `locked` | `true` verriegelt, `false` entriegelt, `null` unbekannt; getrennt von den Öffnungen |
+| `warningText` | Von der App auslesbarer Warnhinweis zu offenen oder eingeschalteten Komponenten; leer bei fehlendem Hinweis |
+| `synchronizationText` | Synchronisationshinweis auf der Startseite |
+| `observedAt` | Zeitpunkt der erfolgreichen App-Auslesung |
+
+Mit `vw-app.0.commands.refreshVehicleAccess=true` und `ack=false` lässt sich dieser Bereich sofort lesen. Die automatische Aktualisierung umfasst ihn ebenfalls. `refresh.vehicleAccess.*` führt Alter, letzte erfolgreiche Auslesung, Dauer, Gültigkeit und Fehler nach denselben Regeln wie die anderen Bereiche mit. Das eingestellte Mindestintervall gilt weiterhin; die Navigation durch alle Bereiche benötigt mehr Zeit. Manuelle Aufträge behalten Vorrang, und das Handy wird nur von einem Auftrag zugleich bedient.
+
+Die VW-App nennt offene Komponenten in einer gemeinsamen Beschreibung. Wenn alles geschlossen ist, fehlt dieser Warntext vollständig. Der Adapter wertet ein fehlendes Bauteil nur innerhalb der vollständig erkannten Startseitenstruktur mit lesbarem Statusbereich als geschlossen. Unvollständige, abgeschnittene, widersprüchliche oder nicht unterstützte Darstellungen werden nicht zu geratenen Geschlossen-Werten. Unbekannte Werte besitzen ungültige Qualität. Bei Fehlern und zu alten Abfragen bleiben die letzten Werte als historische Beobachtung erhalten und werden ungültig markiert; der letzte erfolgreiche Auslesezeitpunkt wird bei Fehlern nicht fortgeschrieben.
+
+Die Tür-/Fensterwerte und die Verriegelung sind unabhängig: Ein Fahrzeug kann bei geschlossenen Türen und Fenstern weiterhin entriegelt sein. Die Abfrage verriegelt oder entriegelt nichts, bedient keine Öffnung, übernimmt keine Wünsche und fordert keine Fahrzeugsynchronisation an. Eine Freigabe für Einstellungsänderungen ist dafür nicht nötig. `observedAt` bezeichnet eine App-Auslesung, keine neue Messung am Fahrzeug; auch `synchronizationText` ersetzt keinen bestätigten Fahrzeug-Messzeitpunkt.
+
+Die Untersuchung am Referenzgerät erfasste alle Öffnungen offen und das Fahrzeug entriegelt, danach das einzelne Schließen von Fahrertür, Fahrerfenster und Kofferraum sowie alle Öffnungen geschlossen bei beiden Verriegelungszuständen. Die jeweiligen Bezeichnungen verschwanden unabhängig voneinander. Private Originalansichten werden nicht veröffentlicht; die öffentlichen Tests verwenden nachgebildete Ansichten.
 
 ## Schnittstelle der Einrichtungsschaltflächen
 
