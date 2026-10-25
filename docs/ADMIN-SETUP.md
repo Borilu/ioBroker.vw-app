@@ -2,7 +2,7 @@
 
 Für den Einstieg gibt es eine [einfache Anleitung mit Screenshots für Installation und Handy-Kopplung](INSTALLATION.de.md), auch [als PDF zum Herunterladen](https://github.com/Borilu/ioBroker.vw-app/releases/download/v0.9.2/VW-App-Installation-und-Kopplung.pdf). Die folgenden Abschnitte dienen als ausführliche Referenz.
 
-Die separate [Bedienungsanleitung](BEDIENUNG.de.md) führt alle Datenpunktpfade, ihren Inhalt und die erforderlichen Bedienfolgen auf. Sie ist ebenfalls [als PDF verfügbar](https://github.com/Borilu/ioBroker.vw-app/releases/download/v0.10.0/VW-App-Bedienungsanleitung.pdf).
+Die separate [Bedienungsanleitung](BEDIENUNG.de.md) führt alle Datenpunktpfade, ihren Inhalt und die erforderlichen Bedienfolgen auf. Sie ist ebenfalls [als PDF für 0.10.0 verfügbar](https://github.com/Borilu/ioBroker.vw-app/releases/download/v0.10.0/VW-App-Bedienungsanleitung.pdf). Die Online-Anleitung enthält die ergänzte Erklärung der ausschließlich schreibbaren Befehlsknöpfe aus 0.10.1.
 
 Der Adapter bedient die offizielle Volkswagen-App auf einem Android-Handy. Die Volkswagen-Anmeldung erfolgt auf dem Handy. Für die Einrichtung werden weder das Volkswagen-Passwort noch ein Volkswagen-Zugriffstoken in ioBroker eingetragen.
 
@@ -156,7 +156,7 @@ Version 0.4.0 bestand **332 automatisierte Tests auf Linux**. Die Liveprüfung l
 
 ## 8. Fahrzeugzustandsbericht lesen
 
-**`commands.refreshVehicleReport`** mit `true` und `ack=false` liest das Menü **Fahrzeugzustandsbericht** der Volkswagen-App. Der Knopf wird automatisch zurückgesetzt. Er ist der einzige Bedienpunkt für den Bericht; alle Datenpunkte unter `vehicleReport` sind ausschließlich lesbar. Es gibt keine Wunschwerte und keinen Übernehmen-, Speichern-, Schalt- oder Synchronisationsauftrag für den Bericht. Die Freigabe für Änderungen der Fahrzeugeinstellungen ist nicht nötig; das geprüfte Handy und das kalibrierte App-/Fahrzeugprofil bleiben erforderlich.
+**`commands.refreshVehicleReport`** mit `true` und `ack=false` liest das Menü **Fahrzeugzustandsbericht** der Volkswagen-App. Der Knopf ist ausschließlich schreibbar; Rückmeldung und Aktualität stehen getrennt unter `operation` und `refresh.vehicleReport`. Er ist der einzige Bedienpunkt für den Bericht; alle Datenpunkte unter `vehicleReport` sind ausschließlich lesbar. Es gibt keine Wunschwerte und keinen Übernehmen-, Speichern-, Schalt- oder Synchronisationsauftrag für den Bericht. Die Freigabe für Änderungen der Fahrzeugeinstellungen ist nicht nötig; das geprüfte Handy und das kalibrierte App-/Fahrzeugprofil bleiben erforderlich.
 
 Der Bericht kann auf Anforderung oder durch die automatische Aktualisierung gelesen werden. `commands.refresh` liest weiterhin nur den Klimastatus. Ein Berichtauftrag wartet nicht auf das Speichern von Klima-, Temperatur- oder Ladewünschen. Am Handy kann weiterhin nur ein Auftrag gleichzeitig laufen.
 
