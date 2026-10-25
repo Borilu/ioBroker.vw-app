@@ -7,6 +7,7 @@ const { BridgeError } = require('../lib/errors');
 const { readSecurityAuth, clearSecurityAuth, securityErrorDiagnostic } = require('../lib/security-auth');
 const { vehicleAccessScreen, partiallyScrolledAccessScreen } = require('./support/access-fixtures.cjs');
 const { lockSheet, hierarchy, node } = require('./support/lock-fixtures.cjs');
+const { nativeObservationFromXml } = require('./support/charging-mode-fixtures.cjs');
 
 const CLEAR = { blocked: false, reason: null, blockedAt: null };
 const MARKER = { contentDescPrefix: 'Ihr Fahrzeug: Testwagen. ' };
@@ -86,16 +87,19 @@ class LockApp {
         if (this.tapError) throw this.tapError;
     }
     async departureView() {
-        this.homeSnapshot = Object.freeze({}); this.calls.push(['homeNativeRead']);
-        return { xml: await this.dump(), observation: this.homeSnapshot };
+        this.calls.push(['homeNativeRead']);
+        const xml = await this.dump();
+        this.homeSnapshot = Object.freeze(nativeObservationFromXml(xml));
+        return { xml, observation: this.homeSnapshot };
     }
     async departureAction(request) {
         assert.equal(request.snapshot, this.homeSnapshot); assert.equal(request.action, 'scrollBackward');
         assert.equal(request.header, 'Ihr Fahrzeug: Testwagen. Gerade synchronisiert');
         assert.deepEqual(request.target, { class: 'android.widget.ScrollView', bounds: [0, 40, 1000, 1440] });
         this.calls.push(['homeNativeAction', request.action]); this.partial = false;
+        const xml = await this.dump();
         return { beforeMatched: true, actionAttempted: true, actionAccepted: true, success: true,
-            errorCode: null, postRead: { xml: await this.dump() } };
+            errorCode: null, postRead: { xml, observation: nativeObservationFromXml(xml) } };
     }
     async secretPinEntry(token, options, getter) {
         this.calls.push(['secretEntry', { ...options }]);

@@ -228,6 +228,7 @@ async function fixture(t, options = {}) {
             records.controllerCalls.push({ action, input: clone(input) });
             if (options.controllerExecute) return options.controllerExecute(action, input, this);
             const observedAt = new Date(options.clock ? options.clock.now() : Date.now()).toISOString();
+            if (action === 'applyChargingMode') return chargingModeResult(input.targetChargingMode, observedAt);
             if (['chargingStatus', 'applyChargingSettings', 'synchronize'].includes(action)) return { ...chargingResult(input.targetCharging), ...(options.clock ? { observedAt } : {}) };
             if (action === 'vehicleReportStatus') return { ...vehicleReportResult(), ...(options.clock ? { observedAt } : {}) };
             if (action === 'refreshVehicleAccess') return { ...vehicleAccessResult(), ...(options.clock ? { observedAt } : {}) };
@@ -299,6 +300,9 @@ function expectedChargingCall(action, targetCharging = DEFAULT_TARGET_CHARGING) 
 function chargingResult(charging = DEFAULT_TARGET_CHARGING) {
     return { domain: 'charging', appVersion: '4.8.1', observedAt: '2026-10-24T16:00:00.000Z',
         battery: { soc: 52, rangeKm: 205 }, charging: { ...charging } };
+}
+function chargingModeResult(mode, observedAt = '2026-10-24T16:00:00.000Z') {
+    return { ...chargingResult({ ...DEFAULT_TARGET_CHARGING, mode }), observedAt, modeObservedAt: observedAt };
 }
 function vehicleReportModel() {
     return { odometerText: '12.345 km', odometerKm: 12345,
@@ -3071,7 +3075,7 @@ test('new static and dynamically discovered controls are write-only buttons with
     const f = await fixture(t, { enrollment: enrolled(), fakeController: true, departureLocations: rows });
     await f.adapter.command('departuresLocationsStatus');
     const buttons = [...f.adapter.objects].filter(([, object]) => object.common.role === 'button');
-    assert.equal(buttons.length, 22 + 5 * 11);
+    assert.equal(buttons.length, 24 + 5 * 11, 'includes the separate charging-mode apply and clear controls');
     for (const [id, object] of buttons) {
         assert.equal(object.common.type, 'boolean', id);
         assert.equal(object.common.read, false, id);
@@ -3105,7 +3109,7 @@ test('normal startup upgrades all 43 errors in the real 0.10.0 metadata includin
     const initialStates = Object.fromEntries(ACCESS_BOOLEAN_IDS.map((id, index) => [id, { val: index % 2 === 0, ack: true, q: 0 }]));
     initialStates['vehicleAccess.observedAt'] = { val: observedAt, ack: true };
     const f = await fixture(t, { initialObjects: previous, initialStates });
-    assert.equal(f.adapter.objects.size, 340);
+    assert.equal(f.adapter.objects.size, 346, 'the six new charging-mode objects supplement the preserved 0.10.0 metadata');
     assert.equal(f.adapter.objectPatches.length, 43);
     assert.equal(f.adapter.objectPatches.filter(row => Object.hasOwn(row.patch.common, 'read')).length, 33);
     assert.equal(f.adapter.objectPatches.filter(row => Object.hasOwn(row.patch.common, 'role')).length, 10);
@@ -3167,4 +3171,254 @@ test('a failed metadata patch is sanitized on startup and the next normal startu
     for (const [id, object] of Object.entries(previous)) assert.deepEqual(second.adapter.objects.get(id), correctedLegacyMetadata(id, object), id);
     assert.equal(second.records.phones.length, 0);
     assert.equal(second.records.controllerCalls.length, 0);
+});
+
+test('charging mode wishes have independent metadata, persistence and local clear without a phone action', async t => {
+    const f = await fixture(t, { memory: { 'charging-preference': { ...DEFAULT_TARGET_CHARGING, socLimit: 80 } } });
+    assert.deepEqual(f.adapter.states.get('charging.mode'), { val: null, ack: true, q: 0x82 });
+    assert.equal(f.value('charging.modeObservedAt'), '');
+    assert.equal(f.value('charging.targetMode'), null);
+    for (const id of ['commands.applyChargingMode', 'commands.clearChargingMode']) {
+        assert.equal(f.adapter.objects.get(id).common.read, false);
+        assert.equal(f.adapter.objects.get(id).common.write, true);
+    }
+    assert.deepEqual(Object.keys(f.adapter.objects.get('charging.mode').common.states), ['immediate', 'departure', 'departureClimate']);
+    const feedback = f.adapter.states.get('operation.lastResult');
+    await f.adapter.onStateChange('vw-app.0.charging.targetMode', { val: 'departure', ack: false });
+    assert.deepEqual(f.adapter.states.get('charging.targetMode'), { val: 'departure', ack: true });
+    assert.deepEqual(f.memory['charging-mode-preference'], { mode: 'departure' });
+    assert.equal(f.memory['charging-preference'].socLimit, 80);
+    const restarted = await fixture(t, { memory: clone(f.memory) });
+    assert.equal(restarted.value('charging.targetMode'), 'departure');
+    await restarted.adapter.onStateChange('vw-app.0.commands.clearChargingMode', { val: true, ack: false });
+    assert.deepEqual(restarted.memory['charging-mode-preference'], { mode: null });
+    assert.equal(restarted.value('charging.targetMode'), null);
+    assert.equal(restarted.value('charging.targetSoc'), 80);
+    assert.deepEqual(f.adapter.states.get('operation.lastResult'), feedback);
+    assert.equal(f.records.phones.length + restarted.records.phones.length, 0);
+    assert.equal(f.records.controllerCalls.length + restarted.records.controllerCalls.length, 0);
+});
+
+test('invalid charging mode selection blocks only mode apply until explicit reselect or clear', async t => {
+    const f = await fixture(t, { enrollment: enrolled(), fakeController: true, config: { allowWrites: true } });
+    await f.adapter.stageChargingMode('departure');
+    await rejectsCode(f.adapter.stageChargingMode('SYNTHETIC PRIVATE MODE'), 'invalid_charging_mode');
+    assert.equal(f.value('charging.targetMode'), 'departure');
+    await rejectsCode(f.adapter.command('applyChargingMode'), 'charging_mode_selection_failed');
+    await f.adapter.stageChargingSetting('socLimit', 80);
+    await f.adapter.command('applyChargingSettings');
+    await f.adapter.command('chargingStatus');
+    await rejectsCode(f.adapter.command('applyChargingMode'), 'charging_mode_selection_failed');
+    assert.equal(f.memory['charging-mode-preference'].mode, 'departure');
+    assert.equal(JSON.stringify(f.adapter.logs).includes('SYNTHETIC PRIVATE MODE'), false);
+    await f.adapter.stageChargingMode(null);
+    assert.equal(f.value('charging.targetModeError'), '');
+    await rejectsCode(f.adapter.command('applyChargingMode'), 'charging_mode_required');
+    await f.adapter.stageChargingMode('departureClimate');
+    await f.adapter.command('applyChargingMode');
+    assert.deepEqual(f.records.controllerCalls.at(-1), { action: 'applyChargingMode', input: { targetChargingMode: 'departureClimate' } });
+    assert.equal(f.value('charging.mode'), 'departureClimate');
+});
+
+test('damaged charging mode storage remains blocked across restart without disabling ordinary reads or charging settings', async t => {
+    for (const saved of [{ mode: 'BAD' }, {}, { mode: null, unexpected: true }, [], null]) {
+        const f = await fixture(t, { enrollment: enrolled(), fakeController: true,
+            memory: { 'charging-mode-preference': saved === null ? { mode: { private: 'SECRET' } } : saved }, config: { allowWrites: true } });
+        assert.deepEqual(f.adapter.states.get('charging.targetMode'), { val: null, ack: true, q: 0x82 });
+        await rejectsCode(f.adapter.command('applyChargingMode'), 'invalid_state');
+        await f.adapter.command('chargingStatus');
+        await f.adapter.stageChargingSetting('autoUnlockAc', false);
+        await f.adapter.command('applyChargingSettings');
+        const again = await fixture(t, { enrollment: enrolled(), fakeController: true, memory: clone(f.memory) });
+        await rejectsCode(again.adapter.command('applyChargingMode'), 'invalid_state');
+        assert.equal(JSON.stringify(f.adapter.logs).includes('SECRET'), false);
+        await f.adapter.stageChargingMode(null);
+        assert.equal(f.value('charging.targetModeError'), '');
+    }
+});
+
+test('charging mode save failure uses fixed errors and requires reselect without overwriting the last saved mode', async t => {
+    let failed = false;
+    const f = await fixture(t, { enrollment: enrolled(), fakeController: true, config: { allowWrites: true },
+        storeWrite: async name => { if (name === 'charging-mode-preference' && failed) throw new BridgeError('foreign_private', 'SYNTHETIC PRIVATE STORAGE'); } });
+    await f.adapter.stageChargingMode('immediate');
+    failed = true;
+    await rejectsCode(f.adapter.stageChargingMode('departure'), 'state_not_saved');
+    assert.equal(f.value('charging.targetMode'), 'immediate');
+    assert.equal(f.memory['charging-mode-preference'].mode, 'immediate');
+    await rejectsCode(f.adapter.command('applyChargingMode'), 'charging_mode_selection_failed');
+    assert.equal(JSON.stringify([...f.adapter.states, f.adapter.logs]).includes('SYNTHETIC PRIVATE'), false);
+    failed = false;
+    await f.adapter.stageChargingMode('departure');
+    await f.adapter.command('applyChargingMode');
+    assert.equal(f.value('charging.mode'), 'departure');
+});
+
+test('charging mode apply requires an explicit wish, write permission and valid profile and cannot run automatically', async t => {
+    const f = await fixture(t, { fakeController: true });
+    await rejectsCode(f.adapter.command('applyChargingMode'), 'charging_mode_required');
+    await f.adapter.stageChargingMode('immediate');
+    await rejectsCode(f.adapter.command('applyChargingMode'), 'writes_disabled');
+    f.adapter.settings.allowWrites = true;
+    await rejectsCode(f.adapter.command('applyChargingMode'), 'profile_required');
+    f.memory.enrollment = enrolled(); f.adapter.settings.approvedAppVersion = 'different';
+    await rejectsCode(f.adapter.command('applyChargingMode'), 'profile_mismatch');
+    f.adapter.settings.approvedAppVersion = '';
+    await rejectsCode(f.adapter.command('applyChargingMode', { automatic: true }), 'invalid_action');
+    assert.equal(f.records.phones.length, 0);
+    await f.adapter.command('applyChargingMode');
+    assert.deepEqual(f.records.controllerCalls, [{ action: 'applyChargingMode', input: { targetChargingMode: 'immediate' } }]);
+});
+
+test('charging mode snapshot waits for its own preceding save while later selection affects only a later command', async t => {
+    const saving = deferred(), releaseSave = deferred(), executing = deferred(), finish = deferred();
+    const f = await fixture(t, { enrollment: enrolled(), fakeController: true, config: { allowWrites: true },
+        storeWrite: async (name, value) => { if (name === 'charging-mode-preference' && value.mode === 'departure') { saving.resolve(); await releaseSave.promise; } },
+        controllerExecute: async (_action, input) => { executing.resolve(); await finish.promise; return chargingModeResult(input.targetChargingMode); } });
+    t.after(() => { releaseSave.resolve(); finish.resolve(); });
+    const stage = f.adapter.stageChargingMode('departure'); await saving.promise;
+    const apply = f.adapter.command('applyChargingMode');
+    const later = f.adapter.stageChargingMode(null);
+    await Promise.resolve(); assert.equal(f.records.controllerCalls.length, 0);
+    releaseSave.resolve(); await stage; await executing.promise; await later;
+    assert.equal(f.value('charging.targetMode'), null);
+    assert.deepEqual(f.records.controllerCalls[0], { action: 'applyChargingMode', input: { targetChargingMode: 'departure' } });
+    finish.resolve(); await apply;
+    assert.equal(f.value('charging.mode'), 'departure');
+    await rejectsCode(f.adapter.command('applyChargingMode'), 'charging_mode_required');
+});
+
+test('ordinary reads and charging-setting writes do not depend on a pending mode save or apply its wish', { timeout: 2000 }, async t => {
+    const saving = deferred(), release = deferred();
+    const f = await fixture(t, { enrollment: enrolled(), fakeController: true, config: { allowWrites: true },
+        storeWrite: async name => { if (name === 'charging-mode-preference') { saving.resolve(); await release.promise; } } });
+    t.after(() => release.resolve());
+    await f.adapter.stageChargingSetting('socLimit', 80);
+    const stage = f.adapter.stageChargingMode('immediate'); await saving.promise;
+    await f.adapter.command('chargingStatus'); await f.adapter.command('applyChargingSettings');
+    assert.deepEqual(f.records.controllerCalls.map(row => row.action), ['chargingStatus', 'applyChargingSettings']);
+    assert.ok(f.records.controllerCalls.every(row => !Object.hasOwn(row.input, 'targetChargingMode')));
+    release.resolve(); await stage;
+    await f.adapter.onStateChange('vw-app.0.commands.clearChargingSettings', { val: true, ack: false });
+    assert.equal(f.value('charging.targetMode'), 'immediate');
+});
+
+test('an unreadable charging mode preserves historical mode and time while battery readings can remain fresh', async t => {
+    const clock = fakeClock();
+    const f = await fixture(t, { clock, config: { refreshMaxAgeSeconds: 30 } });
+    const first = new Date(clock.now()).toISOString();
+    await f.adapter.observation(chargingModeResult('departure', first));
+    await f.adapter.stageChargingMode('immediate');
+    await clock.advance(1000);
+    await f.adapter.observation({ ...chargingResult(), observedAt: new Date(clock.now()).toISOString() });
+    assert.deepEqual(f.adapter.states.get('charging.mode'), { val: 'departure', ack: true, q: 0x82 });
+    assert.equal(f.value('charging.modeObservedAt'), first);
+    assert.equal(f.value('refresh.charging.status'), 'fresh');
+    assert.deepEqual(f.adapter.states.get('battery.soc'), { val: 52, ack: true });
+    assert.equal(f.value('charging.targetMode'), 'immediate');
+    await f.adapter.observation(chargingModeResult('departureClimate', new Date(clock.now()).toISOString()));
+    assert.deepEqual(f.adapter.states.get('charging.mode'), { val: 'departureClimate', ack: true });
+    const at = f.value('charging.modeObservedAt');
+    await clock.advance(31000);
+    assert.equal(f.value('refresh.charging.status'), 'stale');
+    assert.deepEqual(f.adapter.states.get('charging.mode'), { val: 'departureClimate', ack: true, q: 0x82 });
+    assert.equal(f.value('charging.modeObservedAt'), at);
+    await f.adapter.failure(new BridgeError('phone_timeout', 'Synthetic timeout.'), 'charging');
+    assert.equal(f.value('charging.modeObservedAt'), at);
+    const restarted = await fixture(t, { initialStates: Object.fromEntries(f.adapter.states), memory: clone(f.memory) });
+    assert.deepEqual(restarted.adapter.states.get('charging.mode'), { val: 'departureClimate', ack: true, q: 0x82 });
+    assert.equal(restarted.value('charging.modeObservedAt'), at);
+    assert.equal(restarted.value('charging.targetMode'), 'immediate');
+    assert.equal(restarted.records.phones.length, 0);
+});
+
+test('regular charging reads observe the mode without applying staged wishes or changing manual feedback', async t => {
+    const clock = fakeClock();
+    const f = await fixture(t, { clock, enrollment: enrolled(), fakeController: true, RefreshScheduler: RecordingScheduler,
+        config: { pollIntervalSeconds: 15 }, controllerExecute: async () => chargingModeResult('departureClimate', new Date(clock.now()).toISOString()) });
+    await f.adapter.stageChargingMode('immediate');
+    await f.adapter.feedback('lastResult', 'retained manual result');
+    await f.adapter.runAutomaticRead('charging');
+    assert.equal(f.value('charging.mode'), 'departureClimate');
+    assert.equal(f.value('charging.targetMode'), 'immediate');
+    assert.equal(f.value('operation.lastResult'), 'retained manual result');
+    assert.equal(f.value('refresh.charging.status'), 'fresh');
+    assert.deepEqual(f.records.controllerCalls, [expectedChargingCall('chargingStatus')]);
+    f.adapter.settings.allowWrites = true;
+    await f.adapter.command('applyChargingMode');
+    assert.deepEqual(f.adapter.scheduler.requests.at(-1), { domain: 'charging', priority: true, delayMs: 2000 });
+});
+
+test('mode freshness uses its own successful snapshot time and missing timestamps cannot replace its history', async t => {
+    const clock = fakeClock();
+    const f = await fixture(t, { clock, config: { refreshMaxAgeSeconds: 30 } });
+    const modeAt = new Date(clock.now()).toISOString();
+    await clock.advance(5000);
+    const completedAt = new Date(clock.now()).toISOString();
+    await f.adapter.observation({ ...chargingModeResult('departure', completedAt), modeObservedAt: modeAt });
+    assert.equal(f.value('charging.modeObservedAt'), modeAt);
+    await clock.advance(26000);
+    assert.equal(f.value('refresh.charging.status'), 'fresh');
+    assert.deepEqual(f.adapter.states.get('charging.mode'), { val: 'departure', ack: true, q: 0x82 });
+    for (const value of [null, undefined, '', 'invalid', 123]) {
+        await f.adapter.observation({ ...chargingModeResult('immediate', new Date(clock.now()).toISOString()), modeObservedAt: value });
+        assert.equal(f.value('charging.mode'), 'departure');
+        assert.equal(f.value('charging.modeObservedAt'), modeAt);
+        assert.equal(f.adapter.states.get('charging.mode').q, 0x82);
+        assert.equal(f.adapter.states.get('battery.soc').q, undefined);
+    }
+});
+
+test('mode apply is independent of pending old charging, climate and temperature saves', { timeout: 2000 }, async t => {
+    const release = deferred();
+    const waiting = { 'temperature-preference': deferred(), 'settings-preference': deferred(), 'charging-preference': deferred() };
+    const f = await fixture(t, { enrollment: enrolled(), fakeController: true, config: { allowWrites: true },
+        storeWrite: async name => { if (waiting[name]) { waiting[name].resolve(); await release.promise; } } });
+    t.after(() => release.resolve());
+    await f.adapter.stageChargingMode('departureClimate');
+    const stages = [f.adapter.stageTemperature(22.5), f.adapter.stageSetting('mode', 'climate'), f.adapter.stageChargingSetting('socLimit', 80)];
+    await Promise.all(Object.values(waiting).map(value => value.promise));
+    await f.adapter.command('applyChargingMode');
+    assert.deepEqual(f.records.controllerCalls, [{ action: 'applyChargingMode', input: { targetChargingMode: 'departureClimate' } }]);
+    release.resolve(); await Promise.all(stages);
+});
+
+test('charging mode controls accept only own explicit requests and clear never changes the observed mode', async t => {
+    const f = await fixture(t, { enrollment: enrolled(), fakeController: true,
+        config: { allowWrites: true, legacyStatePrefix: '0_userdata.0.vw' } });
+    await f.adapter.onStateChange('vw-app.0.charging.targetMode', { val: 'immediate', ack: true });
+    assert.equal(f.value('charging.targetMode'), null);
+    await f.adapter.stageChargingMode('departure');
+    for (const name of ['applyChargingMode', 'clearChargingMode']) {
+        for (const state of [{ val: true, ack: true }, { val: false, ack: false }, { val: 'true', ack: false }, { val: 1, ack: false }]) {
+            await f.adapter.onStateChange('vw-app.0.commands.' + name, state);
+        }
+        for (const prefix of ['0_userdata.0.vw.', 'vw-app.1.commands.']) await f.adapter.onStateChange(prefix + name, { val: true, ack: false });
+    }
+    assert.equal(f.records.controllerCalls.length, 0);
+    assert.equal(f.value('charging.targetMode'), 'departure');
+    await f.adapter.onStateChange('vw-app.0.commands.applyChargingMode', { val: true, ack: false });
+    assert.equal(f.records.controllerCalls.length, 1);
+    assert.equal(f.value('charging.mode'), 'departure');
+    const at = f.value('charging.modeObservedAt');
+    await f.adapter.onStateChange('vw-app.0.commands.clearChargingMode', { val: true, ack: false });
+    assert.equal(f.records.controllerCalls.length, 1);
+    assert.equal(f.value('charging.targetMode'), null);
+    assert.equal(f.value('charging.mode'), 'departure');
+    assert.equal(f.value('charging.modeObservedAt'), at);
+});
+
+test('location timer editing remains available in immediate mode and never applies a staged mode wish', async t => {
+    const f = await fixture(t, { enrollment: enrolled(), fakeController: true, config: { allowWrites: true },
+        departureLocations: [{ nativeId: '700', name: 'Synthetischer Ort A', activeCount: 0 }] });
+    await f.adapter.observation(chargingModeResult('immediate'));
+    await f.adapter.stageChargingMode('departureClimate');
+    await f.adapter.command('departuresLocationsStatus');
+    const key = Object.keys(f.adapter.departures.bindings)[0];
+    await f.adapter.onStateChange('vw-app.0.chargingLocations.' + key + '.timer1.targetEnabled', { val: true, ack: false });
+    await f.adapter.onStateChange('vw-app.0.chargingLocations.' + key + '.timer1.commands.apply', { val: true, ack: false });
+    assert.deepEqual(f.records.controllerCalls.map(row => row.action), ['departuresLocationsStatus', 'applyDepartureLocationTimer']);
+    assert.equal(f.value('charging.mode'), 'immediate');
+    assert.equal(f.value('charging.targetMode'), 'departureClimate');
+    assert.deepEqual(f.memory['charging-mode-preference'], { mode: 'departureClimate' });
 });

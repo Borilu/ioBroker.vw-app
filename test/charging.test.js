@@ -9,12 +9,51 @@ const {
     CHARGING_KEYS, DEFAULT_TARGET_CHARGING, MIN_TARGET_SOC, MAX_TARGET_SOC, TARGET_SOC_STEP,
     isChargingValue, validateChargingSetting, validateTargetCharging,
     isObservedChargingValue, isBatterySoc, isRangeKm,
+    CHARGING_MODES, isChargingMode, validateTargetChargingMode,
 } = require('../lib/charging');
 const { StateStore } = require('../lib/store');
 const { BridgeError } = require('../lib/errors');
 
 const SECRET = 'DO-NOT-LEAK-CHARGING-PRIVATE';
 const BOOLEAN_KEYS = ['reducedAcCurrent', 'autoUnlockAc', 'optimizedBatteryUse'];
+
+test('charging mode wishes use three exact values and keep null separate from a supported observed mode', () => {
+    assert.deepEqual(CHARGING_MODES, ['immediate', 'departure', 'departureClimate']);
+    assert.equal(Object.isFrozen(CHARGING_MODES), true);
+    for (const value of CHARGING_MODES) {
+        assert.equal(isChargingMode(value), true);
+        assert.equal(validateTargetChargingMode(value), value);
+    }
+    assert.equal(isChargingMode(null), false);
+    assert.equal(validateTargetChargingMode(null), null);
+    const dangerous = { toString() { throw new Error(SECRET); }, valueOf() { throw new Error(SECRET); } };
+    for (const value of [undefined, true, false, 0, '', 'null', 'Sofortladen', 'Departure', 'immediate ',
+        [], {}, new String('immediate'), dangerous, SECRET]) {
+        assert.equal(isChargingMode(value), false);
+        assert.throws(() => validateTargetChargingMode(value), error => error.code === 'invalid_charging_mode'
+            && !JSON.stringify(error.toJSON()).includes(SECRET));
+    }
+    invalid(() => validateTargetCharging({ mode: 'immediate' }));
+});
+
+test('the mode preference persists separately without changing the four existing charging wishes', async t => {
+    const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'vw-app-mode-test-'));
+    t.after(async () => {
+        assert.equal(path.dirname(path.resolve(directory)), path.resolve(os.tmpdir()));
+        assert.ok(path.basename(directory).startsWith('vw-app-mode-test-'));
+        await fs.rm(directory, { recursive: true, force: true });
+    });
+    const store = new StateStore(directory);
+    const wishes = validateTargetCharging({ socLimit: 80, autoUnlockAc: false });
+    await store.write('charging-preference', wishes);
+    await store.write('charging-mode-preference', { mode: 'departureClimate' });
+    const restarted = new StateStore(directory);
+    assert.deepEqual(await restarted.read('charging-mode-preference'), { mode: 'departureClimate' });
+    assert.deepEqual(await restarted.read('charging-preference'), wishes);
+    await restarted.write('charging-mode-preference', { mode: null });
+    assert.deepEqual(await store.read('charging-mode-preference'), { mode: null });
+    assert.deepEqual(await store.read('charging-preference'), wishes);
+});
 
 function invalid(operation) {
     assert.throws(operation, error => error instanceof BridgeError

@@ -5,6 +5,7 @@ const { Controller } = require('../lib/controller');
 const { BridgeError } = require('../lib/errors');
 const { overviewChargingScreen, rangeScreen, chargingSettingsScreen, chargingFooterScreen, POINTS } = require('./support/charging-fixtures.cjs');
 const { completeDemoClimate } = require('./support/settings-fixtures.cjs');
+const { rangeModeScreen, chargingModeScreen, nativeObservationFromXml, MODE_POINTS } = require('./support/charging-mode-fixtures.cjs');
 const VEHICLE = 'Ihr Fahrzeug: Testwagen. ';
 const INITIAL = Object.freeze({socLimit:100,reducedAcCurrent:true,autoUnlockAc:false,optimizedBatteryUse:true});
 const KEYS = Object.keys(INITIAL);
@@ -42,9 +43,11 @@ class ChargingApp {
         if(this.beforeDump)await this.beforeDump();
         if(this.page==='overview')return overviewChargingScreen({rangeKm:this.rangeKm,lower:this.lower}).replace('Ihr Fahrzeug: Testwagen.',this.wrongVehicle?'Ihr Fahrzeug: Anderes Auto.':'Ihr Fahrzeug: Testwagen.');
         if(this.page==='range') {
+            if(this.mode !== undefined)return rangeModeScreen({mode:this.mode,...(this.unreadableMode?{description:'Ladeverfahren. Unbekannt. Ladeverfahren ändern'}:{})});
             const view=rangeScreen({soc:this.soc,rangeKm:this.rangeKm});
             return this.missingDetailRange ? view.replace('Übersicht Reichweite. Batteriereichweite: '+this.rangeKm+' Kilometer','Unbekannte Reichweitenanzeige') : view;
         }
+        if(this.page==='chargingMode')return chargingModeScreen({mode:this.mode});
         if(this.page==='climate')return completeDemoClimate();
         if(this.page==='vehicleSettings') {
             if(this.footer) {
@@ -56,13 +59,29 @@ class ChargingApp {
         throw new Error('Unknown fake page');
     }
     async nativeView(){this.calls.push(['native']);if(this.beforeNative)await this.beforeNative();return nativeSlider({mismatch:this.nativeMismatch});}
-    async departureView(){this.homeSnapshot=Object.freeze({});return {xml:await this.dump(),observation:this.homeSnapshot};}
+    async departureView(){
+        if(this.beforeExtended)await this.beforeExtended();
+        const xml=await this.dump();this.homeSnapshot=nativeObservationFromXml(xml);
+        return {xml:'UNRELATED CACHE MUST NOT BE USED',observation:this.homeSnapshot};
+    }
     async departureAction(request){
-        assert.equal(request.snapshot,this.homeSnapshot);assert.equal(request.action,'scrollBackward');
+        assert.equal(request.snapshot,this.homeSnapshot);
+        if(request.action==='click'){
+            assert.equal(this.page,'chargingMode');assert.equal(request.header,'Ladeverfahren');
+            assert.deepEqual(request.target,{id:'chargeModeSelectionBack',class:'android.view.View',bounds:[20,0,120,100]});
+            this.calls.push(['modeNativeBack']);this.modeBackNativeCalls=(this.modeBackNativeCalls||0)+1;
+            if(this.failModeBack)throw new Error('SECRET lost native header response');
+            if(!this.ignoreModeBack)this.page='range';
+            const xml=await this.dump();
+            return this.modeBackResult||{beforeMatched:true,actionAttempted:true,actionAccepted:true,success:true,errorCode:null,
+                postRead:{xml:'STALE CACHE MUST NOT BE USED',observation:nativeObservationFromXml(xml)}};
+        }
+        assert.equal(request.action,'scrollBackward');
         assert.equal(request.header,'Ihr Fahrzeug: Testwagen. Gerade synchronisiert');
         assert.deepEqual(request.target,{class:'android.widget.ScrollView',bounds:[20,100,980,1300]});
         this.calls.push(['homeNativeAction','scrollBackward']);this.lower=false;
-        return {beforeMatched:true,actionAttempted:true,actionAccepted:true,success:true,errorCode:null,postRead:{xml:await this.dump()}};
+        const xml=await this.dump();
+        return {beforeMatched:true,actionAttempted:true,actionAccepted:true,success:true,errorCode:null,postRead:{xml,observation:nativeObservationFromXml(xml)}};
     }
     async swipe(gesture){
         this.calls.push(['swipe',this.page,clone(gesture)]);
@@ -82,8 +101,18 @@ class ChargingApp {
             if(x===POINTS.vehicleSettings.x&&y===POINTS.vehicleSettings.y&&this.lower){this.page='vehicleSettings';this.footer=false;this.draft=clone(this.saved);this.dirty=false;return;}
         }
         if(this.page==='range'){
+            if(this.mode!==undefined&&x===MODE_POINTS.open.x&&y===MODE_POINTS.open.y){this.page='chargingMode';return;}
             if(x===POINTS.back.x&&y===POINTS.back.y){this.page='overview';return;}
             this.chargingCtas++;throw new Error('Charging CTA must never be touched');
+        }
+        if(this.page==='chargingMode'){
+            assert.notDeepEqual({x,y},MODE_POINTS.back,'Picker return must use its native accessibility action');
+            const choice=Object.keys(MODE_POINTS).find(key=>!['open','back'].includes(key)&&MODE_POINTS[key].x===x&&MODE_POINTS[key].y===y);
+            assert.ok(choice,'Only a bound semantic mode card may be touched');
+            this.modeTaps=(this.modeTaps||0)+1;
+            if(!this.ignoreMode)this.mode=choice;
+            if(this.afterMode)await this.afterMode(choice);
+            return;
         }
         if(this.page==='vehicleSettings'){
             if(x===POINTS.vehicleSettingsBack.x&&y===POINTS.vehicleSettingsBack.y){if(this.dirty)throw new Error('Unsaved data discarded');this.page='overview';return;}
@@ -117,7 +146,7 @@ function noCtas(phone,store){assert.equal(phone.chargingCtas,0);assert.equal(pho
 
 test('charging status reads SOC, unit-confirmed range and four saved preferences without a Save or vehicle CTA',async()=>{
     const {controller,phone,store}=setup();const result=await controller.execute('chargingStatus');
-    assert.equal(result.domain,'charging');assert.deepEqual(result.battery,{soc:52,rangeKm:205});assert.deepEqual(result.charging,INITIAL);
+    assert.equal(result.domain,'charging');assert.deepEqual(result.battery,{soc:52,rangeKm:205});assert.deepEqual(result.charging,{...INITIAL,mode:null});
     assert.equal(result.vehicleConfirmed,false);assert.equal(Object.hasOwn(result,'appState'),false);assert.equal(result.changed,false);
     assert.equal(phone.page,'overview');assert.equal(phone.lower,false);assert.equal(phone.saves,0);assert.equal(phone.syncs,0);assert.deepEqual(phone.mutations,[]);noCtas(phone,store);
 });
@@ -130,7 +159,7 @@ test('SOC zero and zero remaining kilometers remain real observations instead of
 test('a four-preference job saves once, reopens the settings and leaves the vehicle name unchanged',async()=>{
     const {controller,phone,store}=setup();const wanted={socLimit:80,reducedAcCurrent:false,autoUnlockAc:true,optimizedBatteryUse:false};
     const result=await controller.execute('applyChargingSettings',{targetCharging:wanted});
-    assert.deepEqual(result.charging,wanted);assert.deepEqual(phone.saved,wanted);assert.equal(result.changed,true);
+    assert.deepEqual(result.charging,{...wanted,mode:null});assert.deepEqual(phone.saved,wanted);assert.equal(result.changed,true);
     assert.equal(phone.saves,1);assert.equal(phone.name,'Testwagen');assert.deepEqual(phone.mutations,[['socLimit',80],['reducedAcCurrent',false],['autoUnlockAc',true],['optimizedBatteryUse',false]]);noCtas(phone,store);
 });
 
@@ -250,4 +279,175 @@ test('busy reservation is synchronous and cancellation prevents subsequent UI ed
 test('accepted target snapshots are unaffected by later caller mutation',async()=>{
     const {controller,phone}=setup();const target={socLimit:80};phone.beforeVersion=()=>{target.socLimit=50;};
     const result=await controller.execute('applyChargingSettings',{targetCharging:target});assert.equal(result.charging.socLimit,80);assert.equal(phone.saved.socLimit,80);
+});
+
+test('charging status reads the native mode and its own snapshot time without any setting or journal action',async()=>{
+    const {controller,phone,store,clock}=setup({mode:'departureClimate'});
+    phone.beforeExtended=()=>{clock.value+=5;};
+    const result=await controller.execute('chargingStatus');
+    assert.equal(result.charging.mode,'departureClimate');
+    assert.equal(result.modeObservedAt,result.observedAt);
+    assert.equal(result.changed,false);assert.equal(result.vehicleConfirmed,false);
+    assert.equal(phone.modeTaps||0,0);assert.equal(phone.saves,0);assert.equal(phone.syncs,0);
+    noCtas(phone,store);assert.equal(phone.page,'overview');
+});
+
+test('each mode is applied by one semantic selection with one prior reservation and no other setting writes',async()=>{
+    for(const mode of ['immediate','departure','departureClimate']){
+        const {controller,phone,store}=setup({mode:mode==='departure'?'immediate':'departure'});
+        phone.afterMode=()=>{assert.equal(store.reservations,1,'journal is durable before the effective selection');};
+        const result=await controller.execute('applyChargingMode',{targetChargingMode:mode});
+        assert.equal(result.charging.mode,mode);assert.equal(result.changed,true);
+        assert.equal(phone.modeTaps,1);assert.equal(store.reservations,1);
+        assert.equal(phone.saves,0);assert.equal(phone.syncs,0);assert.deepEqual(phone.mutations,[]);
+        assert.deepEqual(phone.saved,INITIAL);assert.equal(phone.page,'overview');
+        assert.equal(phone.chargingCtas+phone.climateCtas,0);assert.equal(phone.calls.filter(c=>c[0]==='connect').length,1);
+        assert.equal(controller.busy,false);assert.equal(phone.deadline,null);
+    }
+});
+
+test('same-mode and dry-run selections never reserve cooldown or select a mode',async()=>{
+    const same=setup({mode:'departure'},{allowWrites:false});
+    same.store.reserveCommand=async()=>assert.fail('An already fulfilled read does not reserve a vehicle action');
+    const first=await same.controller.execute('applyChargingMode',{targetChargingMode:'departure'});
+    assert.equal(first.changed,false);assert.equal(same.phone.modeTaps||0,0);
+    assert.ok(!same.phone.calls.some(c=>c[0]==='tap'&&c[1]==='chargingMode'));
+    const dry=setup({mode:'departure'},{allowWrites:false});
+    const second=await dry.controller.execute('applyChargingMode',{targetChargingMode:'immediate',dryRun:true});
+    assert.equal(second.wouldSetChargingMode,'immediate');assert.equal(second.changed,false);
+    assert.equal(second.charging.mode,'departure');assert.equal(dry.phone.modeTaps||0,0);
+    assert.equal(dry.phone.page,'overview');noCtas(dry.phone,dry.store);
+});
+
+test('a changing mode needs permission and a valid wish before any effective selection',async()=>{
+    const f=setup({mode:'departure'},{allowWrites:false});
+    await rejects(f.controller.execute('applyChargingMode',{targetChargingMode:'immediate'}),'writes_disabled');
+    assert.equal(f.phone.modeTaps||0,0);assert.equal(f.store.reservations,0);
+    for(const [value,code] of [[null,'charging_mode_required'],[undefined,'charging_mode_required'],['UNKNOWN','invalid_charging_mode']]){
+        const invalid=setup({mode:'departure'});
+        await rejects(invalid.controller.execute('applyChargingMode',{targetChargingMode:value}),code);
+        assert.deepEqual(invalid.phone.calls,[]);
+    }
+});
+
+test('cooldown or journal persistence failures prevent the one mode tap',async()=>{
+    for(const code of ['cooldown','state_not_saved']){
+        const f=setup({mode:'departure'});
+        f.store.reserveCommand=async()=>{f.store.reservations++;throw new BridgeError(code,'Synthetic reservation failure.');};
+        await rejects(f.controller.execute('applyChargingMode',{targetChargingMode:'immediate'}),code);
+        assert.equal(f.phone.modeTaps||0,0);assert.equal(f.store.reservations,1);
+        assert.equal(f.phone.saves,0);assert.equal(f.phone.calls.filter(c=>c[0]==='connect').length,1);
+    }
+});
+
+test('a lost mode-tap response is unknown and can never produce another selection or reconnect',async()=>{
+    const f=setup({mode:'departure'});
+    f.phone.afterMode=()=>{throw new BridgeError('foreign_private','SECRET lost mode response');};
+    await rejects(f.controller.execute('applyChargingMode',{targetChargingMode:'immediate'}),'charging_mode_outcome_unknown');
+    assert.equal(f.phone.modeTaps,1);assert.equal(f.store.reservations,1);
+    assert.equal(f.phone.calls.filter(c=>c[0]==='connect').length,1);
+    assert.equal(f.phone.saves+f.phone.syncs+f.phone.chargingCtas+f.phone.climateCtas,0);
+    assert.equal(f.controller.busy,false);assert.equal(f.phone.deadline,null);
+});
+
+test('missing confirmation is bounded and does not repeat a mode selection',async()=>{
+    const f=setup({mode:'departure',ignoreMode:true},{outcomeTimeoutSeconds:2});
+    await rejects(f.controller.execute('applyChargingMode',{targetChargingMode:'immediate'}),'charging_mode_outcome_unknown');
+    assert.equal(f.phone.modeTaps,1);assert.equal(f.store.reservations,1);
+    assert.equal(f.phone.calls.filter(c=>c[0]==='connect').length,1);
+});
+
+test('native read failure after the effective selection cannot fall back or retry',async()=>{
+    const f=setup({mode:'departure'});
+    f.phone.afterMode=()=>{f.phone.departureView=async()=>({xml:rangeModeScreen({mode:'immediate'}),observation:{}});};
+    await rejects(f.controller.execute('applyChargingMode',{targetChargingMode:'immediate'}),'charging_mode_outcome_unknown');
+    assert.equal(f.phone.modeTaps,1);assert.equal(f.store.reservations,1);
+});
+
+test('an unreadable mode still permits battery observations but blocks mode apply before selection',async()=>{
+    const read=setup({mode:'departure',unreadableMode:true});
+    const result=await read.controller.execute('chargingStatus');
+    assert.deepEqual(result.battery,{soc:52,rangeKm:205});
+    assert.equal(result.charging.mode,null);assert.equal(result.modeObservedAt,null);noCtas(read.phone,read.store);
+    const write=setup({mode:'departure',unreadableMode:true});
+    await rejects(write.controller.execute('applyChargingMode',{targetChargingMode:'immediate'}),'charging_mode_unavailable');
+    assert.equal(write.phone.modeTaps||0,0);assert.equal(write.store.reservations,0);
+});
+
+test('vehicle or approved-version mismatches prevent a mode selection and reservation',async()=>{
+    for(const [options,code] of [[{wrongVehicle:true},'wrong_vehicle'],[{versionValue:'OTHER'},'version_not_approved']]){
+        const f=setup({mode:'departure',...options});
+        await rejects(f.controller.execute('applyChargingMode',{targetChargingMode:'immediate'}),code);
+        assert.equal(f.phone.modeTaps||0,0);assert.equal(f.store.reservations,0);
+    }
+});
+
+test('mode apply snapshots only its own primitive wish and never reads unrelated setting getters',async()=>{
+    const f=setup({mode:'departure'});
+    const options={targetChargingMode:'departureClimate'};
+    for(const key of ['targetCharging','targetSettings','targetTemperature'])Object.defineProperty(options,key,{get(){return assert.fail('Unrelated wish read');}});
+    f.phone.beforeVersion=()=>{options.targetChargingMode='immediate';};
+    const result=await f.controller.execute('applyChargingMode',options);
+    assert.equal(result.charging.mode,'departureClimate');assert.equal(f.phone.modeTaps,1);
+    assert.deepEqual(f.phone.saved,INITIAL);
+});
+
+test('a human mode change during cooldown persistence prevents the subsequent selection',async()=>{
+    const f=setup({mode:'departure'});
+    f.store.reserveCommand=async()=>{f.store.reservations++;f.phone.mode='immediate';};
+    await rejects(f.controller.execute('applyChargingMode',{targetChargingMode:'departureClimate'}),'charging_state_changed');
+    assert.equal(f.store.reservations,1);assert.equal(f.phone.modeTaps||0,0);
+});
+
+test('fresh native recovery ignores a stale standard range underneath an open charging-mode picker',async()=>{
+    const f=setup({mode:'departure',page:'chargingMode'});
+    const actual=f.phone.dump.bind(f.phone);
+    f.phone.departureView=async()=>{
+        f.phone.homeSnapshot=nativeObservationFromXml(await actual());
+        return {xml:rangeScreen(),observation:f.phone.homeSnapshot};
+    };
+    f.phone.dump=async()=>f.phone.page==='chargingMode'?rangeScreen():actual();
+    const result=await f.controller.execute('chargingStatus');
+    assert.equal(result.charging.mode,'departure');assert.equal(f.phone.modeTaps||0,0);
+    assert.equal(f.phone.modeBackNativeCalls,1);
+    assert.ok(f.phone.calls.findIndex(c=>c[0]==='modeNativeBack')<f.phone.calls.findIndex(c=>c[0]==='tap'));
+    assert.ok(!f.phone.calls.some(c=>c[0]==='tap'&&c[1]==='chargingMode'));
+    assert.equal(f.phone.page,'overview');noCtas(f.phone,f.store);
+});
+
+test('unclear native picker return never falls back to a pointer or a second accessibility action',async()=>{
+    for(const options of [{modeBackResult:{beforeMatched:true,actionAttempted:true,actionAccepted:null,success:false,errorCode:null}},
+        {failModeBack:true},{ignoreModeBack:true}]){
+        const f=setup({mode:'departure',page:'chargingMode',...options});
+        await rejects(f.controller.execute('chargingStatus'),options.failModeBack?'internal_error':options.ignoreModeBack?'unexpected_screen':'charging_navigation_unavailable');
+        assert.equal(f.phone.modeBackNativeCalls,1);assert.equal(f.phone.modeTaps||0,0);
+        assert.ok(!f.phone.calls.some(c=>c[0]==='tap'));noCtas(f.phone,f.store);
+    }
+});
+
+test('picker return after a real mode selection requires one confirmed native action and otherwise keeps the outcome unknown',async()=>{
+    const f=setup({mode:'departure',failModeBack:true});
+    await rejects(f.controller.execute('applyChargingMode',{targetChargingMode:'immediate'}),'charging_mode_outcome_unknown');
+    assert.equal(f.phone.modeTaps,1);assert.equal(f.phone.modeBackNativeCalls,1);
+    assert.equal(f.store.reservations,1);assert.equal(f.phone.calls.filter(c=>c[0]==='connect').length,1);
+});
+
+test('a visible mode picker cannot be dismissed when native action capability is missing',async()=>{
+    const f=setup({mode:'departure',page:'chargingMode'});
+    f.phone.departureAction=undefined;
+    await rejects(f.controller.execute('chargingStatus'),'extended_ui_unavailable');
+    assert.ok(!f.phone.calls.some(c=>c[0]==='tap'));assert.equal(f.phone.modeTaps||0,0);
+    noCtas(f.phone,f.store);
+});
+
+test('advertised but invalid native navigation observation fails closed before any cached target or getter',async()=>{
+    for(const accessor of [false,true]){
+        const f=setup({mode:'departure',page:'chargingMode'});let getters=0,standardReads=0;
+        f.phone.dump=async()=>{standardReads++;return rangeScreen();};
+        f.phone.departureView=async()=>accessor?Object.defineProperty({xml:rangeScreen()},'observation',{get(){getters++;return {};}})
+            :{xml:rangeScreen(),observation:{}};
+        await rejects(f.controller.execute('chargingStatus'),'extended_ui_unavailable');
+        assert.equal(getters,0);assert.equal(standardReads,0);
+        assert.ok(!f.phone.calls.some(c=>c[0]==='tap'));noCtas(f.phone,f.store);
+    }
 });

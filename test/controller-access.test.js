@@ -8,6 +8,7 @@ const { vehicleAccessScreen, partiallyScrolledAccessScreen } = require('./suppor
 const { lockSheet } = require('./support/lock-fixtures.cjs');
 const { node, hierarchy, overviewChargingScreen, rangeScreen, chargingSettingsScreen, POINTS } = require('./support/charging-fixtures.cjs');
 const { completeDemoClimate } = require('./support/settings-fixtures.cjs');
+const { nativeObservationFromXml } = require('./support/charging-mode-fixtures.cjs');
 const MARKER = 'Ihr Fahrzeug: Testwagen. ';
 const ALL_OPEN = ['Kofferraum', 'Tür hinten rechts', 'Tür hinten links', 'Tür vorne rechts', 'Tür vorne links',
     'Fenster vorne links', 'Fenster vorne rechts', 'Fenster hinten links', 'Fenster hinten rechts'];
@@ -43,9 +44,10 @@ class AccessApp {
     }
     async departureView() {
         if (this.beforeNativeRead) this.beforeNativeRead();
-        this.snapshot = Object.freeze({ syntheticHome: true });
         this.calls.push(['homeNativeRead']);
-        return { xml: await this.dump(), observation: this.snapshot };
+        const xml = await this.dump();
+        this.snapshot = Object.freeze(nativeObservationFromXml(xml));
+        return { xml, observation: this.snapshot };
     }
     async departureAction(request) {
         this.calls.push(['homeNativeAction', request.action]);
@@ -53,8 +55,10 @@ class AccessApp {
         assert.equal(request.header, 'Ihr Fahrzeug: Testwagen. Gerade synchronisiert');
         assert.equal(request.target.class, 'android.widget.ScrollView');
         if (!this.stuckNormalization) { this.lower = false; this.partial = false; }
-        return this.normalizationResult || { beforeMatched: true, actionAttempted: true, actionAccepted: true,
-            success: true, errorCode: null, postRead: { xml: await this.dump() } };
+        if (this.normalizationResult) return this.normalizationResult;
+        const xml = await this.dump();
+        return { beforeMatched: true, actionAttempted: true, actionAccepted: true,
+            success: true, errorCode: null, postRead: { xml, observation: nativeObservationFromXml(xml) } };
     }
     async back() {
         this.calls.push(['back', this.page]);

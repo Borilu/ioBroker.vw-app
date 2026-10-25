@@ -5,6 +5,7 @@ const assert = require('node:assert/strict');
 const { Controller } = require('../lib/controller');
 const { executeDepartures, returnFromDeparturePage } = require('../lib/departures-controller');
 const { BridgeError } = require('../lib/errors');
+const { nativeObservationFromXml } = require('./support/charging-mode-fixtures.cjs');
 
 const PACKAGE = 'com.volkswagen.weconnect';
 const MARKER = 'Ihr Fahrzeug: Testwagen. ';
@@ -222,7 +223,7 @@ class App {
         if (this.beforeView) await this.beforeView();
         this.frame = this.view(); this.calls.push(['read', this.page, this.position]);
         if (this.afterView) await this.afterView();
-        return { xml: this.frame.xml, observation: { synthetic: true } };
+        return { xml: this.frame.xml, observation: nativeObservationFromXml(this.frame.xml) };
     }
     async departureNative() {
         this.calls.push(['native', this.page]);
