@@ -1,10 +1,10 @@
 # VW App in ioBroker bedienen
 
-Diese Anleitung beschreibt die Bedienung von **vw-app 0.10.0**: Klimatisierung, Ladeeinstellungen, Abfahrtszeiten, Ladeorte, Fahrzeugdaten sowie Verriegeln und Entriegeln. Die Datenpunktreferenz nennt alle vom Adapter angelegten Zustände einschließlich der dynamisch erzeugten Ladeorte und der Aktualitätsanzeigen.
+Diese Anleitung beschreibt die Bedienung von **vw-app 0.10.1**: Klimatisierung, Ladeeinstellungen, Abfahrtszeiten, Ladeorte, Fahrzeugdaten sowie Verriegeln und Entriegeln. Die Datenpunktreferenz nennt alle vom Adapter angelegten Zustände einschließlich der dynamisch erzeugten Ladeorte und der Aktualitätsanzeigen.
 
 **Stand: 25. Oktober 2026.** Für Installation und WLAN-Kopplung verwende die [bebilderte Installationsanleitung](INSTALLATION.de.md). Die [Einrichtungsreferenz](ADMIN-SETUP.md) erklärt zusätzlich die Adaptereinstellungen.
 
-[Bedienungsanleitung als PDF](https://github.com/Borilu/ioBroker.vw-app/releases/download/v0.10.0/VW-App-Bedienungsanleitung.pdf)
+[Bedienungsanleitung als PDF für 0.10.0](https://github.com/Borilu/ioBroker.vw-app/releases/download/v0.10.0/VW-App-Bedienungsanleitung.pdf). Dieses PDF stammt aus der Vorversion; die Erklärung der ausschließlich schreibbaren Befehlsknöpfe und ihrer getrennten Rückmeldungen ist hier online für 0.10.1 aktualisiert.
 
 ## 1 Datenpunkte finden und bedienen
 
@@ -18,9 +18,11 @@ Diese Anleitung beschreibt die Bedienung von **vw-app 0.10.0**: Klimatisierung, 
 | --- | --- | --- |
 | **Lesen** | Zuletzt aus der Volkswagen-App gelesener Istwert oder eine Adapterrückmeldung. | Nur ablesen. Aktualität und Qualität mitprüfen. |
 | **Wunsch** | Im Adapter gespeicherte Auswahl, häufig mit `target` im Namen. | Wert mit `ack=false` schreiben, anschließend den passenden Befehl auslösen. |
-| **Befehl** | Knopf, beispielsweise `commands.start` oder `commands.applyChargingSettings`. | Einmal `true` mit `ack=false` schreiben. Der Adapter setzt den Knopf wieder auf `false`. |
+| **Befehl** | Ausschließlich schreibbarer Knopf, beispielsweise `commands.start` oder `commands.applyChargingSettings`. | Einmal `true` mit `ack=false` schreiben; Ergebnis in den getrennten Auftrags- und Istwerten prüfen. |
 
 `ack=false` bedeutet in ioBroker **unbestätigte Anforderung**. Beim Bearbeiten eines Werts in Admin darf die Eingabe also nicht bereits als bestätigt markiert sein. In Blockly oder Skripten ebenfalls als Anforderung schreiben. `ack=true` bei einem Wunsch bestätigt nur, dass die Auswahl gespeichert wurde. Erst der Übernehmen-Befehl bedient die App.
+
+Befehlsknöpfe besitzen ab 0.10.1 die ioBroker-Metadaten `common.read=false` und `common.write=true`. Sie sind keine lesbaren Zustandsanzeigen. Der Adapter bestätigt das empfangene Ereignis; ein Knopfwert oder dessen Zurücksetzen zeigt weder eine laufende noch eine abgeschlossene Fahrzeugaktion an. Verwende die getrennten Rückmeldungen `operation.busy`, `operation.lastResult`, `operation.lastErrorCode` sowie die zurückgelesenen Istwerte und ihre Aktualität. Beim Upgrade werden nur die betroffenen Objektmetadaten korrigiert; bestehende Werte, Bezeichnungen und Berechtigungen bleiben erhalten, und die Korrektur sendet keinen Handy- oder Fahrzeugbefehl.
 
 Schreibe Zahlen als Zahlen, zum Beispiel `22.5` und `80`, und Schalter als echte boolesche Werte `true` oder `false`. Der Text `"false"` ist kein ausgeschalteter Schalter. Ein echter Nullwert `null` bedeutet bei Wünschen **diese App-Einstellung beibehalten**. Der Text `"null"` ist dafür ungeeignet. Falls deine Bedienoberfläche keinen Nullwert zulässt, verwende den jeweiligen Löschen-Befehl.
 

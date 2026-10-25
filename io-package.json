@@ -1,8 +1,21 @@
 {
   "common": {
     "name": "vw-app",
-    "version": "0.10.0",
+    "version": "0.10.1",
     "news": {
+      "0.10.1": {
+        "en": "Correct command-button and vehicle-access object metadata, and migrate existing definitions without changing state values or sending vehicle commands.",
+        "de": "Objektmetadaten der Befehlsknöpfe und Fahrzeugzugangssensoren korrigieren und bestehende Definitionen ohne Wertänderungen oder Fahrzeugbefehle aktualisieren.",
+        "ru": "Исправлены метаданные кнопок команд и датчиков доступа к автомобилю; существующие определения обновляются без изменения значений и отправки команд автомобилю.",
+        "pt": "Corrige os metadados dos botões de comando e sensores de acesso ao veículo e atualiza as definições existentes sem alterar valores ou enviar comandos ao veículo.",
+        "nl": "Corrigeert de objectmetadata van opdrachtknoppen en voertuigtoegangssensoren en werkt bestaande definities bij zonder waarden te wijzigen of voertuigopdrachten te versturen.",
+        "fr": "Corrige les métadonnées des boutons de commande et des capteurs d’accès au véhicule, et met à jour les définitions existantes sans modifier les valeurs ni envoyer de commandes au véhicule.",
+        "it": "Corregge i metadati dei pulsanti di comando e dei sensori di accesso al veicolo, aggiornando le definizioni esistenti senza modificare i valori o inviare comandi al veicolo.",
+        "es": "Corrige los metadatos de los botones de comando y sensores de acceso al vehículo y actualiza las definiciones existentes sin cambiar valores ni enviar comandos al vehículo.",
+        "pl": "Poprawia metadane przycisków poleceń i czujników dostępu do pojazdu oraz aktualizuje istniejące definicje bez zmiany wartości i wysyłania poleceń do pojazdu.",
+        "uk": "Виправлено метадані кнопок команд і датчиків доступу до автомобіля; наявні визначення оновлюються без зміни значень і надсилання команд автомобілю.",
+        "zh-cn": "修正命令按钮和车辆门窗锁定传感器的对象元数据，并更新现有定义，不更改状态值或发送车辆命令。"
+      },
       "0.10.0": {
         "en": "Read the selected vehicle VIN with a separate automatic and manual app query, read-age diagnostics and retained historical values.",
         "de": "Die FIN des ausgewählten Fahrzeugs mit einem eigenen automatischen und manuellen Lesebereich, Aktualitätsanzeige und erhaltenen historischen Werten auslesen.",
@@ -80,19 +93,6 @@
         "pl": "Odczyt i edycja godzin odjazdu oraz ustawień miejsc ładowania w aplikacji, z osobnymi preferencjami, kontrolą tożsamości miejsca i automatycznym odświeżaniem.",
         "uk": "Читання й редагування таймерів відправлення та налаштувань місць заряджання з окремими побажаннями, перевіркою ідентичності місця й автооновленням.",
         "zh-cn": "读取和编辑应用中的出发定时器及充电地点设置，分别保存目标值、核对地点身份并自动刷新。"
-      },
-      "0.6.0": {
-        "en": "Refresh climate, charging and vehicle-report app observations automatically with fair scheduling, manual-command priority and separate read-age diagnostics.",
-        "de": "Klima-, Lade- und Berichtswerte der App automatisch fair aktualisieren, Bedienbefehle bevorzugen und das Alter der App-Auslesung getrennt anzeigen.",
-        "ru": "Автообновление климатических, зарядных данных и отчета автомобиля из приложения с равномерным планированием, приоритетом ручных команд и отдельным возрастом чтения.",
-        "pt": "Atualiza automaticamente clima, carga e relatório do veículo, com agendamento equilibrado, prioridade para comandos manuais e idade da leitura separada.",
-        "nl": "Werk klimaat-, laad- en voertuigrapportgegevens automatisch bij, met eerlijke planning, voorrang voor handmatige opdrachten en aparte ouderdom van uitlezingen.",
-        "fr": "Actualisation automatique des données de climatisation, recharge et rapport du véhicule, avec planification équitable, priorité manuelle et ancienneté de lecture distincte.",
-        "it": "Aggiorna automaticamente i dati di clima, ricarica e rapporto del veicolo, con pianificazione equa, priorità ai comandi manuali e indicazione separata dell’età di lettura.",
-        "es": "Actualiza automáticamente los datos de climatización, carga e informe del vehículo, con planificación equilibrada, prioridad manual y antigüedad de lectura independiente.",
-        "pl": "Automatyczne, sprawiedliwe odświeżanie danych klimatyzacji, ładowania i raportu pojazdu, z priorytetem poleceń ręcznych i osobnym wiekiem odczytu.",
-        "uk": "Автооновлення даних клімату, заряджання та звіту автомобіля із рівномірним плануванням, пріоритетом ручних команд і окремим віком читання.",
-        "zh-cn": "公平调度并自动刷新应用中的空调、充电及车辆报告数据，优先处理手动命令，并单独显示读取时效。"
       }
     },
     "titleLang": {
