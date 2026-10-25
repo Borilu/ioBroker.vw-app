@@ -6,7 +6,7 @@ Control the **official Volkswagen Android app over Wi-Fi** from ioBroker.
 
 Pairing, setup, climate controls, charging settings, departures, existing charging locations and explicit lock/unlock commands are managed by the adapter. App observations can be read automatically or on request. Volkswagen sign-in stays on the phone; the optional S-PIN is configured in the adapter settings.
 
-Manufacturer information: [Volkswagen app and digital services](https://www.volkswagen.de/de/besitzer-und-service/digitale-extras/volkswagen-apps-login-und-shop.html). A [German setup guide](docs/ADMIN-SETUP.md) is available.
+Manufacturer information: [Volkswagen app and digital services](https://www.volkswagen.de/de/besitzer-und-service/digitale-extras/volkswagen-apps-login-und-shop.html). Start with the [illustrated German installation and phone pairing guide](docs/INSTALLATION.de.md), also available as a [PDF](https://github.com/Borilu/ioBroker.vw-app/releases/download/v0.9.2/VW-App-Installation-und-Kopplung.pdf). The [detailed German setup reference](docs/ADMIN-SETUP.md) describes all settings and data points.
 
 ## What runs where
 
