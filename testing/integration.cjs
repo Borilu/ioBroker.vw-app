@@ -4,6 +4,7 @@ const assert = require('node:assert/strict');
 const path = require('node:path');
 const { setTimeout: delay } = require('node:timers/promises');
 const { tests } = require('@iobroker/testing');
+const { EXIT_CODES } = require('@iobroker/adapter-core/exitCodes');
 
 const adapterDir = path.join(__dirname, '..');
 
@@ -43,7 +44,9 @@ tests.integration(adapterDir, {
 
                 await harness.stopAdapter();
                 assert.equal(harness.isAdapterRunning(), false);
-                assert.equal(harness.adapterExit, 0);
+                // The harness requests shutdown through the controller's
+                // sigKill state. This is an explicit requested termination.
+                assert.equal(harness.adapterExit, EXIT_CODES.ADAPTER_REQUESTED_TERMINATION);
                 await waitForState(harness, 'info.connection', false);
                 await waitForState(harness, 'info.runtimeReady', false);
                 await waitForState(harness, 'refresh.autoBusy', false);
