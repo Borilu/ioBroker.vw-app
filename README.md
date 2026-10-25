@@ -241,6 +241,8 @@ Version 0.4.0 passed **332 automated tests on Linux**. Live checks read battery 
 
 Version 0.11.0 adds a separate charging-mode wish and explicit command. The app applies a mode selection immediately, without **Save**. A mode change can therefore start charging; the adapter never presses an additional charging Start control.
 
+Version 0.11.1 also recognizes the supported picker layout with an additional empty, noninteractive Compose wrapper. In 0.11.0 this layout could fail with `unknown_state` before a mode-option tap. The exact three-choice, selection, geometry and overlay checks remain required; updating does not automatically submit a mode command.
+
 | State relative to `vw-app.0` | Access and meaning |
 |---|---|
 | `charging.mode` | Read-only: `immediate` (charge immediately), `departure` (charge for departure), `departureClimate` (charge and climate for departure), or `null` before a known observation; check quality |
@@ -452,11 +454,16 @@ The script checks the tool checksum, compiles only the two listed implementation
 
 ### Publishing a version
 
-Keep the version in `package.json`, `io-package.json` and `package-lock.json` synchronized, add a dated changelog entry and update the translated adapter news. Merge the release commit into `main` after its checks pass, then create a matching GitHub tag such as `v0.11.0` on that commit.
+Keep the version in `package.json`, `io-package.json` and `package-lock.json` synchronized, add a dated changelog entry and update the translated adapter news. Merge the release commit into `main` after its checks pass, then create a matching GitHub tag such as `v0.11.1` on that commit.
 
 The tag triggers `.github/workflows/test-and-release.yml`. Package, lint and Linux integration checks must pass before deployment. The deployment job checks that the tag matches the package version and that the commit belongs to `main`; an existing npm version is retained without another publication attempt. For a new version, the job is configured to publish to npm using GitHub OIDC trusted publishing with provenance. npm's trusted-publisher binding must match this public repository and workflow file. No npm access token is stored in the repository.
 
 ## Changelog
+
+### 0.11.1 (2026-10-25)
+
+- Recognize the verified empty, inert Compose wrapper around the charging-mode picker that 0.11.0 rejected before tapping a mode option.
+- Retain the exact three mode cards, consistent selection, geometry and overlay guards; keep data points, permissions and explicit command behavior unchanged.
 
 ### 0.11.0 (2026-10-25)
 
