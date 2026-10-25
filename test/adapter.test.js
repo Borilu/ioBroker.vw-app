@@ -16,6 +16,7 @@ const { DEFAULT_TARGET_SETTINGS } = require('../lib/settings');
 const { DEFAULT_TARGET_CHARGING, CHARGING_KEYS, MIN_TARGET_SOC, MAX_TARGET_SOC, TARGET_SOC_STEP } = require('../lib/charging');
 const { REPORT_CATEGORIES } = require('../lib/vehicle-report');
 const { localKey } = require('../lib/departures-adapter');
+const LEGACY_OBJECTS_0100 = require('./support/objects-0.10.0.json');
 
 const VEHICLE = 'Ihr Fahrzeug: ID.7 GTX Tourer. ';
 const DEVICE = 'serial:TEST-ADAPTER-42';
@@ -110,12 +111,28 @@ async function fixture(t, options = {}) {
         constructor() {
             super();
             this.config = config; this.namespace = 'vw-app.0';
-            this.states = new Map(Object.entries(clone(options.initialStates || {}))); this.objects = new Map(); this.writes = [];
+            this.states = new Map(Object.entries(clone(options.initialStates || {})));
+            this.objects = new Map(Object.entries(clone(options.initialObjects || {}))); this.writes = [];
+            this.objectPatches = []; this.objectLists = 0;
             this.foreignObjects = new Map(); this.foreignWrites = []; this.subscriptions = [];
             this.logs = []; this.responses = []; this.intervals = []; this.clearedIntervals = [];
             this.log = Object.fromEntries(['info', 'warn', 'error', 'debug'].map(level => [level, message => this.logs.push({ level, message })]));
         }
         async setObjectNotExistsAsync(id, value) { if (options.objectWrite) await options.objectWrite(id, value); if (!this.objects.has(id)) this.objects.set(id, clone(value)); }
+        async getAdapterObjectsAsync() {
+            this.objectLists++;
+            if (options.objectList) return options.objectList(this);
+            return Object.fromEntries([...this.objects].map(([id, object]) => [this.namespace + '.' + id,
+                { ...clone(object), _id: this.namespace + '.' + id }]));
+        }
+        async extendObjectAsync(id, patch) {
+            if (options.objectExtend) await options.objectExtend(id, patch, this);
+            this.objectPatches.push({ id, patch: clone(patch) });
+            const previous = this.objects.get(id);
+            assert.ok(previous, id);
+            this.objects.set(id, { ...previous, ...clone(patch),
+                ...(patch.common ? { common: { ...clone(previous.common), ...clone(patch.common) } } : {}) });
+        }
         async getStateAsync(id) { return clone(this.states.get(id) || null); }
         async setStateAsync(id, value) {
             if (this.stopping && id === 'info.connection' && options.shutdownStateFailure) throw new Error('SECRET STATE WRITE ERROR');
@@ -355,6 +372,7 @@ test('state objects match their schema and quality wrappers remain flat on failu
         assert.equal(object.type, 'state');
         assert.equal(object.common.type, type);
         assert.equal(object.common.role, role);
+        assert.equal(object.common.read, role !== 'button');
         assert.equal(object.common.write, write);
         assert.equal(f.adapter.states.get(id).ack, true);
         if (f.value(id) === null) assert.equal(initial, null);
@@ -2377,7 +2395,8 @@ test('vehicle access creates ten read-only nullable indicators, named channels a
         assert.equal(common.read, true, id);
         assert.equal(common.write, false, id);
         assert.match(common.name, /laut App$/);
-        assert.equal(common.role, id.endsWith('.locked') ? 'indicator.locked' : 'indicator.open');
+        assert.equal(common.role, id.endsWith('.locked') ? 'sensor'
+            : id.startsWith('vehicleAccess.windows.') ? 'sensor.window' : 'sensor.door');
         assert.deepEqual(f.adapter.states.get(id), { val: null, ack: true, q: 0x82 }, id);
     }
     for (const id of ['vehicleAccess.synchronizationText', 'vehicleAccess.warningText', 'vehicleAccess.observedAt']) {
@@ -3028,4 +3047,124 @@ test('reset never accepts an object that merely coerces into an Admin sender str
     assert.match(f.adapter.responses.at(-1).message.error, /^invalid_action:/);
     assert.equal(f.value('security.blocked'), true);
     assert.deepEqual(f.memory['security-auth-state'], blockedSecurityState('pin_rejected'));
+});
+
+function legacyObjectMetadata() {
+    // The privacy-reviewed real 0.10.0 export contains definitions only: 340
+    // objects, one pseudonymous location, no values/configuration/credentials.
+    return Object.fromEntries(Object.entries(LEGACY_OBJECTS_0100)
+        .map(([id, object]) => [id.slice('vw-app.0.'.length), clone(object)]));
+}
+
+function correctedLegacyMetadata(id, object) {
+    const result = clone(object);
+    if (result.common.role === 'button') result.common.read = false;
+    if (id.startsWith('vehicleAccess.windows.') && result.common.role === 'indicator.open') result.common.role = 'sensor.window';
+    if ((id.startsWith('vehicleAccess.doors.') || id === 'vehicleAccess.trunkOpen')
+        && result.common.role === 'indicator.open') result.common.role = 'sensor.door';
+    if (id === 'vehicleAccess.locked' && result.common.role === 'indicator.locked') result.common.role = 'sensor';
+    return result;
+}
+
+test('new static and dynamically discovered controls are write-only buttons with access sensor roles that preserve Boolean meaning', async t => {
+    const rows = Array.from({ length: 5 }, (_, index) => ({ nativeId: String(700 + index), name: 'Synthetischer Ort ' + index, activeCount: 0 }));
+    const f = await fixture(t, { enrollment: enrolled(), fakeController: true, departureLocations: rows });
+    await f.adapter.command('departuresLocationsStatus');
+    const buttons = [...f.adapter.objects].filter(([, object]) => object.common.role === 'button');
+    assert.equal(buttons.length, 22 + 5 * 11);
+    for (const [id, object] of buttons) {
+        assert.equal(object.common.type, 'boolean', id);
+        assert.equal(object.common.read, false, id);
+        assert.equal(object.common.write, true, id);
+    }
+    assert.equal(f.adapter.objectPatches.length, 0, 'new definitions need no corrective patches');
+    for (const id of ACCESS_BOOLEAN_IDS) assert.equal(f.adapter.objects.get(id).common.role,
+        id === 'vehicleAccess.locked' ? 'sensor' : id.startsWith('vehicleAccess.windows.') ? 'sensor.window' : 'sensor.door', id);
+    await f.adapter.command('refreshVehicleAccess');
+    const access = vehicleAccessResult().vehicleAccess;
+    assert.equal(f.value('vehicleAccess.locked'), access.locked, 'sensor.lock would reverse this existing meaning');
+    assert.equal(f.value('vehicleAccess.trunkOpen'), access.trunkOpen);
+    for (const group of ['doors', 'windows']) for (const position of ACCESS_POSITIONS) {
+        assert.equal(f.value('vehicleAccess.' + group + '.' + position + 'Open'), access[group][position]);
+    }
+});
+
+test('normal startup upgrades all 43 errors in the real 0.10.0 metadata including unbound historical location buttons', async t => {
+    const previous = legacyObjectMetadata();
+    assert.equal(Object.keys(previous).length, 340);
+    assert.equal(Object.values(previous).filter(object => object.type === 'state').length, 289);
+    assert.equal(Object.values(previous).filter(object => object.common.role === 'button' && object.common.read).length, 33);
+    assert.equal(Object.values(previous).filter(object => ['indicator.open', 'indicator.locked'].includes(object.common.role)).length, 10);
+    for (const [id, object] of Object.entries(previous)) {
+        object.common.name = { de: 'Eigener Name: ' + id, en: 'Custom label: ' + id };
+        object.common.custom = { 'synthetic-history.0': { enabled: true } };
+        object.native = { syntheticMetadata: 'keep unchanged' };
+        object.acl = { object: 0x640, state: 0x620, owner: 'system.user.synthetic', ownerGroup: 'system.group.synthetic' };
+    }
+    const observedAt = '2026-10-24T18:00:00.000Z';
+    const initialStates = Object.fromEntries(ACCESS_BOOLEAN_IDS.map((id, index) => [id, { val: index % 2 === 0, ack: true, q: 0 }]));
+    initialStates['vehicleAccess.observedAt'] = { val: observedAt, ack: true };
+    const f = await fixture(t, { initialObjects: previous, initialStates });
+    assert.equal(f.adapter.objects.size, 340);
+    assert.equal(f.adapter.objectPatches.length, 43);
+    assert.equal(f.adapter.objectPatches.filter(row => Object.hasOwn(row.patch.common, 'read')).length, 33);
+    assert.equal(f.adapter.objectPatches.filter(row => Object.hasOwn(row.patch.common, 'role')).length, 10);
+    for (const [id, object] of Object.entries(previous)) assert.deepEqual(f.adapter.objects.get(id), correctedLegacyMetadata(id, object), id);
+    for (const { patch } of f.adapter.objectPatches) {
+        assert.deepEqual(Object.keys(patch), ['common']);
+        assert.equal(Object.keys(patch.common).length, 1);
+    }
+    assert.equal(f.adapter.departures.locationDefinitions.size, 0, 'no saved binding is needed to migrate old location metadata');
+    for (const [id, state] of Object.entries(initialStates)) assert.equal(f.value(id), state.val, id);
+    assert.equal(f.records.phones.length, 0);
+    assert.equal(f.records.controllerCalls.length, 0);
+    await f.adapter.migrateObjectMetadata();
+    assert.equal(f.adapter.objectPatches.length, 43, 'the migration is idempotent');
+});
+
+test('metadata migration alone cannot write values, apply wishes, inspect PIN/configuration or modify foreign and custom controls', async t => {
+    let secretReads = 0;
+    const f = await fixture(t);
+    f.adapter.objects = new Map(Object.entries(legacyObjectMetadata()));
+    const custom = { type: 'state', common: { name: 'User-defined control', type: 'boolean', role: 'button', read: true, write: true }, native: {} };
+    f.adapter.objects.set('custom.commands.start', clone(custom));
+    f.adapter.objects.set('chargingLocations.loc_' + 'f'.repeat(24) + '.timer4.commands.apply', clone(custom));
+    const foreign = {};
+    Object.defineProperty(foreign, 'common', { get() { secretReads++; throw new Error('SYNTHETIC FOREIGN CONFIG'); } });
+    f.adapter.getAdapterObjectsAsync = async () => ({ ...Object.fromEntries([...f.adapter.objects]
+        .map(([id, object]) => ['vw-app.0.' + id, clone(object)])),
+    'system.adapter.vw-app.0': foreign, 'vw-app.1.commands.start': foreign, 'vw-app.00.commands.start': foreign });
+    Object.defineProperty(f.config, 'sPin', { get() { secretReads++; throw new Error('SYNTHETIC PIN PROVIDER'); } });
+    f.adapter.states.set('commands.start', { val: true, ack: false });
+    f.adapter.states.set('vehicleAccess.locked', { val: true, ack: true, q: 0 });
+    const states = clone([...f.adapter.states]), memory = clone(f.memory), writes = f.adapter.writes.length;
+    const storeWrites = clone(f.records.stores[0].writes);
+    await f.adapter.migrateObjectMetadata();
+    assert.deepEqual([...f.adapter.states], states);
+    assert.equal(f.adapter.writes.length, writes);
+    assert.deepEqual(f.memory, memory);
+    assert.deepEqual(f.records.stores[0].writes, storeWrites);
+    assert.equal(secretReads, 0);
+    assert.equal(f.records.phones.length, 0);
+    assert.equal(f.records.controllerCalls.length, 0);
+    assert.equal(f.adapter.objectPatches.length, 43);
+    assert.deepEqual(f.adapter.objects.get('custom.commands.start'), custom);
+    assert.deepEqual(f.adapter.objects.get('chargingLocations.loc_' + 'f'.repeat(24) + '.timer4.commands.apply'), custom);
+});
+
+test('a failed metadata patch is sanitized on startup and the next normal startup completes only remaining legacy repairs', async t => {
+    let failed = false;
+    const previous = legacyObjectMetadata();
+    const first = await fixture(t, { initialObjects: previous, objectExtend: async id => {
+        if (!failed && id === 'commands.start') { failed = true; throw new Error('SYNTHETIC PRIVATE DATABASE ERROR'); }
+    } });
+    assert.equal(failed, true);
+    assert.equal(first.records.phones.length, 0);
+    assert.equal(first.records.controllerCalls.length, 0);
+    assert.equal(JSON.stringify(first.adapter.logs).includes('SYNTHETIC PRIVATE'), false);
+    const second = await fixture(t, { initialObjects: Object.fromEntries(first.adapter.objects) });
+    assert.equal(first.adapter.objectPatches.length + second.adapter.objectPatches.length, 43);
+    for (const [id, object] of Object.entries(previous)) assert.deepEqual(second.adapter.objects.get(id), correctedLegacyMetadata(id, object), id);
+    assert.equal(second.records.phones.length, 0);
+    assert.equal(second.records.controllerCalls.length, 0);
 });

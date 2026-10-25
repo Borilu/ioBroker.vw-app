@@ -5,8 +5,24 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs/promises');
 const path = require('node:path');
 const os = require('node:os');
-const { validateLocationTargets, validatePreferredTargets, localKey, DEFAULT_TARGET_LOCATION } = require('../lib/departures-adapter');
+const { validateLocationTargets, validatePreferredTargets, localKey, DEFAULT_TARGET_LOCATION, isDepartureButton } = require('../lib/departures-adapter');
 const { StateStore } = require('../lib/store');
+
+test('metadata migration recognizes only actual departure controls, including historical charging-location keys', () => {
+    const key = 'loc_' + 'a'.repeat(24);
+    const valid = ['commands.refreshDepartureClimate', 'commands.refreshDepartureLocations',
+        ...['1', '2'].flatMap(id => ['apply', 'clear'].map(command => 'departures.climate.timer' + id + '.commands.' + command)),
+        'chargingLocations.' + key + '.commands.refresh',
+        ...['1', '2', '3'].flatMap(id => ['apply', 'clear'].map(command => 'chargingLocations.' + key + '.timer' + id + '.commands.' + command)),
+        ...['settings', 'preferredTimes'].flatMap(group => ['apply', 'clear'].map(command => 'chargingLocations.' + key + '.' + group + '.commands.' + command))];
+    for (const id of valid) assert.equal(isDepartureButton(id), true, id);
+    for (const id of ['commands.apply', 'departures.climate.timer3.commands.apply',
+        'chargingLocations.' + key + '.timer4.commands.apply', 'chargingLocations.' + key + '.preferredTimes.window1.commands.apply',
+        'chargingLocations.' + key + '.timer1.targetEnabled', 'chargingLocations.named.commands.refresh',
+        'vw-app.1.' + valid[0], valid[0] + '.extra', 'chargingLocations.' + key.toUpperCase() + '.commands.refresh']) {
+        assert.equal(isDepartureButton(id), false, id);
+    }
+});
 
 test('location wishes preserve null and exact Unicode names without permitting SOC writes or Boolean coercion', () => {
     assert.deepEqual(validateLocationTargets(), DEFAULT_TARGET_LOCATION);
