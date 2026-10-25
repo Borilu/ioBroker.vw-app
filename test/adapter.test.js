@@ -42,7 +42,7 @@ function xmlNode(id = '', attrs = {}, children = []) {
 function overview(description = VEHICLE + 'Gerade synchronisiert', activeClimate = false) {
     return '<hierarchy>' + xmlNode('', { 'content-desc': description })
         + xmlNode('climateTile', { bounds: '[10,100][110,160]' }, activeClimate
-            ? [xmlNode('', { 'content-desc': 'Vorklimatisierung. An. Details Ã¶ffnen' })] : []) + '</hierarchy>';
+            ? [xmlNode('', { 'content-desc': 'Vorklimatisierung. An. Details öffnen' })] : []) + '</hierarchy>';
 }
 
 function climate(state, mode = 'Klimatisierung', enabled = true) {
@@ -287,7 +287,7 @@ function vehicleReportModel() {
         nextServiceText: '123 Tage', nextServiceDays: 123, nextServiceKm: null,
         summary: 'Keine Meldungen', hasMessages: false, messageCount: 0,
         synchronizationText: 'Gerade synchronisiert', notice: 'Hinweise in der App beachten.',
-        additionalTexts: ['ZusÃ¤tzlicher sichtbarer Berichttext'],
+        additionalTexts: ['Zusätzlicher sichtbarer Berichttext'],
         categories: Object.fromEntries(Object.entries(REPORT_CATEGORIES)
             .map(([key, label]) => [key, { label, status: 'no_messages', texts: [] }])) };
 }
@@ -295,7 +295,7 @@ function vehicleAccessModel() {
     return { doors: { frontLeft: true, frontRight: false, rearLeft: true, rearRight: false },
         windows: { frontLeft: false, frontRight: true, rearLeft: false, rearRight: false },
         trunkOpen: true, locked: false, synchronizationText: 'Gerade synchronisiert',
-        warningText: 'Fahrzeug ist entriegelt. Etwas ist noch offen oder eingeschaltet:. Kofferraum. TÃ¼r hinten links. TÃ¼r vorne links. Fenster vorne rechts. ' };
+        warningText: 'Fahrzeug ist entriegelt. Etwas ist noch offen oder eingeschaltet:. Kofferraum. Tür hinten links. Tür vorne links. Fenster vorne rechts. ' };
 }
 function vehicleAccessResult(vehicleAccess = vehicleAccessModel()) {
     return { domain: 'vehicleAccess', source: 'volkswagen_android_app', vehicleConfirmed: false,
@@ -777,8 +777,8 @@ test('a stuck preference write cannot keep unload waiting beyond the bounded shu
 test('observed temperatures remain separate, numeric, qualified and constrained to the verified picker range', async t => {
     const f = await fixture(t);
     const common = f.adapter.objects.get('climate.targetTemperature').common;
-    assert.equal(common.name, 'GewÃ¼nschte Temperatur fÃ¼r nÃ¤chsten Start');
-    assert.equal(common.unit, 'Â°C');
+    assert.equal(common.name, 'Gewünschte Temperatur für nächsten Start');
+    assert.equal(common.unit, '°C');
     assert.equal(common.min, MIN_TEMPERATURE_CELSIUS);
     assert.equal(common.max, MAX_TEMPERATURE_CELSIUS);
     assert.equal(common.step, TEMPERATURE_STEP_CELSIUS);
@@ -1424,9 +1424,9 @@ test('vehicle report publication contains every normalized field, JSON list and 
         assert.equal(f.value('vehicleReport.' + category + '.status'), 'no_messages');
         assert.deepEqual(JSON.parse(f.value('vehicleReport.' + category + '.texts')), []);
     }
-    report.additionalTexts.push('SpÃ¤tere Ã„nderung');
-    report.categories.engine.texts.push('SpÃ¤tere Ã„nderung');
-    assert.deepEqual(JSON.parse(f.value('vehicleReport.additionalTexts')), ['ZusÃ¤tzlicher sichtbarer Berichttext']);
+    report.additionalTexts.push('Spätere Änderung');
+    report.categories.engine.texts.push('Spätere Änderung');
+    assert.deepEqual(JSON.parse(f.value('vehicleReport.additionalTexts')), ['Zusätzlicher sichtbarer Berichttext']);
     assert.deepEqual(JSON.parse(f.value('vehicleReport.engine.texts')), []);
     assert.equal(f.value('climate.vehicleConfirmed'), false);
     assert.equal(f.value('operation.lastResult'), 'succeeded');
@@ -1434,8 +1434,8 @@ test('vehicle report publication contains every normalized field, JSON list and 
 
 test('unknown vehicle report values preserve source text and use null with invalid quality rather than false or zero', async t => {
     const report = vehicleReportModel();
-    Object.assign(report, { odometerText: 'Nicht verfÃ¼gbar', odometerKm: null,
-        nextServiceText: 'Nicht verfÃ¼gbar', nextServiceDays: null, nextServiceKm: null,
+    Object.assign(report, { odometerText: 'Nicht verfügbar', odometerKm: null,
+        nextServiceText: 'Nicht verfügbar', nextServiceDays: null, nextServiceKm: null,
         summary: 'Keine Meldungen vorhanden', hasMessages: null, messageCount: null });
     for (const category of Object.keys(REPORT_CATEGORIES)) report.categories[category] = {
         label: REPORT_CATEGORIES[category], status: 'unknown', texts: ['Hinweistext aus der App'] };
@@ -2354,8 +2354,8 @@ for (const failurePoint of ['refreshMetadata', 'lateGroupTarget']) {
 
 test('vehicle access creates ten read-only nullable indicators, named channels and a separate read command', async t => {
     const f = await fixture(t);
-    assert.equal(f.adapter.objects.get('vehicleAccess').common.name, 'TÃ¼ren, Fenster und Verriegelung');
-    assert.equal(f.adapter.objects.get('vehicleAccess.doors').common.name, 'TÃ¼ren');
+    assert.equal(f.adapter.objects.get('vehicleAccess').common.name, 'Türen, Fenster und Verriegelung');
+    assert.equal(f.adapter.objects.get('vehicleAccess.doors').common.name, 'Türen');
     assert.equal(f.adapter.objects.get('vehicleAccess.windows').common.name, 'Fenster');
     assert.equal(ACCESS_BOOLEAN_IDS.length, 10);
     for (const id of ACCESS_BOOLEAN_IDS) {
