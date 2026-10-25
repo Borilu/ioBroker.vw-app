@@ -396,3 +396,239 @@ test('restart cannot overlap an unfinished previous generation and stale complet
     assert.equal(calls.length, 2);
     scheduler.stop();
 });
+
+test('domain configuration validates bounded unique identifiers atomically and copies caller arrays', () => {
+    const invalid = [null, {}, 'climate', [], Array(2), ['climate', 'climate'], [''], [' climate'], ['climate '],
+        ['__proto__'], ['constructor'], ['prototype'], ['a/b'], ['a\n'], ['a'.repeat(97)],
+        Array.from({ length: 17 }, (_, index) => 'area' + index), [1]];
+    for (const domains of invalid) {
+        assert.throws(() => fixture({ domains }), TypeError);
+    }
+    const configured = ['departureClimate', 'departureLocations', 'location:local_1'];
+    const { scheduler, clock } = fixture({ domains: configured });
+    configured.push('mutated');
+    scheduler.start();
+    const before = scheduler.snapshot();
+    const timer = clock.next();
+    for (const domains of invalid) {
+        assert.throws(() => scheduler.setDomains(domains), TypeError);
+        assert.deepEqual(scheduler.snapshot(), before);
+        assert.deepEqual(clock.next(), timer);
+    }
+    assert.deepEqual(Object.keys(before.domains), ['departureClimate', 'departureLocations', 'location:local_1']);
+    assert.throws(() => scheduler.request('climate'), TypeError);
+    const next = Array.from({ length: 16 }, (_, index) => 'area' + index);
+    scheduler.setDomains(next);
+    next[0] = 'mutated';
+    assert.equal(Object.keys(scheduler.snapshot().domains).length, 16);
+    assert.ok(Object.hasOwn(scheduler.snapshot().domains, 'area0'));
+    scheduler.stop();
+});
+
+test('custom domain snapshots are defensive serializable data without phantom default areas', async () => {
+    const { scheduler, clock, calls } = fixture({ domains: ['departureClimate'] });
+    const before = scheduler.snapshot();
+    assert.deepEqual(Object.keys(before.domains), ['departureClimate']);
+    assert.equal(before.estimatedCycleMs, 37500);
+    before.domains.departureClimate.failures = 9;
+    before.domains.extra = {};
+    assert.equal(scheduler.snapshot().domains.departureClimate.failures, 0);
+    assert.deepEqual(JSON.parse(JSON.stringify(scheduler.snapshot())), scheduler.snapshot());
+    scheduler.setDomains(['departureClimate', 'toString']);
+    assert.equal(scheduler.snapshot().domains.toString.lastDurationMs, null);
+    assert.equal(scheduler.snapshot().domains.toString.nextDueAt, 0);
+    scheduler.start();
+    await clock.advance(5000);
+    assert.deepEqual(calls.map(row => row.domain), ['departureClimate', 'toString']);
+    scheduler.stop();
+});
+
+test('adding and reordering domains preserves completed durations, error backoff and pending requests', async () => {
+    const { scheduler, clock, calls } = fixture();
+    scheduler._run = domain => {
+        calls.push({ domain, at: clock.time });
+        if (domain === 'climate') throw new Error('READ_FAILED');
+    };
+    scheduler.start();
+    await clock.advance(10000);
+    scheduler.request('climate', { priority: true });
+    scheduler.request('charging', { delayMs: 2000, priority: true });
+    const before = scheduler.snapshot();
+    assert.equal(before.domains.charging.nextDueAt, clock.time + 2000);
+    scheduler.setDomains(['vehicleReport', 'charging', 'departureClimate', 'climate']);
+    const added = scheduler.snapshot();
+    for (const domain of DOMAINS) assert.deepEqual(added.domains[domain], before.domains[domain]);
+    assert.equal(added.domains.departureClimate.nextDueAt, clock.time);
+    assert.equal(added.domains.departureClimate.lastDurationMs, null);
+    scheduler.request('climate', { priority: true });
+    assert.equal(scheduler.snapshot().domains.climate.nextDueAt, before.domains.climate.nextDueAt);
+    await clock.advance(15000);
+    assert.ok(calls.some(row => row.domain === 'departureClimate'));
+    assert.equal(calls.filter(row => row.domain === 'climate').length, 1);
+    assert.equal(calls.find(row => row.domain === 'charging' && row.at > 1005000).at, 1015000);
+    scheduler.stop();
+});
+
+test('domain removal discards pending priority and never invokes a removed scheduled area', async () => {
+    const { scheduler, clock, calls } = fixture();
+    scheduler.start();
+    await clock.advance(0);
+    scheduler.request('charging', { priority: true });
+    scheduler.setDomains(['climate', 'vehicleReport']);
+    assert.equal(Object.hasOwn(scheduler.snapshot().domains, 'charging'), false);
+    assert.throws(() => scheduler.request('charging'), TypeError);
+    await clock.advance(25000);
+    assert.equal(calls.some(row => row.domain === 'charging'), false);
+    scheduler.setDomains(['climate', 'charging', 'vehicleReport']);
+    const restored = scheduler.snapshot().domains.charging;
+    assert.deepEqual(restored, { lastDurationMs: null, estimatedDurationMs: 30000, nextDueAt: clock.time, failures: 0 });
+    scheduler.stop();
+});
+
+test('removing and readding a domain before its dispatch microtask skips the old read and keeps pumping', async () => {
+    const { scheduler, clock, calls } = fixture();
+    scheduler.start();
+    const [id, timer] = clock.next();
+    clock.timers.delete(id);
+    timer.callback();
+    scheduler.setDomains(['charging', 'vehicleReport']);
+    scheduler.setDomains(['climate', 'charging', 'vehicleReport']);
+    await flush();
+    assert.equal(calls.length, 0);
+    assert.equal(scheduler.snapshot().runningDomain, null);
+    assert.equal(scheduler.snapshot().domains.climate.lastDurationMs, null);
+    await clock.advance(0);
+    assert.equal(calls[0].domain, 'charging');
+    assert.equal(scheduler.snapshot().domains.climate.lastDurationMs, null);
+    scheduler.stop();
+});
+
+for (const failed of [false, true]) {
+    test('an inflight removed read safely finishes without updating a readded area: ' + (failed ? 'failure' : 'success'), async () => {
+        const pending = deferred();
+        let active = 0;
+        let maximumActive = 0;
+        const { scheduler, clock, calls } = fixture();
+        scheduler._run = async domain => {
+            calls.push({ domain, at: clock.time });
+            maximumActive = Math.max(maximumActive, ++active);
+            try { if (calls.length === 1) await pending.promise; }
+            finally { active--; }
+        };
+        scheduler.start();
+        await clock.advance(0);
+        scheduler.request('climate', { priority: true });
+        scheduler.setDomains(['charging', 'vehicleReport']);
+        assert.equal(scheduler.snapshot().runningDomain, 'climate');
+        assert.equal(Object.hasOwn(scheduler.snapshot().domains, 'climate'), false);
+        await clock.advance(40000);
+        assert.equal(calls.length, 1);
+        scheduler.setDomains(['climate', 'charging', 'vehicleReport']);
+        const replacement = scheduler.snapshot().domains.climate;
+        if (failed) pending.reject(new Error('REMOVED_READ_FAILED'));
+        else pending.resolve();
+        await flush();
+        assert.deepEqual(scheduler.snapshot().domains.climate, replacement);
+        assert.equal(scheduler.snapshot().runningDomain, null);
+        await clock.advance(9999);
+        assert.equal(calls.length, 1);
+        await clock.advance(1);
+        assert.equal(calls[1].domain, 'charging');
+        assert.equal(maximumActive, 1);
+        assert.equal(scheduler.snapshot().domains.climate.failures, 0);
+        scheduler.stop();
+    });
+}
+
+test('reordering surviving domains during an inflight read preserves its completion and the next fair turn', async () => {
+    const pending = deferred();
+    const { scheduler, clock, calls } = fixture();
+    scheduler._run = domain => { calls.push({ domain, at: clock.time }); return calls.length === 1 ? pending.promise : undefined; };
+    scheduler.start();
+    await clock.advance(0);
+    scheduler.setDomains(['vehicleReport', 'climate', 'charging', 'departureClimate']);
+    scheduler.setDomains(['vehicleReport', 'climate', 'charging', 'departureClimate']);
+    await clock.advance(7000);
+    pending.resolve();
+    await flush();
+    assert.equal(scheduler.snapshot().domains.climate.lastDurationMs, 7000);
+    await clock.advance(5000);
+    assert.equal(calls[1].domain, 'charging');
+    scheduler.stop();
+});
+
+test('manual reservation and domain changes between dispatch and execution retain the surviving fair turn', async () => {
+    let available = true;
+    const { scheduler, clock, calls } = fixture({ canRun: () => available });
+    scheduler.start();
+    const [id, timer] = clock.next();
+    clock.timers.delete(id);
+    timer.callback();
+    scheduler.setDomains(['departureClimate', 'charging', 'climate', 'vehicleReport']);
+    available = false;
+    await flush();
+    assert.equal(calls.length, 0);
+    assert.equal(scheduler.snapshot().domains.climate.failures, 0);
+    assert.equal(scheduler.snapshot().domains.climate.nextDueAt, clock.time);
+    available = true;
+    scheduler.notifyAvailable();
+    await clock.advance(0);
+    assert.equal(calls[0].domain, 'climate');
+    scheduler.stop();
+});
+
+test('five discovered locations share fair turns with existing areas despite repeated priority requests', async () => {
+    const domains = [...DOMAINS, 'departureClimate', 'departureLocations',
+        ...Array.from({ length: 5 }, (_, index) => 'location:local_' + index)];
+    const { scheduler, clock, calls } = fixture({ domains });
+    scheduler.start();
+    await clock.advance(0);
+    for (let step = 0; step < 40; step++) {
+        scheduler.request('climate', { priority: true });
+        await clock.advance(5000);
+    }
+    for (const domain of domains) assert.ok(calls.filter(row => row.domain === domain).length >= 2, domain);
+    assert.equal(clock.timers.size, 1);
+    scheduler.stop();
+});
+
+test('repeated discovery reorders during reads cannot starve the rest of the existing rotation', async () => {
+    const { scheduler, clock, calls } = fixture({ domains: ['a', 'b', 'c'] });
+    scheduler._run = async domain => {
+        calls.push({ domain, at: clock.time });
+        scheduler.setDomains(domain === 'a' ? ['b', 'a', 'c'] : ['a', 'b', 'c']);
+    };
+    scheduler.start();
+    await clock.advance(45000);
+    assert.deepEqual(calls.map(row => row.domain), ['a', 'b', 'c', 'a', 'b', 'c', 'a', 'b', 'c', 'a']);
+    scheduler.stop();
+});
+
+test('dynamic domains retain stop guards for captured timers and active read completion', async () => {
+    const pending = deferred();
+    const { scheduler, clock, calls, updates } = fixture({ domains: ['departureClimate'] });
+    scheduler._run = domain => { calls.push({ domain, at: clock.time }); return pending.promise; };
+    scheduler.start();
+    await clock.advance(0);
+    scheduler.setDomains(['departureClimate', 'location:local_1']);
+    scheduler.stop();
+    scheduler.setDomains(['location:local_2']);
+    const stopped = scheduler.snapshot();
+    const count = updates.length;
+    pending.resolve();
+    await flush();
+    await clock.advance(60000);
+    assert.deepEqual(scheduler.snapshot().domains, stopped.domains);
+    assert.equal(updates.length, count);
+    assert.equal(calls.length, 1);
+    assert.equal(clock.timers.size, 0);
+    assert.equal(scheduler.request('location:local_2'), false);
+    scheduler.start();
+    const callback = clock.next()[1].callback;
+    scheduler.setDomains(['location:local_3']);
+    scheduler.stop();
+    callback();
+    await flush();
+    assert.equal(calls.length, 1);
+    assert.equal(clock.timers.size, 0);
+});
