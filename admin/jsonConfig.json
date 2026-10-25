@@ -220,7 +220,45 @@
       "label": "Klimastart, Stopp und Änderungen der Fahrzeugeinstellungen erlauben",
       "default": false,
       "disabled": "!data.approvedAppVersion || !data.vehicleMarker",
-      "help": "Erst nach erfolgreicher Einrichtung aktivieren und speichern. Gilt auch für Ladeeinstellungen. Ohne Freigabe können App-Werte gelesen und Wünsche gespeichert werden; tatsächliche Änderungen bleiben gesperrt.",
+      "help": "Erst nach erfolgreicher Einrichtung aktivieren und speichern. Gilt auch für Ladeeinstellungen. Ohne Freigabe können App-Werte gelesen und Wünsche gespeichert werden; tatsächliche Änderungen bleiben gesperrt. Verriegeln und Entriegeln besitzen eine eigene Freigabe.",
+      "sm": 12
+    },
+    "_lockingHeader": {
+      "type": "header",
+      "text": "Fahrzeug verriegeln und entriegeln",
+      "size": 3,
+      "sm": 12
+    },
+    "sPin": {
+      "type": "password",
+      "label": "Volkswagen S-PIN",
+      "default": "",
+      "visible": false,
+      "maxLength": 4,
+      "validator": "data.sPin === undefined || data.sPin === '' || typeof data.sPin === 'string' && data.sPin.length === 4 && /^[0-9]{4}$/.test(data.sPin)",
+      "validatorNoSaveOnError": true,
+      "validatorErrorText": "Vier Ziffern ohne Leerzeichen eingeben oder das Feld leer lassen.",
+      "help": "Die persönliche S-PIN deines Volkswagen-Kontos ausschließlich hier eintragen, nicht im Chat oder in Datenpunkten. ioBroker speichert sie verschlüsselt und schützt das Konfigurationsfeld vor gewöhnlichen fremden Adaptern. Die S-PIN wird nur für ausdrücklich ausgelöste Ver- und Entriegelungsaufträge verwendet. Leer lassen, wenn du diese Funktion nicht nutzen möchtest.",
+      "sm": 12
+    },
+    "allowVehicleLocking": {
+      "type": "checkbox",
+      "label": "Fahrzeug verriegeln und entriegeln erlauben",
+      "default": false,
+      "disabled": "!data.approvedAppVersion || !data.vehicleMarker",
+      "help": "Gesonderte Freigabe für ausdrücklich ausgelöste Ver- und Entriegelungsbefehle mit hinterlegter S-PIN. Unabhängig von der Freigabe für Klima- und Einstellungsänderungen. Regelmäßiges Auslesen verriegelt oder entriegelt das Fahrzeug nicht.",
+      "sm": 12
+    },
+    "_resetSecurityBlock": {
+      "type": "sendTo",
+      "label": "Nach korrigierter S-PIN die Sicherheitssperre zurücksetzen",
+      "command": "resetSecurityBlock",
+      "data": {},
+      "showProcess": true,
+      "timeout": 150000,
+      "variant": "outlined",
+      "help": "Nur nach Prüfung der Volkswagen-App und Korrektur der S-PIN verwenden. Die S-PIN zuerst oben korrigieren und die Einstellungen speichern; danach diese Sperre ausdrücklich zurücksetzen. Die Schaltfläche sendet keinen Fahrzeugbefehl und ändert keine Sperrzeiten bei Volkswagen.",
+      "result": { "security_block_reset": "Lokale Sicherheitssperre zurückgesetzt. Es wurde kein Fahrzeugbefehl gesendet." },
       "sm": 12
     },
     "stayAwakeOnCharge": {

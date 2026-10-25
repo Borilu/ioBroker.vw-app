@@ -4,7 +4,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { Screen } = require('../lib/ui');
 const { ACCESS_POSITIONS, ACCESS_COMPONENTS, validateVehicleAccess } = require('../lib/vehicle-access');
-const { vehicleAccessScreen, COMPONENTS, node } = require('./support/access-fixtures.cjs');
+const { vehicleAccessScreen, partiallyScrolledAccessScreen, COMPONENTS, node } = require('./support/access-fixtures.cjs');
 
 const rejects = code => error => error.code === code;
 function read(options) { return new Screen(vehicleAccessScreen(options)).vehicleAccess(); }
@@ -152,6 +152,38 @@ test('clipped, disabled or offscreen overview tiles are rejected instead of prod
 test('a full-size tile outside its clipping ancestor is not accepted', () => {
     const xml = edit(vehicleAccessScreen(), 'class="android.widget.ScrollView"', { bounds: '[0,600][1000,1440]' });
     assert.throws(() => new Screen(xml).vehicleAccess(), rejects('unknown_state'));
+});
+
+test('a partly scrolled car graphic needs native normalization even while both tiles remain below the sticky header', () => {
+    for (const options of [{}, { locked: false, open: ['Kofferraum'] }]) {
+        const partial = new Screen(partiallyScrolledAccessScreen(options));
+        assert.equal(partial.overviewNeedsTop(), true);
+        assert.throws(() => partial.vehicleAccess(), rejects('unknown_state'));
+        assert.deepEqual(partial.overviewNativeScrollContext(), { header: 'Ihr Fahrzeug: Testwagen. Gerade synchronisiert',
+            target: { class: 'android.widget.ScrollView', bounds: [0, 40, 1000, 1440] } });
+    }
+    assert.equal(new Screen(vehicleAccessScreen()).overviewNeedsTop(), false);
+});
+
+test('a signed off-window graphic is normalization evidence but cannot produce a closed access snapshot or tap target', () => {
+    const xml = edit(partiallyScrolledAccessScreen(), 'class="androidx.compose.ui.viewinterop.ViewFactoryHolder"', {
+        bounds: '[0,-150][1000,350]', 'visible-to-user': 'false',
+    });
+    const partial = new Screen(xml);
+    assert.equal(partial.overviewNeedsTop(), true);
+    assert.throws(() => partial.vehicleAccess(), rejects('unknown_state'));
+    assert.deepEqual(partial.overviewNativeScrollContext().target.bounds, [0, 40, 1000, 1440]);
+});
+
+test('native Home scroll context refuses non-scrollable, hidden, disabled or ambiguous Home scopes', () => {
+    const xml = partiallyScrolledAccessScreen();
+    for (const changes of [{ scrollable: 'false' }, { enabled: 'false' }, { 'visible-to-user': 'false' }]) {
+        assert.throws(() => new Screen(edit(xml, 'class="android.widget.ScrollView"', changes)).overviewNativeScrollContext());
+    }
+    const duplicate = xml.replace('</node></node></hierarchy>', node('', {
+        'content-desc': 'Ihr Fahrzeug: Zweites Fahrzeug. Gerade synchronisiert', bounds: '[100,80][900,140]',
+    }) + '</node></node></hierarchy>');
+    assert.throws(() => new Screen(duplicate).overviewNativeScrollContext());
 });
 
 test('missing, duplicated, hidden or malformed header prevents a closed inference', () => {

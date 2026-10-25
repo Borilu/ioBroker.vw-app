@@ -36,4 +36,16 @@ function vehicleAccessScreen({ locked = true, open = [], warning,
     ])]);
 }
 
-module.exports = { vehicleAccessScreen, COMPONENTS, node, hierarchy };
+function partiallyScrolledAccessScreen(options = {}) {
+    // Both tiles remain below the sticky header, while the graphic and blank
+    // warning slot are clipped. This is not evidence that openings are closed.
+    return vehicleAccessScreen(options)
+        .replaceAll('[0,100][1000,500]', '[0,0][1000,350]')
+        .replaceAll('[0,500][1000,580]', '[0,0][1000,430]')
+        .replaceAll('[50,515][450,850]', '[50,365][450,700]')
+        .replaceAll('[550,515][950,850]', '[550,365][950,700]')
+        .replaceAll('[50,900][950,1050]', '[50,750][950,900]')
+        .replaceAll('[700,940][900,1000]', '[700,790][900,850]');
+}
+
+module.exports = { vehicleAccessScreen, partiallyScrolledAccessScreen, COMPONENTS, node, hierarchy };

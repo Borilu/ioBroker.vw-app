@@ -4,11 +4,11 @@ Control the **official Volkswagen Android app over Wi-Fi** from ioBroker.
 
 **Experimental community adapter.** The source has been tested with synthetic Android views. The initial real-device reference is a Galaxy A31 with Android 12, Volkswagen app 4.8.1 and an ID.7 GTX Tourer. This does not establish compatibility with every Volkswagen model, region or future app version. Only the selected vehicle in one phone app is controlled by an instance.
 
-Der Adapter bedient die offizielle Volkswagen-App auf einem Android-Handy. Kopplung, Einrichtung, Klimabefehle, Ladeeinstellungen, Abfahrtszeiten und vorhandene Ladeorte werden direkt im ioBroker-Adapter verwaltet. Die App-Werte liest er wahlweise automatisch oder auf Anforderung aus. Die Volkswagen-Anmeldung bleibt auf dem Handy.
+Der Adapter bedient die offizielle Volkswagen-App auf einem Android-Handy. Kopplung, Einrichtung, Klimabefehle, Ladeeinstellungen, Abfahrtszeiten, vorhandene Ladeorte sowie Ver- und Entriegelungsbefehle werden direkt im ioBroker-Adapter verwaltet. Die App-Werte liest er wahlweise automatisch oder auf Anforderung aus. Die Volkswagen-Anmeldung bleibt auf dem Handy; die optionale S-PIN wird in den Adaptereinstellungen hinterlegt.
 
 ## What runs where
 
-- One ioBroker adapter handles configuration, pairing, device verification, climate controls and charging settings.
+- One ioBroker adapter handles configuration, pairing, device verification, climate controls, charging settings and explicit vehicle lock/unlock commands.
 - No Python bridge, separate HTTP server, systemd service or JavaScript-adapter script is needed.
 - The adapter manages a private native ADB child process. It starts and stops that process with the adapter instance. ADB remains a technical runtime requirement, not an additional service users must configure.
 - Departure controls use the included small Android UI helper through that same ADB connection. No separate VM daemon, phone APK installation, Python process or JDK is required to run it.
@@ -51,6 +51,7 @@ Detailed German instructions: [Einrichtung im Admin](docs/ADMIN-SETUP.md).
 5. Run **Check connection and app version**. The phone identity is stored privately by the adapter.
 6. Open the vehicle overview in the Volkswagen app, then run **Adopt app and vehicle**. Review the detected app version and complete fixed vehicle label; save.
 7. Read the climate and charging status and compare them with the app. Enable **Klimastart, Stopp und Änderungen der Fahrzeugeinstellungen erlauben** when ready to change app settings.
+8. For optional locking and unlocking, first check both functions manually in the Volkswagen app. Enter the four-digit **Volkswagen S-PIN** only in its masked Admin field, save, and separately enable **Fahrzeug verriegeln und entriegeln erlauben**. Read the [locking behavior and security notes](#lock-and-unlock-the-vehicle) before issuing a command.
 
 Pairing code and pairing port are temporary setup inputs and are not saved in the native instance configuration. The adapter never logs the code or puts it in a state. Clear the input or close the configuration page after pairing.
 
@@ -69,6 +70,10 @@ All IDs are relative to `vw-app.0` (replace `0` with the instance number).
 | `commands.clearTemperature` | Write `true`, `ack=false` to select “keep the app temperature”, without operating the phone |
 | `commands.applySettings` | Apply the four saved mode, unlock, automatic window-heating and zone preferences; does not apply temperature or press Start/Stop |
 | `commands.clearSettings` | Clear only those four preferences to `null`, without operating the phone |
+| `commands.lockVehicle` | Write `true`, `ack=false` for one explicit vehicle-locking command; separate permission and S-PIN required |
+| `commands.unlockVehicle` | Write `true`, `ack=false` for one explicit vehicle-unlocking command; separate permission and S-PIN required |
+| `security.blocked` | Read-only local block on further authentication attempts; separate from the vehicle lock state |
+| `security.reason` | Read-only fixed reason for that local block, or an empty string when clear |
 | `climate.appState` | `on`, `off` or `unknown` as observed in the VW app |
 | `climate.targetTemperature` | Writable saved target in °C; `null` keeps the existing app temperature. Acknowledgment means saved, not applied |
 | `climate.targetTemperatureError` | Fixed feedback about an invalid or unsaved target selection; separate from the current phone job |
@@ -286,6 +291,30 @@ The app lists open components and can omit the entire warning when everything is
 
 The reference-device discovery recorded all openings open and the vehicle unlocked, then individually closed the driver door, driver window and trunk. Each exact label disappeared independently. It also recorded all openings closed with both lock states. Real app recordings remain private; public tests use synthetic views.
 
+## Lock and unlock the vehicle
+
+Version 0.9.0 adds the explicit buttons **`commands.lockVehicle`** and **`commands.unlockVehicle`**. Write `true` with `ack=false` to the chosen button. It resets automatically and submits at most one switching attempt for that accepted command. An already satisfied command only reads and reports the app state; it does not enter a PIN or clear a previous authentication block. There is no writable `targetLocked` preference, no automatic reconciliation and no locking or unlocking during startup, ordinary reads or polling.
+
+Locking and unlocking use the independent **Fahrzeug verriegeln und entriegeln erlauben** setting (`allowVehicleLocking`, default `false`). The existing climate/vehicle-settings permission does not enable these commands. Both actual switching directions require a saved S-PIN consisting of exactly four digits; leading zeroes are preserved. A missing or invalid PIN does not disable climate functions or read-only updates. The adapter also requires the calibrated phone, selected vehicle, approved app version and an unambiguous supported control layout. Unexpected views or an unsupported layout stop the command.
+
+Enter the real S-PIN only in the masked **Volkswagen S-PIN** field in normal ioBroker Admin, then save. Never send it in chat, a GitHub issue, a state, a script, a diagnostic log or a screenshot. There is no PIN data point. The adapter passes the PIN only to the dedicated authentication input; it excludes it from ordinary controller configuration, command options, results, the command journal and adapter log messages. In the inspected app, entering the **fourth digit submits immediately**. The adapter does not enter a second PIN or press another confirmation button after that submission.
+
+The native `sPin` field is declared in both top-level `encryptedNative` and `protectedNative`. With the supported ioBroker installation and Admin save flow, it is encrypted in the stored instance configuration and automatically decrypted for the owning adapter at startup. Normal ioBroker upgrades also copy these declarations to existing local instances; after updating, reload Admin settings before entering a PIN. A password mask alone is not encryption. `protectedNative` restricts ordinary foreign adapters; privileged components such as Admin, cloud and iot, and administrators with host/configuration access, remain trusted. Protect configuration backups and the ioBroker system secret accordingly.
+
+There is also an upstream Admin limitation: some JSON-config versions log the decrypted native configuration to the **browser console** after Save, including [version 10.1.2](https://github.com/ioBroker/json-config/blob/v10.1.2/src/JsonConfig.tsx#L664-L682) from the Admin 8 generation. This is outside the adapter logger and means the masked field is not a guarantee of secrecy throughout the Admin environment. Do not collect or share browser-console output or configuration exports containing credentials. The adapter does not add such logging, but cannot suppress it in an independently installed Admin version.
+
+Before a potentially dispatching gesture, the adapter persists its command cooldown and a separate authentication block. An uncertain result leaves further attempts blocked, including after an adapter restart. The current transport does not classify individual wrong-PIN or Volkswagen-lockout messages: an unrecognized authentication view is treated conservatively as an unknown outcome, without guessing a diagnosis or entering the PIN again. `security.blocked=true` describes this **local authentication block**, not whether the car is locked. `security.reason` reports a fixed reason such as `attempt_pending` or `outcome_unknown`; an unreadable or invalid stored block instead reports a fixed `security_auth_…` diagnostic and blocks switching conservatively. Reading and other existing functions remain available. A positively observed result of an actual switching attempt clears the local block; an already satisfied read does not.
+
+After a failure, check the Volkswagen app and the correct S-PIN before trying again. Save any PIN correction in Admin, then use **Nach korrigierter S-PIN die Sicherheitssperre zurücksetzen** in the adapter settings. Only an Admin sender can perform this reset, it is serialized with phone jobs, and it sends no phone or vehicle command. Resetting the adapter block does not cancel a Volkswagen lockout or shorten the app's waiting period. A restart, polling cycle or an automation writing a state cannot clear the block. Do not automate resets or repeated authentication attempts.
+
+After an accepted command, a prioritized **read-only** `vehicleAccess` follow-up is requested. It never repeats the lock/unlock action. Existing regular `vehicleAccess` reads keep doors, windows, trunk and `vehicleAccess.locked` updated with the same age, error and invalid-quality handling; no extra polling domain or secret access is needed. The result confirms only the lock state displayed by the selected app overview. It is not independent vehicle telemetry or proof of physical locking; `vehicleConfirmed` remains `false`. Check the vehicle during initial function testing and inspect the app after any uncertain result.
+
+Reference testing on 25 October 2026 covered both control directions and their empty, operation-specific authentication screens on a Galaxy A31 with Android 12 and Volkswagen app 4.8.1. The corrected adapter completed one unlock and one lock command, each with a valid matching app observation, no error and a cleared local authentication block. The user independently confirmed both actions at the vehicle. The keyboard was verified hidden after each action. These checks cover the reference setup; other layouts still require validation.
+
+After an accepted PIN submission, the adapter can hide a still-visible keyboard once, after checking the Volkswagen foreground view and keyboard visibility. An already hidden keyboard needs no Back action. Feedback handling waits through temporary screen transitions within the configured confirmation timeout; it never repeats PIN entry or the vehicle command. Unconfirmed results retain the authentication block.
+
+A partly scrolled Home screen is restored through the app's native scroll action, without a touch-drag fallback that could pull to refresh. Opening states are published only from the complete, recognized car graphic and warning/status area. The known Vehicle details sheet can be closed through its header return; authentication forms remain protected.
+
 ## Departure times and charging locations
 
 All state IDs below are relative to `vw-app.0`. Version 0.7.0 reads the app's **two climate departure timers** and **up to five charging locations already created in the vehicle**, each with three departure timers. It does not create or delete charging locations.
@@ -364,7 +393,7 @@ npm run check
 npm pack
 ```
 
-Tests simulate phone views, ADB processes and adapter lifecycle behavior. Native process startup, real Wi-Fi connectivity and real app behavior additionally need a Linux/device smoke test. Report the phone model, Android version, app version and fixed error code in an issue; do not upload pairing codes, keys, enrollment files, full private UI dumps or VINs.
+Tests simulate phone views, ADB processes and adapter lifecycle behavior. Native process startup, real Wi-Fi connectivity and real app behavior additionally need a Linux/device smoke test. Report the phone model, Android version, app version and fixed error code in an issue; do not upload S-PINs, pairing codes, keys, enrollment files, full private UI dumps or VINs. Do not record authentication screens or export native configuration/browser-console output while credentials are present.
 
 The release includes the adapter's own Android helper and source hashes under `lib/android`; users do not need a Java toolchain. Rebuilding that helper is a developer task requiring Python 3.9+, JDK 17 and the pinned Google R8/D8 artifact identified in `lib/android/manifest.json`:
 
@@ -381,6 +410,13 @@ Adapter source: [MIT](LICENSE). Third-party components retain their licenses; se
 Independent community project, not provided or endorsed by Volkswagen, Google or ioBroker. Volkswagen and Android are trademarks of their respective owners.
 
 ### Changelog
+
+#### 0.9.0
+
+- Add explicit lock/unlock buttons with a separate opt-in permission and a masked S-PIN setting using ioBroker's encrypted/protected native configuration.
+- Limit authentication to one attempt per accepted command; persist a conservative block across restarts after rejection or an uncertain result, with an explicit Admin-only reset.
+- Keep locking observations in the existing regularly refreshed `vehicleAccess` area, with read-only follow-ups and no automatic command replay or target reconciliation.
+- Keep the PIN out of adapter states, results, journals and logs; document the trusted-host boundary and upstream Admin browser-console limitation.
 
 #### 0.8.0
 

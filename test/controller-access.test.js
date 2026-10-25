@@ -4,7 +4,8 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { Controller } = require('../lib/controller');
 const { BridgeError } = require('../lib/errors');
-const { vehicleAccessScreen } = require('./support/access-fixtures.cjs');
+const { vehicleAccessScreen, partiallyScrolledAccessScreen } = require('./support/access-fixtures.cjs');
+const { lockSheet } = require('./support/lock-fixtures.cjs');
 const { node, hierarchy, overviewChargingScreen, rangeScreen, chargingSettingsScreen, POINTS } = require('./support/charging-fixtures.cjs');
 const { completeDemoClimate } = require('./support/settings-fixtures.cjs');
 const MARKER = 'Ihr Fahrzeug: Testwagen. ';
@@ -25,20 +26,35 @@ class AccessApp {
         this.calls.push(['read', this.page]);
         if (this.beforeDump) await this.beforeDump();
         if (this.page === 'overview') {
-            const view = this.lower ? overviewChargingScreen({ lower: true }) : vehicleAccessScreen(this.view);
+            const view = this.lower ? overviewChargingScreen({ lower: true })
+                : this.partial ? partiallyScrolledAccessScreen(this.view) : vehicleAccessScreen(this.view);
             return this.wrongVehicle ? view.replace('Ihr Fahrzeug: Testwagen.', 'Ihr Fahrzeug: Anderes Auto.') : view;
         }
         if (this.page === 'climate') return completeDemoClimate();
         if (this.page === 'range') return rangeScreen();
         if (this.page === 'vehicleSettings') return chargingSettingsScreen({ dirty: true });
+        if (this.page === 'vehicleSheet') return lockSheet({ locked: this.view.locked });
         if (this.page === 'blocked') return hierarchy([node('alert_dialog')]);
         return hierarchy([node('unrecognized_page')]);
     }
     async swipe(gesture) {
         this.calls.push(['swipe', this.page, { ...gesture }]);
-        assert.equal(this.page, 'overview');
-        assert.ok(gesture.y2 > gesture.y1, 'Only normalize the Home content; never pull to refresh');
-        this.lower = false;
+        throw new Error('Physical Home normalization could pull-to-refresh');
+    }
+    async departureView() {
+        if (this.beforeNativeRead) this.beforeNativeRead();
+        this.snapshot = Object.freeze({ syntheticHome: true });
+        this.calls.push(['homeNativeRead']);
+        return { xml: await this.dump(), observation: this.snapshot };
+    }
+    async departureAction(request) {
+        this.calls.push(['homeNativeAction', request.action]);
+        assert.equal(request.snapshot, this.snapshot); assert.equal(request.action, 'scrollBackward');
+        assert.equal(request.header, 'Ihr Fahrzeug: Testwagen. Gerade synchronisiert');
+        assert.equal(request.target.class, 'android.widget.ScrollView');
+        if (!this.stuckNormalization) { this.lower = false; this.partial = false; }
+        return this.normalizationResult || { beforeMatched: true, actionAttempted: true, actionAccepted: true,
+            success: true, errorCode: null, postRead: { xml: await this.dump() } };
     }
     async back() {
         this.calls.push(['back', this.page]);
@@ -47,6 +63,10 @@ class AccessApp {
     }
     async tap(x, y) {
         this.calls.push(['tap', this.page, x, y]);
+        if (this.page === 'vehicleSheet') {
+            assert.deepEqual({ x, y }, { x: 70, y: 675 });
+            this.page = 'overview'; return;
+        }
         assert.equal(this.page, 'range', 'No vehicle or settings control may be touched');
         assert.deepEqual({ x, y }, POINTS.back);
         this.page = 'overview';
@@ -76,7 +96,9 @@ async function rejects(operation, code) {
 }
 function noVehicleActions(phone, store) {
     assert.equal(store.reservations, 0); assert.equal(store.writes, 0); assert.equal(store.reads, 0);
-    assert.equal(phone.calls.filter(call => call[0] === 'tap' && call[1] !== 'range').length, 0);
+    for (const call of phone.calls.filter(call => call[0] === 'tap' && call[1] !== 'range')) {
+        assert.deepEqual(call, ['tap', 'vehicleSheet', 70, 675]);
+    }
 }
 
 test('read-only access status returns separate open components and an unlocked state from one Home read', async () => {
@@ -129,8 +151,49 @@ test('a retained lower Home position is normalized before interpreting absent op
     const result = await controller.execute('refreshVehicleAccess');
     assert.equal(result.vehicleAccess.windows.rearRight, true);
     assert.equal(result.vehicleAccess.windows.frontLeft, false);
-    assert.equal(phone.calls.filter(call => call[0] === 'swipe').length, 1);
+    assert.equal(phone.calls.filter(call => call[0] === 'homeNativeAction').length, 1);
+    assert.equal(phone.calls.filter(call => call[0] === 'swipe').length, 0);
     noVehicleActions(phone, store);
+});
+
+test('a small retained offset with visible tiles uses only native scrolling before interpreting the car warning', async () => {
+    const { controller, phone, store } = setup({ partial: true, view: { locked: false, open: ['Tür vorne links'] } });
+    const result = await controller.execute('refreshVehicleAccess');
+    assert.equal(result.vehicleAccess.doors.frontLeft, true); assert.equal(result.vehicleAccess.windows.frontLeft, false);
+    assert.equal(result.vehicleAccess.locked, false); assert.equal(result.vehicleAccess.synchronizationText, 'Gerade synchronisiert');
+    assert.deepEqual(phone.calls.filter(call => call[0] === 'homeNativeAction'), [['homeNativeAction', 'scrollBackward']]);
+    assert.equal(phone.calls.filter(call => ['swipe', 'tap', 'back'].includes(call[0])).length, 0); noVehicleActions(phone, store);
+});
+
+test('unavailable, failed or stuck native Home normalization has no touch or synchronization fallback', async () => {
+    for (const mode of ['missing', 'unconfirmed', 'stuck']) {
+        const { controller, phone, store } = setup({ partial: true });
+        if (mode === 'missing') phone.departureAction = undefined;
+        if (mode === 'unconfirmed') phone.normalizationResult = { beforeMatched: true, actionAttempted: true,
+            actionAccepted: true, success: false, errorCode: null, postRead: null };
+        if (mode === 'stuck') phone.stuckNormalization = true;
+        await rejects(controller.execute('refreshVehicleAccess'), 'charging_navigation_unavailable');
+        assert.equal(phone.calls.filter(call => ['swipe', 'tap', 'back'].includes(call[0])).length, 0);
+        assert.equal(phone.calls.filter(call => call[0] === 'homeNativeAction').length, mode === 'stuck' ? 3 : mode === 'unconfirmed' ? 1 : 0);
+        noVehicleActions(phone, store);
+    }
+});
+
+test('native normalization rechecks the vehicle in its own fresh snapshot before any scroll action', async () => {
+    const { controller, phone, store } = setup({ partial: true });
+    phone.beforeNativeRead = () => { phone.wrongVehicle = true; };
+    await rejects(controller.execute('refreshVehicleAccess'), 'wrong_vehicle');
+    assert.equal(phone.calls.filter(call => call[0] === 'homeNativeAction').length, 0); noVehicleActions(phone, store);
+});
+
+test('the known read-only Vehicle sheet returns through its own header without operating its lock pill', async () => {
+    for (const locked of [true, false]) {
+        const { controller, phone, store } = setup({ page: 'vehicleSheet', view: { locked, open: [] } });
+        const result = await controller.execute('refreshVehicleAccess');
+        assert.equal(result.vehicleAccess.locked, locked); assert.equal(phone.page, 'overview');
+        assert.deepEqual(phone.calls.filter(call => call[0] === 'tap'), [['tap', 'vehicleSheet', 70, 675]]);
+        assert.equal(phone.calls.filter(call => ['swipe', 'back'].includes(call[0])).length, 0); noVehicleActions(phone, store);
+    }
 });
 
 test('a manual vehicle-settings draft is neither saved nor discarded', async () => {

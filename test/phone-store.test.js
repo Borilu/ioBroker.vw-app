@@ -42,7 +42,7 @@ class FakeRuntime {
         if (command.join(' ') === 'shell dumpsys package ' + PACKAGE) return 'versionName=4.8.1\n';
         if (command.join(' ') === 'shell dumpsys window') return FOCUS;
         if (command.includes('resolve-activity')) return 'priority=0\n' + PACKAGE + '/.MainActivity\n';
-        if (command[1] === 'cat') return '<hierarchy/>\n';
+        if (command.join(' ') === 'exec-out uiautomator dump /proc/self/fd/1') return 'Warning\n<hierarchy/>\nUI hierarchy dumped to: /proc/self/fd/1\n';
         return '';
     }
 }
@@ -51,6 +51,8 @@ function makePhone({ deviceId = SERIAL, handler, onVerified = async () => {} } =
     const runtime = new FakeRuntime(handler);
     const abort = new AbortController();
     const phone = new Phone({ runtime, endpoint: ENDPOINT, deviceId, onVerified, signal: abort.signal });
+    // Native-view parser tests isolate the separately tested minimal protocol.
+    phone.securityStatus = async () => ({ kind: 'other', errorCode: null });
     return { phone, runtime, abort };
 }
 
@@ -310,54 +312,198 @@ test('native view ambiguity and missing lifecycle metadata fail with fixed diagn
     }
 });
 
-test('UI dump checks focus around the dump and cleans only its own generated path', async () => {
+test('UI dump checks focus around a stdout-only read and never creates, cats or removes a UI file', async () => {
     const { phone, runtime } = makePhone();
     assert.equal(await phone.dump(), '<hierarchy/>\n');
     const commands = deviceCommands(runtime);
     assert.deepEqual(commands[0], ['shell', 'dumpsys', 'window']);
-    assert.match(commands[1][3], /^\/data\/local\/tmp\/vw-app-[0-9a-f]{32}\.xml$/);
-    const temporary = commands[1][3];
-    assert.deepEqual(commands[1].slice(0, 3), ['shell', 'uiautomator', 'dump']);
-    assert.deepEqual(commands[2], ['shell', 'cat', temporary]);
-    assert.deepEqual(commands[3], ['shell', 'rm', '-f', temporary]);
-    assert.deepEqual(runtime.calls[3].options, { timeoutMs: 1500, maxOutputBytes: 4096 });
-    assert.deepEqual(commands[4], ['shell', 'dumpsys', 'window']);
+    assert.deepEqual(commands[1], ['exec-out', 'uiautomator', 'dump', '/proc/self/fd/1']);
+    assert.deepEqual(commands[2], ['shell', 'dumpsys', 'window']);
+    assert.equal(commands.length, 3);
 });
 
-test('dump failures still attempt cleanup and cleanup failure preserves the original controlled failure', async () => {
-    for (const failedCommand of ['uiautomator', 'cat']) {
-        const { phone, runtime } = makePhone({ handler: args => {
-            if (args[3] === failedCommand) throw new BridgeError('phone_timeout', 'Controlled timeout');
-            if (args[3] === 'rm') throw new BridgeError('phone_unavailable', 'Cleanup failed');
-        } });
-        await rejectsCode('phone_timeout', phone.dump());
-        const commands = deviceCommands(runtime);
-        const dumped = commands.find(args => args[1] === 'uiautomator');
-        assert.ok(dumped);
-        assert.deepEqual(commands.at(-1), ['shell', 'rm', '-f', dumped[3]]);
-    }
+test('dump failures preserve fixed runtime errors without any temporary file or cleanup call', async () => {
+    const { phone, runtime } = makePhone({ handler: args => {
+        if (args[2] === 'exec-out') throw new BridgeError('phone_timeout', 'Controlled timeout');
+    } });
+    await rejectsCode('phone_timeout', phone.dump());
+    assert.equal(deviceCommands(runtime).length, 2);
+    assert.equal(deviceCommands(runtime).some(args => args.includes('cat') || args.includes('rm')), false);
 });
 
-test('cancellation during a dump still attempts bounded private-file cleanup and sends no further app input', async () => {
-    for (const stage of ['dump', 'inflight-failure', 'cat']) {
+test('cancellation during a stdout dump sends no more UI or diagnostic calls', async () => {
+    for (const stage of ['dump', 'inflight-failure']) {
         const { phone, runtime, abort } = makePhone();
         runtime.handler = args => {
-            const command = args[3];
-            if ((stage === 'cat' && command === 'cat') || (stage !== 'cat' && command === 'uiautomator')) {
+            if (args[2] === 'exec-out') {
                 abort.abort();
                 if (stage === 'inflight-failure') throw new BridgeError('phone_unavailable', 'Controlled interruption');
             }
         };
         await rejectsCode(stage === 'inflight-failure' ? 'phone_unavailable' : 'cancelled', phone.dump());
         const commands = deviceCommands(runtime);
-        const dump = commands.find(args => args[1] === 'uiautomator');
-        assert.match(dump[3], /^\/data\/local\/tmp\/vw-app-[0-9a-f]{32}\.xml$/);
-        assert.deepEqual(commands.at(-1), ['shell', 'rm', '-f', dump[3]]);
-        assert.deepEqual(runtime.calls.at(-1).options, { timeoutMs: 1500, maxOutputBytes: 4096 });
+        assert.deepEqual(commands.at(-1), ['exec-out', 'uiautomator', 'dump', '/proc/self/fd/1']);
         assert.ok(!commands.some(args => args[1] === 'input' || args[1] === 'am'));
         assert.equal(commands.filter(args => args[1] === 'dumpsys').length, 1);
-        assert.equal(commands.some(args => args[1] === 'cat'), stage === 'cat');
+        assert.equal(commands.some(args => args[1] === 'cat' || args[1] === 'rm'), false);
     }
+});
+
+test('ordinary XML reads reject decoded S-PIN headers, password fields and malformed/duplicate hierarchies without exposing values', async () => {
+    const sensitive = [
+        '<hierarchy><node text="S-PIN eingeben"/></hierarchy>',
+        '<hierarchy><node content-desc="S&#45;PIN eingeben" text="SECRET"/></hierarchy>',
+        '<hierarchy><node password="true" text="SECRET"/></hierarchy>',
+    ];
+    for (const output of sensitive) {
+        const { phone, runtime } = makePhone({ handler: args => args[2] === 'exec-out' ? output : undefined });
+        await rejectsCode('security_ui_active', phone.dump());
+        assert.equal(runtime.calls.length, 2);
+    }
+    for (const output of ['SECRET', '<hierarchy/><hierarchy/>', '<hierarchy><node></hierarchy>', '<hierarchy/><hierarchy>']) {
+        const { phone } = makePhone({ handler: args => args[2] === 'exec-out' ? output : undefined });
+        await rejectsCode('invalid_ui', phone.dump());
+    }
+});
+
+test('native diagnostic reads require a fresh minimal non-PIN scan, including after restart or uncertain entry', async () => {
+    for (const method of ['nativeView', 'departureNative']) {
+        for (const status of [{ kind: 'pinEmpty', errorCode: null }, { kind: 'pinNonEmpty', errorCode: null },
+            { kind: 'pinUnsupported', errorCode: 'SECURITY_CONTEXT_UNSUPPORTED' }, { kind: 'other', errorCode: 'SECURITY_CONTEXT_UNAVAILABLE' }]) {
+            const { phone, runtime } = makePhone(); let probes = 0;
+            phone.securityStatus = async () => { probes++; return status; };
+            await rejectsCode('security_ui_active', phone[method]());
+            assert.equal(probes, 1); assert.equal(runtime.calls.length, 0);
+        }
+    }
+});
+
+test('sensitive process transport forwards bounded stdin and honors cancellation/deadline without echoing input', async () => {
+    const { phone, runtime, abort } = makePhone();
+    const input = Buffer.from('synthetic envelope');
+    phone.deadline = Date.now() + 4000;
+    await phone.runSensitive(['shell', '-T', 'uiautomator'], input);
+    assert.deepEqual(runtime.calls[0].args, ['-s', ENDPOINT, 'shell', '-T', 'uiautomator']);
+    assert.equal(runtime.calls[0].options.input, input); assert.equal(runtime.calls[0].options.maxOutputBytes, 8192);
+    assert.ok(runtime.calls[0].options.timeoutMs > 0 && runtime.calls[0].options.timeoutMs <= 4000);
+    await rejectsCode('security_context_invalid', phone.runSensitive([], Buffer.alloc(4097)));
+    await rejectsCode('security_context_invalid', phone.runSensitive([], 'SECRET'));
+    abort.abort(); await rejectsCode('cancelled', phone.runSensitive([], input));
+    assert.equal(runtime.calls.length, 1);
+});
+
+async function keyboardPhone({ flags = [{ input: true, view: true }, { input: true, view: true }, { input: false, view: true }], handler, ack } = {}) {
+    const subject = makePhone({ handler: (args, options) => {
+        const custom = handler?.(args, options);
+        if (custom !== undefined) return custom;
+        if (args.slice(2).join(' ') === 'shell dumpsys input_method') {
+            const next = flags.shift() || { input: true, view: true };
+            return typeof next === 'string' ? next : '  mShowRequested=true mInputShown=' + next.input + '\n  mIsInputViewShown=' + next.view + '\n  EditorInfo: SECRET\n';
+        }
+    } });
+    let clock = 1;
+    subject.phone.androidUi.now = () => clock;
+    subject.phone.androidUi.secretPinEntry = async () => ack || { beforeMatched: true, actionAttempted: true, actionAccepted: true, errorCode: null };
+    await subject.phone.secretPinEntry({}, { operation: 'unlock' }, () => assert.fail('No actual credential in fixture'));
+    return { ...subject, setClock: value => { clock = value; } };
+}
+
+test('accepted secret entry authorizes one verified keyboard hide, without another PIN, Enter, vehicle gesture or UI dump', async () => {
+    const { phone, runtime } = await keyboardPhone();
+    assert.deepEqual(await phone.hideSecurityKeyboard(), { kind: 'hidden', actionAttempted: true });
+    const commands = deviceCommands(runtime);
+    assert.equal(commands.filter(args => args.join(' ') === 'shell input keyevent KEYCODE_BACK').length, 1);
+    assert.equal(commands.filter(args => args.join(' ') === 'shell dumpsys input_method').length, 3);
+    assert.equal(commands.some(args => args.includes('tap') || args.includes('KEYCODE_ENTER') || args.includes('uiautomator')), false);
+    await rejectsCode('security_keyboard_unauthorized', phone.hideSecurityKeyboard());
+    assert.equal(commands.filter(args => args.includes('KEYCODE_BACK')).length, 1);
+});
+
+test('an already hidden keyboard is a no-op even when Samsung retains the stale viewShown flag', async () => {
+    for (const flags of [[{ input: false, view: true }], [{ input: false, view: false }],
+        [{ input: true, view: true }, { input: false, view: true }]]) {
+        const { phone, runtime } = await keyboardPhone({ flags });
+        assert.deepEqual(await phone.hideSecurityKeyboard(), { kind: 'alreadyHidden', actionAttempted: false });
+        assert.equal(deviceCommands(runtime).some(args => args.includes('input')), false);
+    }
+});
+
+test('keyboard hiding rejects absent, rejected, expired and consumed entry authorization before any device call', async () => {
+    const blank = makePhone();
+    await rejectsCode('security_keyboard_unauthorized', blank.phone.hideSecurityKeyboard());
+    assert.equal(blank.runtime.calls.length, 0);
+    for (const ack of [{ beforeMatched: false, actionAttempted: false, actionAccepted: null, errorCode: null },
+        { beforeMatched: true, actionAttempted: true, actionAccepted: false, errorCode: 'SECURITY_ACTION_NOT_ACCEPTED' },
+        { beforeMatched: true, actionAttempted: true, actionAccepted: true, errorCode: 'SECURITY_SESSION_CLEANUP' }]) {
+        const { phone, runtime } = await keyboardPhone({ ack });
+        await rejectsCode('security_keyboard_unauthorized', phone.hideSecurityKeyboard());
+        assert.equal(runtime.calls.length, 0);
+    }
+    const expired = await keyboardPhone(); expired.setClock(180002);
+    await rejectsCode('security_keyboard_unauthorized', expired.phone.hideSecurityKeyboard());
+    assert.equal(expired.runtime.calls.length, 0);
+});
+
+test('one-use keyboard authorization remains valid during the bounded backend confirmation wait', async () => {
+    const subject = await keyboardPhone(); subject.setClock(150001);
+    assert.deepEqual(await subject.phone.hideSecurityKeyboard(), { kind: 'hidden', actionAttempted: true });
+    assert.equal(deviceCommands(subject.runtime).filter(args => args.includes('KEYCODE_BACK')).length, 1);
+});
+
+test('a later failed entry invalidates earlier keyboard authorization and cancellation diagnostics remain fixed', async () => {
+    const previous = await keyboardPhone();
+    previous.phone.androidUi.secretPinEntry = async () => { throw new BridgeError('security_entry_uncertain', 'Fixed test failure'); };
+    await rejectsCode('security_entry_uncertain', previous.phone.secretPinEntry({}, { operation: 'lock' }, () => assert.fail()));
+    await rejectsCode('security_keyboard_unauthorized', previous.phone.hideSecurityKeyboard());
+    assert.equal(previous.runtime.calls.length, 0);
+    const cancelled = await keyboardPhone();
+    cancelled.phone.securityStatus = async () => { throw new BridgeError('cancelled', 'SECRET diagnostic'); };
+    await rejectsCode('cancelled', cancelled.phone.hideSecurityKeyboard());
+    assert.equal(deviceCommands(cancelled.runtime).some(args => args.includes('input')), false);
+});
+
+test('missing, duplicate, inconsistent or malformed IME metadata never causes a Back gesture or leaks diagnostics', async () => {
+    for (const flags of [['SECRET'], ['mInputShown=true\nmIsInputViewShown=true\nmInputShown=true\n'],
+        ['mInputShown=true\nmIsInputViewShown=SECRET\n'], [{ input: true, view: false }]]) {
+        const { phone, runtime } = await keyboardPhone({ flags });
+        await rejectsCode('security_keyboard_unavailable', phone.hideSecurityKeyboard());
+        assert.equal(deviceCommands(runtime).some(args => args.includes('input')), false);
+        await rejectsCode('security_keyboard_unauthorized', phone.hideSecurityKeyboard());
+    }
+});
+
+test('a foreign foreground or any open/uncertain PIN context prevents keyboard navigation', async () => {
+    for (const status of [{ kind: 'pinEmpty', errorCode: null }, { kind: 'pinNonEmpty', errorCode: null },
+        { kind: 'pinUnsupported', errorCode: 'SECURITY_CONTEXT_UNSUPPORTED' }, { kind: 'other', errorCode: 'SECURITY_CONTEXT_UNAVAILABLE' }]) {
+        const { phone, runtime } = await keyboardPhone(); phone.securityStatus = async () => status;
+        await rejectsCode('security_keyboard_unavailable', phone.hideSecurityKeyboard());
+        assert.equal(deviceCommands(runtime).some(args => args.includes('input')), false);
+    }
+    const foreign = await keyboardPhone({ handler: args => args.slice(2).join(' ') === 'shell dumpsys window'
+        ? 'mCurrentFocus=Window{test u0 other.app/.Activity}\n' : undefined });
+    await rejectsCode('security_keyboard_unavailable', foreign.phone.hideSecurityKeyboard());
+    assert.equal(deviceCommands(foreign.runtime).some(args => args.includes('input')), false);
+});
+
+test('a keyboard hide failure is uncertain after exactly one Back and never retries input', async () => {
+    for (const mode of ['transport', 'stillShown']) {
+        const { phone, runtime } = await keyboardPhone({ flags: Array.from({ length: 5 }, () => ({ input: true, view: true })),
+            handler: args => { if (mode === 'transport' && args.includes('KEYCODE_BACK')) throw new Error('SECRET input failure'); } });
+        await rejectsCode('security_keyboard_uncertain', phone.hideSecurityKeyboard());
+        assert.equal(deviceCommands(runtime).filter(args => args.includes('KEYCODE_BACK')).length, 1);
+        await rejectsCode('security_keyboard_unauthorized', phone.hideSecurityKeyboard());
+    }
+});
+
+test('keyboard guard rechecks IME visibility and VW focus immediately before input, honoring cancellation and token expiry', async () => {
+    const expired = await keyboardPhone();
+    expired.phone.securityStatus = async () => { expired.setClock(180002); return { kind: 'other', errorCode: null }; };
+    await rejectsCode('security_keyboard_unauthorized', expired.phone.hideSecurityKeyboard());
+    assert.equal(deviceCommands(expired.runtime).some(args => args.includes('input')), false);
+    const cancelled = await keyboardPhone();
+    cancelled.phone.securityStatus = async () => { cancelled.abort.abort(); return { kind: 'other', errorCode: null }; };
+    await rejectsCode('cancelled', cancelled.phone.hideSecurityKeyboard());
+    assert.equal(deviceCommands(cancelled.runtime).some(args => args.includes('input')), false);
 });
 
 test('tap validates coordinates and sends no gesture after cancellation during focus check', async () => {

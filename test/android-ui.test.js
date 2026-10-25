@@ -78,6 +78,150 @@ async function readAndAct(subject, changes = {}) {
 }
 function invocations(calls) { return calls.filter(call => call.includes(RUNNERS.action)); }
 
+async function setupSecurity(t, options = {}) {
+    const subject = await setup(t);
+    const originalRun = subject.phone.run.bind(subject.phone);
+    const requests = [], buffers = [];
+    subject.phone.run = async args => {
+        if (!args.includes('securityMode')) return originalRun(args);
+        subject.calls.push([...args]);
+        const nonce = args[args.indexOf('nonce') + 1];
+        const kind = options.kind || 'pinEmpty';
+        const frame = { format: 'vw-app-security-status-v1', nonce, kind,
+            operation: ['pinEmpty', 'pinNonEmpty'].includes(kind) ? 'unlock' : null,
+            contextDigest: kind === 'pinEmpty' ? 'c'.repeat(64) : null, errorCode: null, ...options.status };
+        return options.statusOutput?.(frame) ?? 'Warning one\nWarning two\nWarning three\nWarning four\nVW_SECURITY_STATUS_RESULT ' + JSON.stringify(frame) + '\n';
+    };
+    subject.phone.runSensitive = async (args, input) => {
+        subject.calls.push([...args]); buffers.push(input);
+        const request = JSON.parse(input.toString('utf8')); requests.push(request);
+        if (options.entryThrows) throw new Error('PRIVATE input failure');
+        await options.onEntry?.(request);
+        const frame = { format: 'vw-app-security-entry-v1', nonce: request.nonce,
+            beforeMatched: true, actionAttempted: true, actionAccepted: true, errorCode: null, ...options.entry };
+        return options.entryOutput?.(frame) ?? 'Warning\nVW_SECURITY_ENTRY_RESULT ' + JSON.stringify(frame) + '\n';
+    };
+    return { ...subject, requests, buffers };
+}
+
+test('minimal security probe accepts one nonce frame after Android warnings and exposes only an opaque one-use token', async t => {
+    const subject = await setupSecurity(t);
+    const status = await subject.bridge.securityStatus();
+    assert.equal(status.kind, 'pinEmpty'); assert.equal(status.operation, 'unlock'); assert.equal(status.errorCode, null);
+    assert.deepEqual(Object.keys(status.token), []); assert.ok(Object.isFrozen(status.token));
+    assert.equal(JSON.stringify(status).includes('cccc'), false);
+    assert.equal(subject.calls.filter(call => call.includes('securityMode')).length, 1);
+    assert.equal(subject.calls.some(call => call.includes('cat') || call.includes('push') || call.includes('rm')), false);
+    await assert.rejects(fs.stat(path.join(subject.phone.runtime.dataDir, 'ui-requests')), { code: 'ENOENT' });
+});
+
+test('security protocol rejects malformed, duplicate, noncanonical, extra and mismatched status frames with fixed diagnostics', async t => {
+    const variants = [
+        frame => JSON.stringify({ ...frame, nonce: 'different' }),
+        frame => JSON.stringify({ ...frame, contextDigest: 'invalid' }),
+        frame => JSON.stringify({ ...frame, operation: 'unsupported' }),
+        frame => JSON.stringify({ ...frame, extra: 'PRIVATE' }),
+        frame => JSON.stringify({ ...frame, errorCode: 'PRIVATE' }),
+        frame => JSON.stringify(frame).replace('{', '{"nonce":"duplicate",'),
+        frame => JSON.stringify(frame, null, 1),
+        () => 'PRIVATE invalid json',
+    ];
+    for (const change of variants) {
+        const subject = await setupSecurity(t, { statusOutput: frame => 'VW_SECURITY_STATUS_RESULT ' + change(frame) + '\n' });
+        await assert.rejects(subject.bridge.securityStatus(), error => error.code === 'security_status_unavailable' && !error.message.includes('PRIVATE'));
+    }
+    const duplicate = await setupSecurity(t, { statusOutput: frame => ('VW_SECURITY_STATUS_RESULT ' + JSON.stringify(frame) + '\n').repeat(2) });
+    await assert.rejects(duplicate.bridge.securityStatus(), { code: 'security_status_unavailable' });
+});
+
+test('PIN entry uses only bounded stdin, preserves leading zeroes, wipes the transport buffer, and never requests post-read or files', async t => {
+    const subject = await setupSecurity(t);
+    const status = await subject.bridge.securityStatus();
+    const result = await subject.bridge.secretPinEntry(status.token, { operation: 'unlock' }, () => '0073');
+    assert.deepEqual(result, { beforeMatched: true, actionAttempted: true, actionAccepted: true, errorCode: null });
+    assert.equal(subject.requests.length, 1); assert.equal(subject.requests[0].pin, '0073');
+    assert.equal(subject.requests[0].operation, 'unlock'); assert.equal(subject.requests[0].contextDigest, 'c'.repeat(64));
+    assert.ok(subject.buffers[0].every(byte => byte === 0));
+    assert.equal(JSON.stringify(subject.calls).includes('0073'), false);
+    assert.equal(JSON.stringify(result).includes('0073'), false);
+    assert.equal(subject.calls.some(call => call.includes('cat') || call.includes('push') || call.includes('rm') || call.includes('out') || call.includes('request')), false);
+    await assert.rejects(subject.bridge.secretPinEntry(status.token, { operation: 'unlock' }, () => assert.fail('Consumed token getter')), { code: 'security_context_invalid' });
+    await assert.rejects(fs.stat(path.join(subject.phone.runtime.dataDir, 'ui-requests')), { code: 'ENOENT' });
+});
+
+test('nonempty or unsupported security forms never grant an entry token', async t => {
+    for (const kind of ['pinNonEmpty', 'pinUnsupported', 'home', 'other']) {
+        const subject = await setupSecurity(t, { kind });
+        const status = await subject.bridge.securityStatus();
+        assert.equal(status.kind, kind); assert.equal(status.token, undefined);
+        await assert.rejects(subject.bridge.secretPinEntry(status.token, { operation: 'unlock' }, () => assert.fail('No token getter')), { code: 'security_context_invalid' });
+        assert.equal(subject.requests.length, 0);
+    }
+});
+
+test('the separately recognized locking form authorizes only lock and sends its bound operation through stdin', async t => {
+    const subject = await setupSecurity(t, { status: { operation: 'lock' } });
+    const status = await subject.bridge.securityStatus();
+    assert.equal(status.kind, 'pinEmpty'); assert.equal(status.operation, 'lock');
+    await assert.rejects(subject.bridge.secretPinEntry(status.token, { operation: 'unlock' }, () => assert.fail('Wrong operation getter')), { code: 'security_context_invalid' });
+    const result = await subject.bridge.secretPinEntry(status.token, { operation: 'lock' }, () => '0073');
+    assert.equal(result.actionAttempted, true); assert.equal(result.actionAccepted, true);
+    assert.equal(subject.requests.length, 1); assert.equal(subject.requests[0].operation, 'lock');
+    assert.ok(subject.buffers[0].every(byte => byte === 0));
+});
+
+test('entry refuses fabricated, stale, superseded, cross-instance, or wrong-operation tokens before touching the PIN getter', async t => {
+    const subject = await setupSecurity(t), other = await setupSecurity(t);
+    const first = await subject.bridge.securityStatus();
+    await assert.rejects(other.bridge.secretPinEntry(first.token, { operation: 'unlock' }, () => assert.fail()), { code: 'security_context_invalid' });
+    await assert.rejects(subject.bridge.secretPinEntry({}, { operation: 'unlock' }, () => assert.fail()), { code: 'security_context_invalid' });
+    await assert.rejects(subject.bridge.secretPinEntry(first.token, { operation: 'lock' }, () => assert.fail()), { code: 'security_context_invalid' });
+    const latest = await subject.bridge.securityStatus();
+    await assert.rejects(subject.bridge.secretPinEntry(first.token, { operation: 'unlock' }, () => assert.fail()), { code: 'security_context_invalid' });
+    subject.setTicks(15002);
+    await assert.rejects(subject.bridge.secretPinEntry(latest.token, { operation: 'unlock' }, () => assert.fail()), { code: 'security_context_stale' });
+    await assert.rejects(subject.bridge.secretPinEntry(latest.token, { operation: 'unlock' }, () => assert.fail()), { code: 'security_context_invalid' });
+    assert.equal(subject.requests.length, 0);
+});
+
+test('invalid or failing PIN getters produce fixed errors without invoking the native entry', async t => {
+    for (const [getter, code] of [[() => '', 'security_pin_required'], [() => 1234, 'security_pin_invalid'],
+        [() => 'PRIVATE', 'security_pin_invalid'], [() => { throw new Error('PRIVATE'); }, 'security_pin_unavailable']]) {
+        const subject = await setupSecurity(t), status = await subject.bridge.securityStatus();
+        await assert.rejects(subject.bridge.secretPinEntry(status.token, { operation: 'unlock' }, getter), error => error.code === code && !error.message.includes('PRIVATE'));
+        assert.equal(subject.requests.length, 0);
+        await assert.rejects(subject.bridge.secretPinEntry(status.token, { operation: 'unlock' }, () => assert.fail()), { code: 'security_context_invalid' });
+    }
+});
+
+test('one-use entry tokens are consumed before asynchronous getters and transport errors never authorize a retry', async t => {
+    const subject = await setupSecurity(t, { entryThrows: true }), status = await subject.bridge.securityStatus();
+    let resolve;
+    const pending = subject.bridge.secretPinEntry(status.token, { operation: 'unlock' }, () => new Promise(done => { resolve = done; }));
+    // Wait for payload preflight and the deferred getter without a wall-clock sleep.
+    while (!resolve) await new Promise(done => setImmediate(done));
+    await assert.rejects(subject.bridge.secretPinEntry(status.token, { operation: 'unlock' }, () => assert.fail()), { code: 'security_context_invalid' });
+    resolve('0073');
+    await assert.rejects(pending, error => error.code === 'security_entry_uncertain' && !error.message.includes('PRIVATE'));
+    assert.equal(subject.requests.length, 1); assert.ok(subject.buffers[0].every(byte => byte === 0));
+});
+
+test('entry rejects malformed or impossible acknowledgement shapes as uncertain and keeps raw values out of errors', async t => {
+    for (const entry of [{ actionAttempted: false }, { beforeMatched: false }, { errorCode: 'PRIVATE' }, { extra: 'PRIVATE' }, { actionAccepted: 'PRIVATE' }]) {
+        const subject = await setupSecurity(t, { entry }), status = await subject.bridge.securityStatus();
+        await assert.rejects(subject.bridge.secretPinEntry(status.token, { operation: 'unlock' }, () => '0073'), error => error.code === 'security_entry_uncertain' && !error.message.includes('PRIVATE') && !error.message.includes('0073'));
+        assert.equal(subject.requests.length, 1); assert.ok(subject.buffers[0].every(byte => byte === 0));
+    }
+});
+
+test('ordinary extended observations refuse S-PIN headers even when the app marks the field as non-password', async t => {
+    const subject = await setup(t);
+    for (const sensitive of [node({ text: 'S-PIN eingeben' }), node({ password: true })]) {
+        const view = frame(); view.root.children.push(sensitive); view.nodeCount++;
+        assert.throws(() => subject.bridge.accept(JSON.stringify(view)), error => ['security_ui_active', 'extended_ui_unavailable'].includes(error.code));
+    }
+});
+
 test('own read helper verifies the payload, returns immutable observations and cleans its unique result file', async t => {
     const subject = await setup(t);
     const { xml, observation } = await subject.bridge.read();
@@ -182,12 +326,14 @@ test('a damaged bundled source or missing payload fails before any phone helper 
 });
 
 test('off-window targets and hidden or disabled ancestors fail before invoking the Android action helper', async t => {
-    for (const mode of ['outside', 'hidden', 'disabled']) {
+    for (const mode of ['outside', 'negativeTarget', 'negativeAncestor', 'hidden', 'disabled']) {
         const subject = await setup(t);
         const wheel = subject.frame.root.children[1];
         if (mode === 'outside') wheel.bounds = [1100, 500, 1180, 800];
+        else if (mode === 'negativeTarget') wheel.bounds = [-10, 500, 80, 800];
         else {
-            subject.frame.root.children[1] = node({ visible: mode !== 'hidden', enabled: mode !== 'disabled', children: [wheel] });
+            subject.frame.root.children[1] = node({ visible: mode !== 'hidden', enabled: mode !== 'disabled',
+                ...(mode === 'negativeAncestor' ? { bounds: [0, -251, 1080, 2400] } : {}), children: [wheel] });
             subject.frame.nodeCount++;
         }
         await assert.rejects(readAndAct(subject, { target: { description: 'Hour', bounds: wheel.bounds } }), error => error.code === 'invalid_target');
@@ -202,6 +348,7 @@ test('targeted native read uses only the fixed VW component and returns no unpar
         if (args.includes('window')) return 'mCurrentFocus=Window{test u0 com.volkswagen.weconnect/.SingleActivity}\n';
         return 'PRIVATE malformed diagnostics';
     } } });
+    phone.securityStatus = async () => ({ kind: 'other', errorCode: null });
     await assert.rejects(phone.departureNative(), error => !error.message.includes('PRIVATE'));
     assert.ok(calls.some(call => call.slice(2).join(' ') === 'shell dumpsys activity com.volkswagen.weconnect/.SingleActivity'));
     assert.ok(!calls.some(call => call.includes('top')));

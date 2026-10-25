@@ -206,6 +206,40 @@ test('native node paths preserve original rich-tree indexes across invisible and
     assert.throws(() => screen.target('outside'), error => error.code === 'target_unavailable');
 });
 
+test('a scrolled Home keeps signed off-window container metadata without turning it or its on-screen descendants into targets', () => {
+    const input = observation({ root: node({ children: [
+        node({ class: 'android.widget.ScrollView', id: PACKAGE + ':id/homeScroll', scrollable: true, children: [
+            node({ class: 'android.view.View', id: PACKAGE + ':id/clipped', bounds: [0, -251, 1080, 454],
+                description: 'Synthetic Home decoration', clickable: true, children: [
+                    node({ id: PACKAGE + ':id/clippedChild', bounds: [100, 100, 200, 200], clickable: true }),
+                ] }),
+            node({ id: PACKAGE + ':id/vehicleMarker', description: 'Ihr Fahrzeug: SYNTHETIC', bounds: [100, 500, 900, 600] }),
+            node({ id: PACKAGE + ':id/accessTile', description: 'Fahrzeug. Verriegelt. Details öffnen',
+                bounds: [100, 700, 900, 900], clickable: true }),
+        ] }),
+    ] }) });
+    const screen = new Screen(convert(input));
+    const clipped = screen.nodes.find(node => node.attrs['resource-id'] === PACKAGE + ':id/clipped');
+    assert.equal(clipped.attrs.bounds, '[0,-251][1080,454]');
+    assert.equal(clipped.attrs['a11y-path'], '0.0.0');
+    assert.equal(clipped.attrs['visible-to-user'], 'false');
+    assert.equal(screen._bounds(clipped), null);
+    assert.throws(() => screen.target('clipped'), error => error.code === 'target_unavailable');
+    assert.throws(() => screen.target('clippedChild'), error => error.code === 'target_unavailable');
+    assert.deepEqual(screen.target('accessTile'), { x: 500, y: 800 });
+    assert.equal(screen.nodes.find(node => node.attrs['resource-id'] === PACKAGE + ':id/accessTile').attrs['a11y-path'], '0.0.2');
+});
+
+test('signed node bounds cannot relax nonnegative application or auxiliary window geometry', () => {
+    for (const coordinates of [[-1, 0, 1080, 2400], [0, -251, 1080, 2400], [-20000, 0, 1080, 2400]]) {
+        for (const key of ['windowsBefore', 'windowsAfter']) {
+            invalid(() => convert(observation({ [key]: windows({ vwWindows: [window({ bounds: coordinates })] }) })));
+            invalid(() => convert(observation({ [key]: windows({ vwWindows: [window(), window({ id: 8, type: 3,
+                active: false, focused: false, bounds: coordinates })] }) })));
+        }
+    }
+});
+
 test('window metadata validates safe fields, unique IDs and bounded counts rather than trusting the multiple-window flag', () => {
     for (const overrides of [{ id: null }, { type: 0 }, { type: '1' }, { active: 'true' }, { focused: 1 },
         { accessibilityFocused: 'false' }, { layer: 0.5 }, { title: 1 }, { bounds: [-1, 0, 10, 10] }]) {
@@ -267,8 +301,8 @@ test('known text fields reject unsafe XML characters, lone surrogates, unsupport
     }
 });
 
-test('bounds require four ordered finite integer coordinates between zero and 20000', () => {
-    for (const value of [null, {}, '0,0,10,10', [], [0, 0, 10], [0, 0, 10, 10, 10], [-1, 0, 10, 10],
+test('node bounds require four ordered finite integer coordinates between minus 20000 and 20000', () => {
+    for (const value of [null, {}, '0,0,10,10', [], [0, 0, 10], [0, 0, 10, 10, 10], [-20001, 0, 10, 10],
         [0, 0, 20001, 10], [0, 0, 1.5, 10], [0, 0, '10', 10], [0, 0, null, 10],
         [0, 0, Infinity, 10], [10, 0, 9, 10], [0, 10, 10, 9]]) {
         invalid(() => convert(observation({ root: node({ bounds: value }) })));
@@ -276,6 +310,9 @@ test('bounds require four ordered finite integer coordinates between zero and 20
     assert.equal(new Screen(convert(observation({ root: node({ bounds: [0, 0, 20000, 20000] }) }))).nodes[0].attrs.bounds,
         '[0,0][20000,20000]');
     assert.equal(new Screen(convert(observation({ root: node({ visible: false, bounds: [0, 0, 0, 0] }) }))).nodes.length, 1);
+    const negative = new Screen(convert(observation({ root: node({ bounds: [-20000, -20000, 20000, 20000] }) })));
+    assert.equal(negative.nodes[0].attrs.bounds, '[-20000,-20000][20000,20000]');
+    assert.equal(negative.nodes[0].attrs['visible-to-user'], 'false');
 });
 
 test('range metadata preserves finite float values and rejects malformed, inconsistent or coerced ranges', () => {
