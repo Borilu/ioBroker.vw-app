@@ -103,13 +103,13 @@ The confirmation source describes evidence from the app. Both `app_controls` and
 
 ## Automatic app reads and read age
 
-New instances use `pollIntervalSeconds=15`. Existing instances retain their saved setting: `0` stays disabled, and a missing legacy value also remains disabled. Use `0` for manual reads only, or a whole number from **15 to 86400** to enable automatic reads of **climate, battery/charging, the vehicle report, climate departures, the charging-location list and each present charging location**. No write permission is needed for these reads.
+New instances use `pollIntervalSeconds=15`. Existing instances retain their saved setting: `0` stays disabled, and a missing legacy value also remains disabled. Use `0` for manual reads only, or a whole number from **15 to 86400** to enable automatic reads of **climate, battery/charging, the vehicle report, doors/windows/trunk/locking, climate departures, the charging-location list and each present charging location**. No write permission is needed for these reads.
 
 This setting is the minimum wait **from a completed read until that same area becomes due again**. It does not promise a full update every 15 seconds. All areas share one phone and run fairly, one after another. Each newly discovered present charging location adds its own read area, up to five locations. Their timer editors, settings and preferred windows require extra app navigation, so the complete cycle grows with the number of locations. The adapter also rests between automatic jobs for at least **5 seconds or 25% of the last job's duration**, whichever is longer. There is no overlapping work or catch-up queue. A failing area receives a progressively longer retry wait, with error backoff limited to five minutes while respecting the configured minimum interval.
 
 Manual commands take priority. An automatic read stops at a safe step boundary before a manual command takes over; it does not interrupt an unfinished vehicle-setting change. After a control command, a read of the affected area receives priority. That follow-up only reads: it never repeats a Start, Stop, Save or other write. Automatic ticks never press **Jetzt synchronisieren** and never apply temperature, climate, charging, departure or location wishes.
 
-The following metadata is read-only. Replace `<area>` with `climate`, `charging`, `vehicleReport`, `departureClimate`, `departureLocations` or `departureLocation_loc_<24hex>` for an individually discovered location:
+The following metadata is read-only. Replace `<area>` with `climate`, `charging`, `vehicleReport`, `vehicleAccess`, `departureClimate`, `departureLocations` or `departureLocation_loc_<24hex>` for an individually discovered location:
 
 | State | Meaning |
 |---|---|
@@ -265,6 +265,27 @@ Each category has `vehicleReport.<category>.status` and `vehicleReport.<category
 
 Version 0.5.0 passed **391 automated tests on Linux**. Real top and bottom report views were also merged locally into a complete validated model. Two live report reads on a **Galaxy A31 with Android 12 and the German Volkswagen app 4.8.1** correctly captured odometer, service information, summary, synchronization text, all seven categories, the footer and normalized JSON; the second read updated `observedAt`. All 27 actual ioBroker report objects were verified as read-only, matching the automated schema checks. On both reads, 23 monitored climate, charging, preference and synchronization-request values remained exactly unchanged. No vehicle action, Save or synchronization was triggered, and climate control remained off. Active warning configurations were neither created nor checked live.
 
+## Doors, windows, trunk and locking
+
+Version 0.8.0 reads the individual opening states and the lock state from the vehicle overview. All IDs below are relative to `vw-app.0` and are read-only except the refresh button.
+
+| State | Meaning |
+|---|---|
+| `vehicleAccess.doors.frontLeftOpen`, `frontRightOpen`, `rearLeftOpen`, `rearRightOpen` | Each door: `true` open, `false` closed, `null` unknown |
+| `vehicleAccess.windows.frontLeftOpen`, `frontRightOpen`, `rearLeftOpen`, `rearRightOpen` | Each window: `true` open, `false` closed, `null` unknown |
+| `vehicleAccess.trunkOpen` | Trunk: `true` open, `false` closed, `null` unknown |
+| `vehicleAccess.locked` | `true` locked, `false` unlocked, `null` unknown; independent of whether openings are closed |
+| `vehicleAccess.warningText` | Opening/status warning exposed by the app, empty when no warning is shown |
+| `vehicleAccess.synchronizationText` | Synchronization hint displayed on the overview |
+| `vehicleAccess.observedAt` | Time of the successful app read |
+| `commands.refreshVehicleAccess` | Write `true` with `ack=false` to read this area now |
+
+Automatic refresh includes the separate `vehicleAccess` area and publishes the usual `refresh.vehicleAccess.*` read age, validity, duration and error states. The configured minimum interval still applies; it does not promise a complete phone-navigation cycle in that interval. Manual reads receive the existing priority and use the same single-phone queue. They do not require permission to change settings, apply saved wishes, synchronize the car, unlock it or operate a door, window or trunk.
+
+The app lists open components and can omit the entire warning when everything is closed. The parser interprets omissions only in the complete recognized overview layout, including its status slot. Incomplete, clipped, contradictory or unsupported descriptions do not become guessed closed values. Unknown values have invalid quality. Failed or aged reads retain the last observation with invalid quality; their last successful reading time does not advance on failure. App-reading time and the app's synchronization hint are separate from a vehicle measurement timestamp.
+
+The reference-device discovery recorded all openings open and the vehicle unlocked, then individually closed the driver door, driver window and trunk. Each exact label disappeared independently. It also recorded all openings closed with both lock states. Real app recordings remain private; public tests use synthetic views.
+
 ## Departure times and charging locations
 
 All state IDs below are relative to `vw-app.0`. Version 0.7.0 reads the app's **two climate departure timers** and **up to five charging locations already created in the vehicle**, each with three departure timers. It does not create or delete charging locations.
@@ -360,6 +381,12 @@ Adapter source: [MIT](LICENSE). Third-party components retain their licenses; se
 Independent community project, not provided or endorsed by Volkswagen, Google or ioBroker. Volkswagen and Android are trademarks of their respective owners.
 
 ### Changelog
+
+#### 0.8.0
+
+- Read each of four doors, four windows, the trunk and the separate lock state from the app overview.
+- Add a read-only refresh command and regular updates with independent age, validity and error metadata.
+- Keep unavailable observations unknown and preserve historical values with invalid quality after read failures or expiry.
 
 #### 0.7.0
 

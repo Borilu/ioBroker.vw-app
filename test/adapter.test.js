@@ -78,7 +78,7 @@ class RecordingScheduler {
     stop() { this.started = false; }
     notifyAvailable() { this.available++; }
     request(domain, options) { this.requests.push({ domain, ...options }); return this.started; }
-    snapshot() { return { runningDomain: null, estimatedCycleMs: 112500, domains: {} }; }
+    snapshot() { return { runningDomain: null, estimatedCycleMs: this.options.domains.length * 37500, domains: {} }; }
     setDomains(domains) { this.options.domains = [...domains]; }
 }
 
@@ -209,6 +209,7 @@ async function fixture(t, options = {}) {
             const observedAt = new Date(options.clock ? options.clock.now() : Date.now()).toISOString();
             if (['chargingStatus', 'applyChargingSettings', 'synchronize'].includes(action)) return { ...chargingResult(input.targetCharging), ...(options.clock ? { observedAt } : {}) };
             if (action === 'vehicleReportStatus') return { ...vehicleReportResult(), ...(options.clock ? { observedAt } : {}) };
+            if (action === 'refreshVehicleAccess') return { ...vehicleAccessResult(), ...(options.clock ? { observedAt } : {}) };
             if (action === 'departuresClimateStatus' || action === 'applyDepartureClimateTimer') return departureClimateResult(observedAt);
             if (action === 'departuresLocationsStatus') return departureInventoryResult(options.departureLocations || [], observedAt);
             if (['departuresLocationStatus', 'applyDepartureLocationTimer', 'applyDepartureLocationSettings', 'applyDeparturePreferredTimes'].includes(action)) return departureLocationResult(input.location, observedAt);
@@ -286,6 +287,19 @@ function vehicleReportModel() {
         categories: Object.fromEntries(Object.entries(REPORT_CATEGORIES)
             .map(([key, label]) => [key, { label, status: 'no_messages', texts: [] }])) };
 }
+function vehicleAccessModel() {
+    return { doors: { frontLeft: true, frontRight: false, rearLeft: true, rearRight: false },
+        windows: { frontLeft: false, frontRight: true, rearLeft: false, rearRight: false },
+        trunkOpen: true, locked: false, synchronizationText: 'Gerade synchronisiert',
+        warningText: 'Fahrzeug ist entriegelt. Etwas ist noch offen oder eingeschaltet:. Kofferraum. Tür hinten links. Tür vorne links. Fenster vorne rechts. ' };
+}
+function vehicleAccessResult(vehicleAccess = vehicleAccessModel()) {
+    return { domain: 'vehicleAccess', source: 'volkswagen_android_app', vehicleConfirmed: false,
+        appVersion: '4.8.1', observedAt: '2026-10-24T19:00:00.000Z', vehicleAccess: clone(vehicleAccess) };
+}
+const ACCESS_POSITIONS = ['frontLeft', 'frontRight', 'rearLeft', 'rearRight'];
+const ACCESS_BOOLEAN_IDS = [...['doors', 'windows'].flatMap(group => ACCESS_POSITIONS.map(position =>
+    'vehicleAccess.' + group + '.' + position + 'Open')), 'vehicleAccess.trunkOpen', 'vehicleAccess.locked'];
 function vehicleReportResult(vehicleReport = vehicleReportModel()) {
     return { domain: 'vehicleReport', source: 'volkswagen_android_app', vehicleConfirmed: false,
         appVersion: '4.8.1', observedAt: '2026-10-24T19:00:00.000Z', vehicleReport };
@@ -1286,7 +1300,7 @@ test('last sync request changes only for a valid explicit result timestamp and s
     assert.equal(malformed.value('battery.lastSyncRequestAt'), '');
 });
 
-test('adaptive automatic reads fairly visit all three domains without synchronization and manual refresh stays climate-only', async t => {
+test('adaptive automatic reads fairly visit all base domains without synchronization and manual refresh stays climate-only', async t => {
     const disabled = await fixture(t);
     assert.equal(disabled.adapter.scheduler, undefined);
     const clock = fakeClock();
@@ -1615,7 +1629,7 @@ test('refresh metadata writes only changed values while the one-second tick stil
 test('automatic age limit follows the estimated complete cycle while explicit limits override it', async t => {
     const clock = fakeClock();
     const f = await fixture(t, { clock, RefreshScheduler: RecordingScheduler, config: { pollIntervalSeconds: 15 } });
-    assert.equal(f.value('refresh.climate.maxAgeSeconds'), 375);
+    assert.equal(f.value('refresh.climate.maxAgeSeconds'), 450);
     await f.adapter.scheduler.options.onUpdate({ estimatedCycleMs: 300000, runningDomain: null, domains: {} });
     assert.equal(f.value('refresh.charging.maxAgeSeconds'), 600);
     f.adapter.settings.refreshMaxAgeSeconds = 45; await f.adapter.updateFreshness();
@@ -1974,11 +1988,11 @@ test('complete inventory discovers only real locations, keeps keys across reorde
     let rows = [{ nativeId: '700', name: 'Synthetischer Ort A', activeCount: 0 }, { nativeId: '701', name: 'Synthetischer Ort B', activeCount: 1 }];
     const f = await fixture(t, { enrollment: enrolled(), fakeController: true, config: { pollIntervalSeconds: 15 }, RefreshScheduler: RecordingScheduler,
         controllerExecute: async () => departureInventoryResult(rows) });
-    assert.deepEqual(f.adapter.scheduler.options.domains, ['climate', 'charging', 'vehicleReport', 'departureClimate', 'departureLocations']);
+    assert.deepEqual(f.adapter.scheduler.options.domains, ['climate', 'charging', 'vehicleReport', 'vehicleAccess', 'departureClimate', 'departureLocations']);
     await f.adapter.command('departuresLocationsStatus');
     const keys = rows.map(row => localKey(VEHICLE, row.nativeId));
     assert.equal(f.value('chargingLocations.count'), 2);
-    assert.equal(f.adapter.scheduler.options.domains.length, 7);
+    assert.equal(f.adapter.scheduler.options.domains.length, 8);
     for (const key of keys) assert.ok(f.adapter.scheduler.options.domains.includes('departureLocation_' + key));
     const writes = f.records.stores[0].writes.filter(write => write.name === 'departure-location-bindings').length;
     rows = [...rows].reverse(); await f.adapter.command('departuresLocationsStatus');
@@ -2134,12 +2148,12 @@ test('automatic rotation fairly reads all five actual locations plus old and new
     const manual = { result: f.value('operation.lastResult'), error: f.value('operation.lastError'), code: f.value('operation.lastErrorCode') };
     await clock.advance(180000);
     const calls = f.records.controllerCalls;
-    for (const action of ['status', 'chargingStatus', 'vehicleReportStatus', 'departuresClimateStatus', 'departuresLocationsStatus']) {
+    for (const action of ['status', 'chargingStatus', 'vehicleReportStatus', 'refreshVehicleAccess', 'departuresClimateStatus', 'departuresLocationsStatus']) {
         assert.ok(calls.filter(call => call.action === action).length >= 2, action);
     }
     for (const location of locations) assert.ok(calls.filter(call => call.action === 'departuresLocationStatus'
         && call.input.location.nativeId === location.nativeId).length >= 2, location.nativeId);
-    assert.equal(f.adapter.activeReadDomains.length, 10);
+    assert.equal(f.adapter.activeReadDomains.length, 11);
     assert.equal(calls.some(call => /apply|start|stop|synchronize/i.test(call.action)), false);
     assert.equal(f.value('departures.climate.timer1.targetEnabled'), true);
     assert.equal(f.value('operation.lastResult'), manual.result);
@@ -2324,3 +2338,196 @@ for (const failurePoint of ['refreshMetadata', 'lateGroupTarget']) {
         assert.equal(f.value('refresh.departureLocations.status'), 'fresh');
     });
 }
+
+test('vehicle access creates ten read-only nullable indicators, named channels and a separate read command', async t => {
+    const f = await fixture(t);
+    assert.equal(f.adapter.objects.get('vehicleAccess').common.name, 'Türen, Fenster und Verriegelung');
+    assert.equal(f.adapter.objects.get('vehicleAccess.doors').common.name, 'Türen');
+    assert.equal(f.adapter.objects.get('vehicleAccess.windows').common.name, 'Fenster');
+    assert.equal(ACCESS_BOOLEAN_IDS.length, 10);
+    for (const id of ACCESS_BOOLEAN_IDS) {
+        const common = f.adapter.objects.get(id).common;
+        assert.equal(common.type, 'boolean', id);
+        assert.equal(common.read, true, id);
+        assert.equal(common.write, false, id);
+        assert.match(common.name, /laut App$/);
+        assert.equal(common.role, id.endsWith('.locked') ? 'indicator.locked' : 'indicator.open');
+        assert.deepEqual(f.adapter.states.get(id), { val: null, ack: true, q: 0x82 }, id);
+    }
+    for (const id of ['vehicleAccess.synchronizationText', 'vehicleAccess.warningText', 'vehicleAccess.observedAt']) {
+        assert.equal(f.adapter.objects.get(id).common.write, false);
+        assert.deepEqual(f.adapter.states.get(id), { val: '', ack: true, q: 0x82 });
+    }
+    assert.equal(f.adapter.objects.get('commands.refreshVehicleAccess').common.role, 'button');
+    assert.equal(f.adapter.objects.get('commands.refreshVehicleAccess').common.write, true);
+    assert.equal(f.value('refresh.vehicleAccess.status'), 'unknown');
+    assert.equal(f.value('refresh.vehicleAccess.lastReadAt'), '');
+    assert.equal(f.value('refresh.vehicleAccess.ageSeconds'), null);
+});
+
+test('vehicle access refresh is own-only and read-only without write permission or applying staged wishes', async t => {
+    const f = await fixture(t, { enrollment: enrolled(), fakeController: true,
+        config: { legacyStatePrefix: '0_userdata.0.old_vw' }, memory: {
+            'temperature-preference': { targetCelsius: 23.5 },
+            'settings-preference': { mode: 'windowHeating', climateOnUnlock: true },
+            'charging-preference': { socLimit: 80 },
+        } });
+    for (const state of [null, { val: true }, { val: true, ack: true }, { val: 'true', ack: false },
+        { val: false, ack: false }, { val: true, ack: 'false' }]) {
+        await f.adapter.onStateChange('vw-app.0.commands.refreshVehicleAccess', state);
+    }
+    await f.adapter.onStateChange('0_userdata.0.old_vw.refreshVehicleAccess', { val: true, ack: false });
+    await f.adapter.onStateChange('other.0.commands.refreshVehicleAccess', { val: true, ack: false });
+    await f.adapter.onStateChange('vw-app.0.vehicleAccess.locked', { val: true, ack: false });
+    assert.deepEqual(f.records.controllerCalls, []);
+    const wishes = clone(f.memory);
+    await f.adapter.onStateChange('vw-app.0.commands.refreshVehicleAccess', { val: true, ack: false });
+    assert.deepEqual(f.records.controllerCalls, [{ action: 'refreshVehicleAccess', input: {} }]);
+    assert.deepEqual(f.adapter.states.get('commands.refreshVehicleAccess'), { val: false, ack: true });
+    assert.deepEqual(f.memory, wishes);
+    assert.deepEqual(f.records.stores[0].writes, []);
+    assert.equal(f.records.stores[0].reservations, 0);
+    assert.equal(f.adapter.settings.allowWrites, false);
+    assert.equal(f.value('battery.lastSyncRequestAt'), '');
+    assert.equal(f.value('climate.appState'), 'unknown');
+});
+
+test('vehicle access projects each component with true meaning open and true locked meaning locked', async t => {
+    const f = await fixture(t);
+    const access = vehicleAccessModel();
+    await f.adapter.observation(vehicleAccessResult(access));
+    for (const group of ['doors', 'windows']) for (const position of ACCESS_POSITIONS) {
+        assert.deepEqual(f.adapter.states.get('vehicleAccess.' + group + '.' + position + 'Open'),
+            { val: access[group][position], ack: true });
+    }
+    for (const key of ['trunkOpen', 'locked', 'synchronizationText', 'warningText']) {
+        assert.deepEqual(f.adapter.states.get('vehicleAccess.' + key), { val: access[key], ack: true });
+    }
+    assert.equal(f.value('vehicleAccess.observedAt'), '2026-10-24T19:00:00.000Z');
+    assert.equal(f.value('refresh.vehicleAccess.lastReadAt'), f.value('vehicleAccess.observedAt'));
+    assert.equal(f.value('refresh.vehicleAccess.status'), 'fresh');
+    assert.equal(f.value('climate.vehicleConfirmed'), false);
+    const closed = vehicleAccessModel();
+    closed.doors = Object.fromEntries(ACCESS_POSITIONS.map(key => [key, false]));
+    closed.windows = { ...closed.doors }; closed.trunkOpen = false; closed.locked = true; closed.warningText = '';
+    await f.adapter.observation(vehicleAccessResult(closed));
+    for (const id of ACCESS_BOOLEAN_IDS) assert.equal(f.value(id), id.endsWith('.locked'), id);
+});
+
+test('partial unknown access values publish null with invalid quality while known components stay valid', async t => {
+    const f = await fixture(t);
+    const access = vehicleAccessModel();
+    access.doors.frontRight = null; access.windows.rearRight = null; access.locked = null;
+    await f.adapter.observation(vehicleAccessResult(access));
+    for (const id of ['vehicleAccess.doors.frontRightOpen', 'vehicleAccess.windows.rearRightOpen', 'vehicleAccess.locked']) {
+        assert.deepEqual(f.adapter.states.get(id), { val: null, ack: true, q: 0x82 });
+    }
+    assert.deepEqual(f.adapter.states.get('vehicleAccess.doors.frontLeftOpen'), { val: true, ack: true });
+    assert.equal(f.value('refresh.vehicleAccess.status'), 'fresh');
+    assert.equal(f.value('vehicleAccess.warningText'), access.warningText);
+});
+
+test('malformed access envelopes and models cannot partially overwrite a prior observation', async t => {
+    let response = vehicleAccessResult();
+    const f = await fixture(t, { enrollment: enrolled(), fakeController: true, controllerExecute: async () => response });
+    await f.adapter.observation(chargingResult());
+    const untouched = clone(f.adapter.states.get('battery.soc'));
+    const badModel = vehicleAccessModel(); badModel.windows.rearRight = 'false';
+    const bad = [null, { ...vehicleAccessResult(), domain: 'charging' },
+        { ...vehicleAccessResult(), source: 'other' }, { ...vehicleAccessResult(), vehicleConfirmed: true },
+        { ...vehicleAccessResult(), appVersion: undefined }, { ...vehicleAccessResult(), observedAt: '2026-02-30T00:00:00.000Z' },
+        vehicleAccessResult(badModel)];
+    for (const invalid of bad) {
+        await f.adapter.observation(vehicleAccessResult());
+        const prior = new Map([...f.adapter.states].filter(([id]) => id.startsWith('vehicleAccess.')));
+        response = invalid; const before = f.adapter.writes.length;
+        await assert.rejects(f.adapter.command('refreshVehicleAccess'), error => error instanceof BridgeError && /^invalid_/.test(error.code));
+        for (const [id, value] of prior) assert.equal(f.value(id), value.val, id);
+        assert.ok(f.adapter.writes.slice(before).filter(row => row.id.startsWith('vehicleAccess.')).every(row => row.value.q === 0x82));
+        assert.equal(f.value('refresh.vehicleAccess.lastReadAt'), '2026-10-24T19:00:00.000Z');
+        assert.equal(f.value('refresh.vehicleAccess.status'), 'error');
+        assert.deepEqual(f.adapter.states.get('battery.soc'), untouched);
+    }
+});
+
+test('automatic access reads renew quality and timestamps without replacing manual feedback or wishes', async t => {
+    const clock = fakeClock(); let response;
+    const f = await fixture(t, { clock, enrollment: enrolled(), fakeController: true, RefreshScheduler: RecordingScheduler,
+        config: { pollIntervalSeconds: 15, refreshMaxAgeSeconds: 30 }, controllerExecute: async action => {
+            assert.equal(action, 'refreshVehicleAccess');
+            if (response instanceof Error) throw response;
+            return { ...vehicleAccessResult(response), observedAt: new Date(clock.now()).toISOString() };
+        } });
+    response = vehicleAccessModel();
+    await f.adapter.stageTemperature(24); await f.adapter.stageChargingSetting('socLimit', 80);
+    await f.adapter.state('operation.lastResult', 'prior_manual_result');
+    await f.adapter.state('operation.lastErrorCode', 'prior_manual_code');
+    const memory = clone(f.memory);
+    assert.ok(f.adapter.scheduler.options.domains.includes('vehicleAccess'));
+    await f.adapter.scheduler.options.run('vehicleAccess');
+    const first = f.value('vehicleAccess.observedAt');
+    await clock.advance(31000);
+    assert.equal(f.value('refresh.vehicleAccess.status'), 'stale');
+    for (const id of ACCESS_BOOLEAN_IDS) assert.equal(f.adapter.states.get(id).q, 0x82, id);
+    assert.equal(f.value('vehicleAccess.observedAt'), first);
+    response = new BridgeError('wifi_unavailable', 'Phone not reachable.');
+    await rejectsCode(f.adapter.scheduler.options.run('vehicleAccess'), 'wifi_unavailable');
+    assert.equal(f.value('refresh.vehicleAccess.status'), 'error');
+    assert.equal(f.value('refresh.vehicleAccess.lastErrorCode'), 'wifi_unavailable');
+    assert.equal(f.value('refresh.vehicleAccess.lastReadAt'), first);
+    assert.equal(f.value('vehicleAccess.doors.frontLeftOpen'), true);
+    response = vehicleAccessModel(); response.doors.frontLeft = false;
+    await f.adapter.scheduler.options.run('vehicleAccess');
+    assert.equal(f.value('vehicleAccess.doors.frontLeftOpen'), false);
+    assert.equal(f.adapter.states.get('vehicleAccess.doors.frontLeftOpen').q, undefined);
+    assert.equal(f.value('refresh.vehicleAccess.status'), 'fresh');
+    assert.equal(f.value('refresh.vehicleAccess.lastErrorCode'), '');
+    assert.notEqual(f.value('vehicleAccess.observedAt'), first);
+    assert.equal(f.value('operation.lastResult'), 'prior_manual_result');
+    assert.equal(f.value('operation.lastErrorCode'), 'prior_manual_code');
+    assert.equal(f.value('refresh.autoBusy'), false);
+    assert.deepEqual(f.memory, memory);
+    assert.equal(f.value('battery.lastSyncRequestAt'), '');
+});
+
+test('access history survives restart with invalid quality until a new app read succeeds', async t => {
+    const first = await fixture(t);
+    await first.adapter.observation(vehicleAccessResult());
+    const initialStates = Object.fromEntries([...first.adapter.states].filter(([id]) => id.startsWith('vehicleAccess.')));
+    const restarted = await fixture(t, { initialStates });
+    assert.equal(restarted.value('vehicleAccess.doors.frontLeftOpen'), true);
+    assert.equal(restarted.value('vehicleAccess.doors.frontRightOpen'), false);
+    assert.equal(restarted.value('vehicleAccess.observedAt'), '2026-10-24T19:00:00.000Z');
+    assert.deepEqual(restarted.adapter.states.get('vehicleAccess.observedAt'),
+        { val: '2026-10-24T19:00:00.000Z', ack: true });
+    assert.equal(restarted.value('refresh.vehicleAccess.lastReadAt'), '2026-10-24T19:00:00.000Z');
+    assert.equal(restarted.value('refresh.vehicleAccess.status'), 'stale');
+    for (const id of ACCESS_BOOLEAN_IDS) assert.equal(restarted.adapter.states.get(id).q, 0x82);
+    await restarted.adapter.observation(vehicleAccessResult());
+    assert.deepEqual(restarted.adapter.states.get('vehicleAccess.locked'), { val: false, ack: true });
+    assert.equal(restarted.value('refresh.vehicleAccess.status'), 'fresh');
+});
+
+test('a manual command takes a safe handoff from an automatic access read without publishing its cancelled result', async t => {
+    const entered = deferred(), release = deferred();
+    const f = await fixture(t, { enrollment: enrolled(), fakeController: true, cooperativeHandoff: true,
+        RefreshScheduler: RecordingScheduler, config: { pollIntervalSeconds: 15 }, controllerExecute: async action => {
+            if (action === 'refreshVehicleAccess') { entered.resolve(); await release.promise; return vehicleAccessResult(); }
+            return chargingResult();
+        } });
+    t.after(() => release.resolve());
+    await f.adapter.observation(vehicleAccessResult());
+    const before = new Map([...f.adapter.states].filter(([id]) => id.startsWith('vehicleAccess.') || id.startsWith('refresh.vehicleAccess.')));
+    const automatic = f.adapter.scheduler.options.run('vehicleAccess'); await entered.promise;
+    const controller = f.records.controllers[0];
+    const manual = f.adapter.command('chargingStatus');
+    assert.equal(controller.handoffRequested, true);
+    assert.equal(controller.cancelled, undefined);
+    assert.equal(f.records.controllerCalls.length, 1);
+    release.resolve(); await automatic; await manual;
+    assert.deepEqual(f.records.controllerCalls, [{ action: 'refreshVehicleAccess', input: {} }, expectedChargingCall('chargingStatus')]);
+    for (const [id, value] of before) assert.deepEqual(f.adapter.states.get(id), value, id);
+    assert.equal(f.value('operation.lastResult'), 'succeeded');
+    assert.equal(f.value('refresh.autoBusy'), false);
+    assert.equal(f.value('refresh.charging.status'), 'fresh');
+});

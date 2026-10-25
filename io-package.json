@@ -1,8 +1,9 @@
 {
   "common": {
     "name": "vw-app",
-    "version": "0.7.0",
+    "version": "0.8.0",
     "news": {
+      "0.8.0": { "en": "Read individual door, window, trunk and lock states from the app overview with automatic refresh and independent validity metadata.", "de": "Türen, Fenster, Kofferraum und Verriegelung einzeln aus der App-Startseite lesen, regelmäßig aktualisieren und ihre Gültigkeit überwachen." },
       "0.7.0": { "en": "Read and edit app departure timers and charging-location settings with separate wishes, native identity checks and automatic refresh.", "de": "Abfahrtszeiten und Ladeorte der App mit getrennten Wünschen, geprüfter Ortsbindung und regelmäßiger Aktualisierung lesen und bedienen." },
       "0.6.0": { "en": "Refresh climate, charging and vehicle-report app observations automatically with fair scheduling, manual-command priority and separate read-age diagnostics.", "de": "Klima-, Lade- und Berichtswerte der App automatisch fair aktualisieren, Bedienbefehle bevorzugen und das Alter der App-Auslesung getrennt anzeigen." },
       "0.5.0": { "en": "Read the vehicle health report, mileage, next service, app synchronization label and seven message categories without changing vehicle settings.", "de": "Fahrzeugzustandsbericht, Kilometerstand, nächsten Service, Synchronisationshinweis der App und sieben Meldungsbereiche auslesen, ohne Fahrzeugeinstellungen zu ändern." },
