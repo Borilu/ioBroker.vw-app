@@ -2,7 +2,7 @@
 
 Für den Einstieg gibt es eine [einfache Anleitung mit Screenshots für Installation und Handy-Kopplung](INSTALLATION.de.md), auch [als PDF zum Herunterladen](https://github.com/Borilu/ioBroker.vw-app/releases/download/v0.9.2/VW-App-Installation-und-Kopplung.pdf). Die folgenden Abschnitte dienen als ausführliche Referenz.
 
-Die separate [Bedienungsanleitung](BEDIENUNG.de.md) führt alle Datenpunktpfade, ihren Inhalt und die erforderlichen Bedienfolgen auf. Sie ist ebenfalls [als PDF für 0.10.0 verfügbar](https://github.com/Borilu/ioBroker.vw-app/releases/download/v0.10.0/VW-App-Bedienungsanleitung.pdf). Dieses ältere PDF enthält die Lademodi noch nicht; dafür die aktualisierte Online-Anleitung für 0.11.0 verwenden.
+Die separate [Bedienungsanleitung](BEDIENUNG.de.md) führt alle Datenpunktpfade, ihren Inhalt und die erforderlichen Bedienfolgen auf. Sie ist ebenfalls [als PDF für 0.10.0 verfügbar](https://github.com/Borilu/ioBroker.vw-app/releases/download/v0.10.0/VW-App-Bedienungsanleitung.pdf). Dieses ältere PDF enthält die Lademodi noch nicht; dafür die aktualisierte Online-Anleitung für 0.11.1 verwenden.
 
 Der Adapter bedient die offizielle Volkswagen-App auf einem Android-Handy. Die Volkswagen-Anmeldung erfolgt auf dem Handy. Für die Einrichtung werden weder das Volkswagen-Passwort noch ein Volkswagen-Zugriffstoken in ioBroker eingetragen.
 
@@ -158,20 +158,26 @@ Version 0.4.0 bestand **332 automatisierte Tests auf Linux**. Die Liveprüfung l
 
 Ab 0.11.0 liest der vorhandene Ladebereich auch den Modus in den Reichweitendetails der App. Die neue Modusauswahl besitzt einen eigenen Wunsch, eigene Speicherung und einen eigenen ausdrücklichen Übernehmen-Befehl; die vier bisherigen Ladeeinstellungswünsche bleiben unabhängig.
 
+0.11.1 ergänzt die Erkennung einer bestätigten Ansichtsvariante mit zusätzlichem leerem, nicht interaktivem Compose-Wrapper. 0.11.0 konnte diese Variante mit `unknown_state` vor dem Modus-Auswahltipp ablehnen. Die vollständige Prüfung der drei Karten, der Auswahl, ihrer Geometrie und möglicher Überlagerungen bleibt erhalten. Ein Update löst keinen Moduswechsel aus.
+
 | Datenpunkt unter `vw-app.0` | Zugriff | Inhalt oder Bedienung |
 | --- | --- | --- |
 | `charging.mode` | Lesen | `immediate` = Sofortladen, `departure` = Laden zur Abfahrtszeit, `departureClimate` = Laden und Klima zur Abfahrtszeit; anfangs unbekannt `null`, Qualität beachten |
 | `charging.modeObservedAt` | Lesen | ISO-UTC-Zeit der letzten erfolgreichen Modusbeobachtung, sonst leer; keine Fahrzeugmesszeit |
 | `charging.targetMode` | Wunsch | Einer der drei Moduswerte oder `null` zum Beibehalten; mit `ack=false` schreiben |
 | `charging.targetModeError` | Lesen | Fester Auswahl-/Speicherfehler; leer nach gültig gespeicherter Auswahl oder Löschen |
-| `commands.applyChargingMode` | Nur schreiben | Einmal `true`, `ack=false`: gespeicherten Modus übernehmen, Schaltfreigabe erforderlich |
+| `commands.applyChargingMode` | Nur schreiben | Einmal `true`, `ack=false`: gespeicherten Modus übernehmen, tatsächlicher Wechsel braucht Schaltfreigabe |
 | `commands.clearChargingMode` | Nur schreiben | Einmal `true`, `ack=false`: nur den Moduswunsch löschen, ohne Handyzugriff |
 
 Die Modus-Auswahlliste enthält nur die drei benannten Modi. `null` ist ein echter Nullwert zum Löschen des Wunschs, kein weiterer Modus und nicht der Text `"null"`. Falls die Oberfläche keinen Nullwert anbietet, dafür `commands.clearChargingMode` verwenden.
 
 Zuerst `charging.targetMode` auswählen und auf dessen Bestätigung `ack=true` sowie ein leeres Fehlerfeld warten. Dann `commands.applyChargingMode` einmal auslösen. Nach dem Auftrag dessen Rückmeldung sowie `charging.mode`, gültige Qualität und eine frische `charging.modeObservedAt` prüfen. Ein bestätigter Wunsch bedeutet nur gespeichert; erst der ausdrückliche Befehl bedient die App.
 
+Ohne Schaltfreigabe kann dieser Modusbefehl ausschließlich einen bereits erfüllten Wunsch durch frisches Lesen bestätigen; einen abweichenden Modus weist er vor Auswahlmenü, Schaltreservierung und Modustipp zurück.
+
 **Die App speichert den Modus sofort beim Antippen, ohne Speichern-Knopf. Der Wechsel kann unmittelbar Laden auslösen.** Der Adapter betätigt keinen zusätzlichen Startknopf. Vor dem möglicherweise wirksamen Tipp gilt der gemeinsame Schalt-Mindestabstand von **60 bis 3600 Sekunden**, Standard **60**. Keine S-PIN ist erforderlich. Bei unklarem Ergebnis die App prüfen und neu lesen; weder einen automatischen Wiederholungsversuch noch einen zusätzlichen Start nachschieben.
+
+Eine bereits wirksame Auswahl kann in der App erst verzögert bestätigt werden. 0.11.1 nutzt dafür die eingestellte `outcomeTimeoutSeconds` innerhalb der übergeordneten Auftragsfrist: begrenzte reine Leseabfragen bei Übergangsansichten, nötigenfalls einen sicheren Leseweg von der bestätigten Fahrzeugübersicht zurück in die Reichweitendetails sowie lesendes Warten nach genau einer nativen Header-Zurück-Aktion. Zur Bestätigung werden weder die Modusauswahl noch diese Zurück-Aktion wiederholt. Bleibt der Auftrag unklar, zuerst `commands.refreshCharging` verwenden und den gültigen Modus samt neuer `charging.modeObservedAt` prüfen; ein Fehler ist kein Nachweis dafür, dass die Auswahl unwirksam blieb.
 
 Die Modusdatei und ihre Speicherbarriere sind von den vier bisherigen Ladewünschen getrennt. `commands.applyChargingSettings` übernimmt keinen Modus; `commands.clearChargingSettings` löscht keinen Moduswunsch. Ungültige Auswahl oder fehlgeschlagene Speicherung sperrt nur Mode-Apply bis zur gültigen Neuauswahl oder zum Modus-Löschen. Ein bereits angenommener Auftrag behält seine ursprüngliche Auswahl. Neustart, Wiederverbinden und Polling wenden keine Wünsche an und wiederholen keinen Moduswechsel.
 

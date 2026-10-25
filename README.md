@@ -241,18 +241,24 @@ Version 0.4.0 passed **332 automated tests on Linux**. Live checks read battery 
 
 Version 0.11.0 adds a separate charging-mode wish and explicit command. The app applies a mode selection immediately, without **Save**. A mode change can therefore start charging; the adapter never presses an additional charging Start control.
 
+Version 0.11.1 also recognizes the supported picker layout with an additional empty, noninteractive Compose wrapper. In 0.11.0 this layout could fail with `unknown_state` before a mode-option tap. The exact three-choice, selection, geometry and overlay checks remain required; updating does not automatically submit a mode command.
+
+App confirmation may lag behind an accepted selection. Within the configured confirmation window and overall command deadline, the adapter waits using read-only observations and, when needed, safely reopens the range details from the confirmed vehicle overview. A picker return uses one native header action followed by read-only waiting. The mode selection and header action are never repeated to obtain confirmation. An unknown result can therefore follow an effective selection: read the mode with `commands.refreshCharging` before considering another command.
+
 | State relative to `vw-app.0` | Access and meaning |
 |---|---|
 | `charging.mode` | Read-only: `immediate` (charge immediately), `departure` (charge for departure), `departureClimate` (charge and climate for departure), or `null` before a known observation; check quality |
 | `charging.modeObservedAt` | Read-only: ISO UTC time of the last successful mode-reading snapshot, or empty; neither battery-read time nor vehicle telemetry time |
 | `charging.targetMode` | Saved wish: one of the three exact strings, or `null` to keep the app mode; write with `ack=false` |
 | `charging.targetModeError` | Read-only: fixed selection/save error, empty after a valid saved selection or clear |
-| `commands.applyChargingMode` | Write-only: write `true`, `ack=false` once to apply the saved mode; vehicle-setting write permission required |
+| `commands.applyChargingMode` | Write-only: write `true`, `ack=false` once to apply the saved mode; actual changes require vehicle-setting write permission |
 | `commands.clearChargingMode` | Write-only: write `true`, `ack=false` to clear only this wish without phone access |
 
 The enum list contains the three named modes. A real `null` clears the wish; it is neither a fourth mode nor the string `"null"`. If the UI does not offer a null selection, use `commands.clearChargingMode`.
 
 Select `charging.targetMode`, wait for `ack=true` and an empty `charging.targetModeError`, then trigger `commands.applyChargingMode` once. Check `operation.lastResult` and `operation.lastErrorCode`, followed by a valid `charging.mode` and a fresh `charging.modeObservedAt`. The configured common switching-attempt cooldown is **60–3600 seconds**, default **60**, and is reserved before a potentially effective mode tap. After an unknown result, inspect the app and request a read before deciding what to do; do not automatically retry. No S-PIN is needed.
+
+With write permission disabled, this mode command can only confirm an already fulfilled wish from fresh app readings; a different mode is rejected before opening the picker, reserving a switching attempt or selecting a mode.
 
 The mode wish persists separately from the four charge-limit/charging-option wishes. `commands.applyChargingSettings` never applies a mode wish; its clear command never clears one. A mode selection or save error blocks only mode apply until a valid reselect or mode clear. Later changes cannot alter an accepted command's snapshot. Startup, reconnect and automatic reads never apply the wish or repeat the mode change.
 
@@ -452,11 +458,17 @@ The script checks the tool checksum, compiles only the two listed implementation
 
 ### Publishing a version
 
-Keep the version in `package.json`, `io-package.json` and `package-lock.json` synchronized, add a dated changelog entry and update the translated adapter news. Merge the release commit into `main` after its checks pass, then create a matching GitHub tag such as `v0.11.0` on that commit.
+Keep the version in `package.json`, `io-package.json` and `package-lock.json` synchronized, add a dated changelog entry and update the translated adapter news. Merge the release commit into `main` after its checks pass, then create a matching GitHub tag such as `v0.11.1` on that commit.
 
 The tag triggers `.github/workflows/test-and-release.yml`. Package, lint and Linux integration checks must pass before deployment. The deployment job checks that the tag matches the package version and that the commit belongs to `main`; an existing npm version is retained without another publication attempt. For a new version, the job is configured to publish to npm using GitHub OIDC trusted publishing with provenance. npm's trusted-publisher binding must match this public repository and workflow file. No npm access token is stored in the repository.
 
 ## Changelog
+
+### 0.11.1 (2026-10-25)
+
+- Recognize the verified empty, inert Compose wrapper around the charging-mode picker that 0.11.0 rejected before tapping a mode option.
+- Handle delayed app confirmation within the configured outcome window through bounded reads, safe overview-to-range observation and read-only waiting after one native header return; do not repeat switching commands.
+- Retain the exact three mode cards, consistent selection, geometry and overlay guards; keep data points, permissions and explicit command behavior unchanged.
 
 ### 0.11.0 (2026-10-25)
 

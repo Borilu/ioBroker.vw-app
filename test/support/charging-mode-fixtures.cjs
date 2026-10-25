@@ -43,7 +43,7 @@ function rangeModeScreen({ mode = 'departureClimate', description, extraMode = '
     ])]);
 }
 
-function chargingModeScreen({ mode = 'departure', order = ['immediate', 'departure', 'departureClimate'] } = {}) {
+function chargingModeScreen({ mode = 'departure', order = ['immediate', 'departure', 'departureClimate'], wrapperCount = 1 } = {}) {
     const options = order.map((key, index) => {
         const selected = key === mode;
         const top = 250 + index * 280;
@@ -52,8 +52,7 @@ function chargingModeScreen({ mode = 'departure', order = ['immediate', 'departu
             'content-desc': `${OPTION_LABELS[key]}. Erklärung des Ladeverfahrens. ${selected ? 'Ausgewählt' : 'Dieses Ladeverfahren wählen'}`,
             bounds: `[50,${top}][950,${top + 250}]` });
     });
-    return hierarchy([node('composeView', { class: 'androidx.compose.ui.platform.ComposeView' }, [
-        node('', {}, [
+    let main = node('', {}, [
             node('', { bounds: '[0,0][1000,100]' }, [
                 node('chargeModeSelectionBack', { clickable: 'true', 'a11y-actions': '[1,64,16]', bounds: '[20,0][120,100]' }, [
                     node('', { bounds: '[30,10][110,90]' }),
@@ -65,8 +64,9 @@ function chargingModeScreen({ mode = 'departure', order = ['immediate', 'departu
                 node('', { bounds: '[50,100][950,230]' }),
                 ...options,
             ]),
-        ]),
-    ])]);
+    ]);
+    for (let index = 0; index < wrapperCount; index++) main = node('', { 'a11y-actions': '[64]' }, [main]);
+    return hierarchy([node('composeView', { class: 'androidx.compose.ui.platform.ComposeView' }, [main])]);
 }
 
 function nativeObservationFromXml(xml) {

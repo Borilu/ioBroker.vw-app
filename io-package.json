@@ -1,8 +1,21 @@
 {
   "common": {
     "name": "vw-app",
-    "version": "0.11.0",
+    "version": "0.11.1",
     "news": {
+      "0.11.1": {
+        "en": "Recognize the empty charging-picker wrapper and wait for delayed app confirmation through bounded reads without repeating commands; retain all selection and overlay guards.",
+        "de": "Leeren Wrapper der Lademodusauswahl erkennen und verzögerte App-Bestätigung begrenzt lesend abwarten, ohne Befehle zu wiederholen; Auswahl- und Überlagerungsprüfungen bleiben erhalten.",
+        "ru": "Распознавание пустой оболочки выбора режима и ожидание задержанного подтверждения приложения ограниченными чтениями без повтора команд; проверки выбора и перекрытий сохранены.",
+        "pt": "Reconhece a camada vazia da seleção de carga e aguarda a confirmação atrasada por leituras limitadas sem repetir comandos; mantém as verificações de seleção e sobreposição.",
+        "nl": "Herkent de lege laadkeuzecontainer en wacht met begrensde uitlezingen op vertraagde appbevestiging zonder opdrachten te herhalen; selectie- en overlaycontroles blijven behouden.",
+        "fr": "Reconnaît le conteneur vide du choix de recharge et attend la confirmation tardive par lectures limitées, sans répéter les commandes ; contrôles de sélection et de superposition conservés.",
+        "it": "Riconosce il contenitore vuoto della scelta di ricarica e attende conferme ritardate con letture limitate senza ripetere comandi; conserva i controlli di selezione e sovrapposizione.",
+        "es": "Reconoce el contenedor vacío del selector y espera la confirmación tardía con lecturas limitadas sin repetir comandos; mantiene las comprobaciones de selección y superposiciones.",
+        "pl": "Rozpoznaje pusty kontener wyboru trybu i czeka na opóźnione potwierdzenie przez ograniczone odczyty bez powtarzania poleceń; zachowuje kontrole wyboru i nakładek.",
+        "uk": "Розпізнає порожню оболонку вибору й очікує затримане підтвердження обмеженими читаннями без повтору команд; перевірки вибору та перекриттів збережено.",
+        "zh-cn": "识别充电模式选择器的空容器，通过有时限的只读查询等待延迟的应用确认，不重复发送命令，并保留选中状态和遮挡检查。"
+      },
       "0.11.0": {
         "en": "Read and explicitly select three charging modes with a separate saved wish, snapshot time and validity; keep charging settings and departure timers independent.",
         "de": "Drei Lademodi mit getrennt gespeichertem Wunsch, Beobachtungszeit und Gültigkeit auslesen und ausdrücklich wählen; Ladeeinstellungen und Abfahrtstimer bleiben unabhängig.",
@@ -80,19 +93,6 @@
         "pl": "Jawne polecenia zamykania i otwierania wybranego pojazdu w aplikacji: osobne zezwolenie, zaszyfrowany S-PIN, jedna próba uwierzytelnienia i kontrola stanu zamków w aplikacji.",
         "uk": "Явні команди замикання та відмикання вибраного автомобіля через застосунок: окремий дозвіл, зашифрований S-PIN, одна спроба автентифікації та перевірка стану замків у застосунку.",
         "zh-cn": "通过应用明确锁定和解锁选定车辆，使用独立授权、加密的 S-PIN 配置、单次身份验证及应用锁定状态确认。"
-      },
-      "0.8.0": {
-        "en": "Read individual door, window, trunk and lock states from the app overview with automatic refresh and independent validity metadata.",
-        "de": "Türen, Fenster, Kofferraum und Verriegelung einzeln aus der App-Startseite lesen, regelmäßig aktualisieren und ihre Gültigkeit überwachen.",
-        "ru": "Чтение отдельных состояний дверей, окон, багажника и замков с главного экрана приложения с автообновлением и независимыми сведениями о достоверности.",
-        "pt": "Lê os estados individuais de portas, janelas, porta-malas e travamento na tela inicial do aplicativo, com atualização automática e validade independente.",
-        "nl": "Lees afzonderlijke deur-, raam-, kofferbak- en vergrendelingsstatussen uit het app-overzicht, met automatische updates en eigen geldigheidsgegevens.",
-        "fr": "Lecture des états individuels des portes, vitres, coffre et verrouillage depuis l’accueil de l’application, avec actualisation automatique et validité indépendante.",
-        "it": "Legge i singoli stati di porte, finestrini, bagagliaio e chiusura dalla schermata iniziale dell’app, con aggiornamento automatico e validità indipendente.",
-        "es": "Lee los estados individuales de puertas, ventanas, maletero y bloqueo desde el inicio de la aplicación, con actualización automática y validez independiente.",
-        "pl": "Odczyt osobnych stanów drzwi, szyb, bagażnika i zamków z ekranu głównego aplikacji, z automatycznym odświeżaniem i niezależną kontrolą ważności.",
-        "uk": "Читання окремих станів дверей, вікон, багажника та замків із головного екрана застосунку з автооновленням і незалежними даними про достовірність.",
-        "zh-cn": "从应用主页读取各车门、车窗、后备箱及锁定状态，并自动刷新和独立监测有效性。"
       }
     },
     "titleLang": {

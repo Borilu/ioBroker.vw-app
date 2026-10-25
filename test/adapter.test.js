@@ -17,6 +17,8 @@ const { DEFAULT_TARGET_CHARGING, CHARGING_KEYS, MIN_TARGET_SOC, MAX_TARGET_SOC, 
 const { REPORT_CATEGORIES } = require('../lib/vehicle-report');
 const { localKey } = require('../lib/departures-adapter');
 const LEGACY_OBJECTS_0100 = require('./support/objects-0.10.0.json');
+const { overviewChargingScreen, chargingSettingsScreen, POINTS: CHARGING_POINTS } = require('./support/charging-fixtures.cjs');
+const { rangeModeScreen, nativeObservationFromXml } = require('./support/charging-mode-fixtures.cjs');
 
 const VEHICLE = 'Ihr Fahrzeug: ID.7 GTX Tourer. ';
 const DEVICE = 'serial:TEST-ADAPTER-42';
@@ -244,7 +246,7 @@ async function fixture(t, options = {}) {
     }
 
     const utils = { Adapter: FakeAdapter, getAbsoluteInstanceDataDir: () => root };
-    const Adapter = createAdapterClass(utils, { Runtime: FakeRuntime, Phone: FakePhone, Store: FakeStore, Lease: FakeLease,
+    const Adapter = createAdapterClass(utils, { Runtime: FakeRuntime, Phone: options.Phone || FakePhone, Store: FakeStore, Lease: FakeLease,
         ...(options.clock ? { now: options.clock.now } : {}),
         ...(options.RefreshScheduler ? { RefreshScheduler: options.RefreshScheduler } : {}),
         ...(options.fakeController ? { Controller: FakeController } : {}) });
@@ -3254,20 +3256,89 @@ test('charging mode save failure uses fixed errors and requires reselect without
     assert.equal(f.value('charging.mode'), 'departure');
 });
 
-test('charging mode apply requires an explicit wish, write permission and valid profile and cannot run automatically', async t => {
+test('charging mode apply requires an explicit wish and valid profile and cannot run automatically', async t => {
     const f = await fixture(t, { fakeController: true });
     await rejectsCode(f.adapter.command('applyChargingMode'), 'charging_mode_required');
     await f.adapter.stageChargingMode('immediate');
-    await rejectsCode(f.adapter.command('applyChargingMode'), 'writes_disabled');
-    f.adapter.settings.allowWrites = true;
     await rejectsCode(f.adapter.command('applyChargingMode'), 'profile_required');
     f.memory.enrollment = enrolled(); f.adapter.settings.approvedAppVersion = 'different';
     await rejectsCode(f.adapter.command('applyChargingMode'), 'profile_mismatch');
     f.adapter.settings.approvedAppVersion = '';
     await rejectsCode(f.adapter.command('applyChargingMode', { automatic: true }), 'invalid_action');
     assert.equal(f.records.phones.length, 0);
+    f.adapter.settings.allowWrites = true;
     await f.adapter.command('applyChargingMode');
     assert.deepEqual(f.records.controllerCalls, [{ action: 'applyChargingMode', input: { targetChargingMode: 'immediate' } }]);
+});
+
+test('disabled writes allow only a freshly fulfilled mode through the real adapter and controller', async t => {
+    for (const currentMode of ['departure', 'departureClimate']) {
+        const phones = [];
+        class ReadOnlyChargingPhone {
+            constructor(settings) { this.settings = settings; this.page = 'overview'; this.lower = false; this.calls = []; phones.push(this); }
+            async connect() { await this.settings.onVerified(DEVICE); return { deviceId: DEVICE }; }
+            async version() { return '4.8.1'; }
+            async launch() {}
+            async dump() {
+                if (this.page === 'overview') return overviewChargingScreen({ lower: this.lower }).replace('Ihr Fahrzeug: Testwagen. ', VEHICLE);
+                if (this.page === 'vehicleSettings') return chargingSettingsScreen({ socLimit: 100, reducedAcCurrent: true,
+                    autoUnlockAc: false, optimizedBatteryUse: true, vehicleName: 'Testwagen', dirty: false });
+                if (this.page === 'range') return rangeModeScreen({ mode: currentMode });
+                assert.fail('No mode picker may be opened with writes disabled.');
+            }
+            async departureView() {
+                this.snapshot = nativeObservationFromXml(await this.dump());
+                return { observation: this.snapshot };
+            }
+            async departureAction(request) {
+                assert.equal(request.snapshot, this.snapshot);
+                assert.equal(request.action, 'scrollBackward');
+                assert.equal(this.page, 'overview');
+                this.lower = false;
+                return { beforeMatched: true, actionAttempted: true, actionAccepted: true, success: true,
+                    errorCode: null, postRead: { observation: nativeObservationFromXml(await this.dump()) } };
+            }
+            async swipe(gesture) { assert.equal(this.page, 'overview'); this.lower = gesture.y2 < gesture.y1; }
+            async tap(x, y) {
+                this.calls.push({ page: this.page, x, y });
+                if (this.page === 'overview' && x === CHARGING_POINTS.vehicleSettings.x && y === CHARGING_POINTS.vehicleSettings.y && this.lower) { this.page = 'vehicleSettings'; return; }
+                if (this.page === 'vehicleSettings' && x === CHARGING_POINTS.vehicleSettingsBack.x && y === CHARGING_POINTS.vehicleSettingsBack.y) { this.page = 'overview'; return; }
+                if (this.page === 'overview' && x === CHARGING_POINTS.range.x && y === CHARGING_POINTS.range.y) { this.page = 'range'; return; }
+                if (this.page === 'range' && x === CHARGING_POINTS.back.x && y === CHARGING_POINTS.back.y) { this.page = 'overview'; return; }
+                assert.fail('No mode selection, start, synchronization or setting may be tapped.');
+            }
+        }
+        const f = await fixture(t, { enrollment: enrolled(), Phone: ReadOnlyChargingPhone, config: { allowWrites: false } });
+        await f.adapter.stageChargingMode('departure');
+        const command = f.adapter.command('applyChargingMode');
+        if (currentMode === 'departure') {
+            const result = await command;
+            assert.equal(result.changed, false);
+            assert.equal(result.charging.mode, 'departure');
+            assert.equal(f.value('operation.lastResult'), 'succeeded');
+            assert.equal(f.value('charging.mode'), 'departure');
+            assert.equal(typeof f.value('charging.modeObservedAt'), 'string');
+            assert.equal(phones[0].page, 'overview');
+        } else {
+            await rejectsCode(command, 'writes_disabled');
+            assert.equal(f.value('operation.lastErrorCode'), 'writes_disabled');
+        }
+        assert.equal(phones.length, 1);
+        const phone = phones[0];
+        assert.equal(f.records.stores[0].reservations, 0);
+        assert.ok(phone.calls.every(call => call.page !== 'chargingMode'));
+        assert.ok(!phone.calls.some(call => call.page === 'range' && call.x !== CHARGING_POINTS.back.x));
+        assert.equal(f.adapter.settings.allowWrites, false);
+        const readsBefore = phone.calls.length;
+        await f.adapter.stageChargingSetting('socLimit', 80);
+        await rejectsCode(f.adapter.command('applyChargingSettings'), 'writes_disabled');
+        await f.adapter.stageSetting('mode', 'climate');
+        await rejectsCode(f.adapter.command('applySettings'), 'writes_disabled');
+        await f.adapter.stageTemperature(22);
+        await rejectsCode(f.adapter.command('setTemperature'), 'writes_disabled');
+        assert.equal(phone.calls.length, readsBefore);
+        assert.equal(f.records.stores[0].reservations, 0);
+    }
 });
 
 test('charging mode snapshot waits for its own preceding save while later selection affects only a later command', async t => {
