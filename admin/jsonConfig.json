@@ -5,7 +5,7 @@
   "items": {
     "_intro": {
       "type": "staticText",
-      "text": "Verbinde dein Android-Handy und prüfe die Volkswagen-App. Danach kannst du Klimatisierung, Ladeeinstellungen und Abfahrtszeiten aus ioBroker bedienen sowie Batterie, Restreichweite und den Fahrzeugzustandsbericht auslesen. Die Anmeldung bei Volkswagen bleibt auf dem Handy.",
+      "text": "Verbinde dein Android-Handy und prüfe die Volkswagen-App. Danach kannst du Klimatisierung, Ladeeinstellungen und Abfahrtszeiten aus ioBroker bedienen sowie Batterie, Restreichweite, Türen, Fenster, Kofferraum, Verriegelung und den Fahrzeugzustandsbericht auslesen. Die Anmeldung bei Volkswagen bleibt auf dem Handy.",
       "newLine": true,
       "sm": 12
     },
@@ -268,7 +268,7 @@
       "validator": "Number.isInteger(data.pollIntervalSeconds) && (data.pollIntervalSeconds === 0 || data.pollIntervalSeconds >= 15 && data.pollIntervalSeconds <= 86400)",
       "validatorNoSaveOnError": true,
       "validatorErrorText": "0 zum Ausschalten oder eine ganze Zahl von 15 bis 86400 Sekunden wählen.",
-      "help": "Liest Klima, Batterie/Ladeeinstellungen, Fahrzeugzustandsbericht, Klima-Abfahrtszeiten, Ladeortliste und jeden vorhandenen Ladeort fair nacheinander. Zusätzliche Orte verlängern den gesamten Rundlauf. Der Abstand gilt vom Abschluss einer Abfrage bis zur erneuten Fälligkeit desselben Bereichs; 15 Sekunden versprechen keinen vollständigen Rundlauf alle 15 Sekunden. Zwischen automatischen Aufträgen liegt zusätzlich eine Erholungspause von mindestens 5 Sekunden oder 25 % der Auftragsdauer. Bedienbefehle haben an sicheren Schrittgrenzen Vorrang. Fehler verlängern die Wiederholungsabstände bis fünf Minuten; ein längeres eingestelltes Mindestintervall bleibt wirksam. Automatische Abfragen synchronisieren nicht und übernehmen keine Wünsche. Vorhandenes 0 bleibt ausgeschaltet; neue Instanzen beginnen mit 15.",
+      "help": "Liest Klima, Batterie/Ladeeinstellungen, Fahrzeugzustandsbericht, Türen/Fenster/Kofferraum/Verriegelung, Klima-Abfahrtszeiten, Ladeortliste und jeden vorhandenen Ladeort fair nacheinander. Zusätzliche Orte verlängern den gesamten Rundlauf. Der Abstand gilt vom Abschluss einer Abfrage bis zur erneuten Fälligkeit desselben Bereichs; 15 Sekunden versprechen keinen vollständigen Rundlauf alle 15 Sekunden. Zwischen automatischen Aufträgen liegt zusätzlich eine Erholungspause von mindestens 5 Sekunden oder 25 % der Auftragsdauer. Bedienbefehle haben an sicheren Schrittgrenzen Vorrang. Fehler verlängern die Wiederholungsabstände bis fünf Minuten; ein längeres eingestelltes Mindestintervall bleibt wirksam. Automatische Abfragen synchronisieren nicht und übernehmen keine Wünsche. Vorhandenes 0 bleibt ausgeschaltet; neue Instanzen beginnen mit 15.",
       "sm": 12
     },
     "refreshMaxAgeSeconds": {
@@ -281,7 +281,7 @@
       "validator": "Number.isInteger(data.refreshMaxAgeSeconds) && (data.refreshMaxAgeSeconds === 0 || data.refreshMaxAgeSeconds >= 30 && data.refreshMaxAgeSeconds <= 86400)",
       "validatorNoSaveOnError": true,
       "validatorErrorText": "0 für automatisch oder eine ganze Zahl von 30 bis 86400 Sekunden wählen.",
-      "help": "Die Bereiche unter refresh zeigen fresh, stale, error oder unknown sowie Zeit, Alter, Fehlercode und Dauer der letzten Abfrage. Dazu gehören auch departureClimate, departureLocations und ein eigener Bereich je erkanntem Ladeort. Automatisch gilt der größere Wert aus 90 Sekunden und dem Doppelten des größeren Werts aus Mindestabstand und geschätzter voller Rundlaufzeit. fresh bestätigt eine kürzliche App-Auslesung, keine neuen Fahrzeugmesswerte. Diese Grenze ändert weder die Abfragefrequenz noch den Synchronisationshinweis der App.",
+      "help": "Die Bereiche unter refresh zeigen fresh, stale, error oder unknown sowie Zeit, Alter, Fehlercode und Dauer der letzten Abfrage. Dazu gehören auch vehicleAccess für Türen/Fenster/Kofferraum/Verriegelung, departureClimate, departureLocations und ein eigener Bereich je erkanntem Ladeort. Automatisch gilt der größere Wert aus 90 Sekunden und dem Doppelten des größeren Werts aus Mindestabstand und geschätzter voller Rundlaufzeit. fresh bestätigt eine kürzliche App-Auslesung, keine neuen Fahrzeugmesswerte. Diese Grenze ändert weder die Abfragefrequenz noch den Synchronisationshinweis der App.",
       "sm": 12
     },
     "commandTimeoutSeconds": {
