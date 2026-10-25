@@ -4,6 +4,23 @@ Der Adapter bedient die offizielle Volkswagen-App auf einem Android-Handy. Die V
 
 Die Konfiguration verwendet die native JSON-Oberfläche von ioBroker Admin. Die Einrichtungsschaltflächen benötigen eine laufende Adapterinstanz. Dauerhafte Einstellungen zuerst speichern und die Instanz starten beziehungsweise ihren Neustart abwarten.
 
+## Installation und Aktualisierung
+
+Ab Version 0.9.1 benötigt der Adapter einen **Linux-x64-Host**, **Node.js ab 22.19.0**, **js-controller ab 6.0.11** und **Admin ab 7.6.20**. Das Handy muss Android 11 oder neuer mit verfügbarem drahtlosen Debugging verwenden. Die bisher geprüfte Kombination ist ein Galaxy A31 mit Android 12, deutscher Volkswagen-App 4.8.1 und einem ID.7 GTX Tourer. Andere Kombinationen sind damit nicht automatisch bestätigt. Informationen zur Smartphone-App stellt [Volkswagen](https://www.volkswagen.de/de/besitzer-und-service/digitale-extras/volkswagen-apps-login-und-shop.html) bereit.
+
+Der npm-Paketname lautet **`iobroker.vw-app`**. npm-Veröffentlichung und Aufnahme in das ioBroker-Adapterverzeichnis sind getrennte Schritte. Der Adapter ist derzeit noch nicht in das Verzeichnis **beta/latest** oder **stable** aufgenommen. Eine veröffentlichte npm-Version allein macht ihn dort noch nicht sichtbar.
+
+Sobald die gewünschte Version auf [npm](https://www.npmjs.com/package/iobroker.vw-app) verfügbar ist:
+
+1. Im Admin **Adapter** öffnen und bei Bedarf den Expertenmodus aktivieren.
+2. Über das Octocat-Symbol **Aus eigener Quelle installieren** öffnen und den Reiter **Von npm** auswählen.
+3. `iobroker.vw-app` eingeben, die veröffentlichte Version auswählen und installieren lassen.
+4. Falls der Dialog keine Instanz angelegt hat, eine Instanz von `vw-app` hinzufügen und deren Einstellungen öffnen.
+
+Die Installation führt der ioBroker-eigene Installer aus. Die Voraussetzungen oben vorher prüfen: Bei einer Installation aus eigener Quelle werden die Abhängigkeiten des Adapterverzeichnisses nicht geprüft. Die genauen Beschriftungen können je nach Admin-Version abweichen; siehe [offizielle Admin-Anleitung](https://github.com/ioBroker/ioBroker.docs/blob/master/docs/en/admin/adapter.md#install-from-your-own-source).
+
+Bis zur Aufnahme in das Adapterverzeichnis lassen sich spätere veröffentlichte Versionen im selben Reiter **Von npm** auswählen und installieren. Nach der Aufnahme steht der Adapter für Nutzer des betreffenden Verzeichnisses über die normale Adapterliste zur Installation und Aktualisierung bereit. Eine spätere Aufnahme in **stable** benötigt eine eigene Prüfung und Rückmeldungen aus der Testphase.
+
 ## 1. Android-Werkzeuge bereitstellen
 
 Bei **Android-Werkzeuge für diese Instanz verwenden** lädt die Auswahl allein keine Software. Den verlinkten [Google-SDK-Lizenztext](https://developer.android.com/studio/terms) lesen, die vorübergehende Zustimmung setzen und **Android-Werkzeuge herunterladen und installieren** betätigen. Der Adapter kann damit die [offiziellen Android SDK Platform-Tools](https://developer.android.com/tools/releases/platform-tools) gezielt für seine Instanz bereitstellen.

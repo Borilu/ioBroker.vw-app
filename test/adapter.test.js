@@ -12,7 +12,7 @@ const { withSecurityDiagnostic } = require('../lib/security-auth');
 const { PACKAGE } = require('../lib/ui');
 const ADMIN = require('../admin/jsonConfig.json');
 const { MIN_TEMPERATURE_CELSIUS, MAX_TEMPERATURE_CELSIUS, TEMPERATURE_STEP_CELSIUS } = require('../lib/temperature');
-const { DEFAULT_TARGET_SETTINGS, SETTINGS_KEYS } = require('../lib/settings');
+const { DEFAULT_TARGET_SETTINGS } = require('../lib/settings');
 const { DEFAULT_TARGET_CHARGING, CHARGING_KEYS, MIN_TARGET_SOC, MAX_TARGET_SOC, TARGET_SOC_STEP } = require('../lib/charging');
 const { REPORT_CATEGORIES } = require('../lib/vehicle-report');
 const { localKey } = require('../lib/departures-adapter');
@@ -752,9 +752,10 @@ test('a stuck preference write cannot keep unload waiting beyond the bounded shu
     const f = await fixture(t, { storeWrite: async name => {
         if (name === 'temperature-preference') { writing.resolve(); await save.promise; }
     } });
-    const originalSetTimeout = global.setTimeout;
+    const nativeTimers = require('node:timers');
+    const originalSetTimeout = nativeTimers.setTimeout;
     let expire;
-    const mocked = t.mock.method(global, 'setTimeout', (callback, milliseconds, ...args) => {
+    const mocked = t.mock.method(nativeTimers, 'setTimeout', (callback, milliseconds, ...args) => {
         if (milliseconds === 3000) {
             expire = callback; timerStarted.resolve();
             return originalSetTimeout(() => {}, 3000);
@@ -1814,9 +1815,10 @@ test('unload waits for a charging save and restart restores it', async t => {
 test('a stuck charging save cannot hold unload beyond its bounded shutdown timer', async t => {
     const writing = deferred(); const save = deferred(); const timerStarted = deferred();
     const f = await fixture(t, { storeWrite: async name => { if (name === 'charging-preference') { writing.resolve(); await save.promise; } } });
-    const originalSetTimeout = global.setTimeout;
+    const nativeTimers = require('node:timers');
+    const originalSetTimeout = nativeTimers.setTimeout;
     let expire;
-    const mocked = t.mock.method(global, 'setTimeout', (callback, milliseconds, ...args) => {
+    const mocked = t.mock.method(nativeTimers, 'setTimeout', (callback, milliseconds, ...args) => {
         if (milliseconds === 3000) { expire = callback; timerStarted.resolve(); return originalSetTimeout(() => {}, 3000); }
         return originalSetTimeout(callback, milliseconds, ...args);
     });

@@ -3,7 +3,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { Screen } = require('../lib/ui');
-const { overviewReportScreen, reportScreen, POINTS, NOTICE, node, hierarchy } = require('./support/report-fixtures.cjs');
+const { overviewReportScreen, reportScreen, POINTS, NOTICE, node } = require('./support/report-fixtures.cjs');
 function fails(code) { return error => error.code === code; }
 function editNode(xml, marker, changes) {
     return xml.replace(/<node [^>]*>/g, tag => {

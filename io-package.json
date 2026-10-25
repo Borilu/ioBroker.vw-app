@@ -1,24 +1,135 @@
 {
   "common": {
     "name": "vw-app",
-    "version": "0.9.0",
+    "version": "0.9.1",
     "news": {
-      "0.9.0": { "en": "Explicitly lock and unlock the selected vehicle through the app with a separate permission, encrypted S-PIN configuration, one-attempt authentication and observed lock-state confirmation.", "de": "Das ausgewählte Fahrzeug ausdrücklich über die App ver- und entriegeln, mit eigener Freigabe, verschlüsselter S-PIN-Konfiguration, einmaliger Authentifizierung und Prüfung des App-Verriegelungszustands." },
-      "0.8.0": { "en": "Read individual door, window, trunk and lock states from the app overview with automatic refresh and independent validity metadata.", "de": "Türen, Fenster, Kofferraum und Verriegelung einzeln aus der App-Startseite lesen, regelmäßig aktualisieren und ihre Gültigkeit überwachen." },
-      "0.7.0": { "en": "Read and edit app departure timers and charging-location settings with separate wishes, native identity checks and automatic refresh.", "de": "Abfahrtszeiten und Ladeorte der App mit getrennten Wünschen, geprüfter Ortsbindung und regelmäßiger Aktualisierung lesen und bedienen." },
-      "0.6.0": { "en": "Refresh climate, charging and vehicle-report app observations automatically with fair scheduling, manual-command priority and separate read-age diagnostics.", "de": "Klima-, Lade- und Berichtswerte der App automatisch fair aktualisieren, Bedienbefehle bevorzugen und das Alter der App-Auslesung getrennt anzeigen." },
-      "0.5.0": { "en": "Read the vehicle health report, mileage, next service, app synchronization label and seven message categories without changing vehicle settings.", "de": "Fahrzeugzustandsbericht, Kilometerstand, nächsten Service, Synchronisationshinweis der App und sieben Meldungsbereiche auslesen, ohne Fahrzeugeinstellungen zu ändern." },
-      "0.4.0": { "en": "Read app-reported battery charge and remaining range; stage and apply a 50–100% charge limit in 10% steps, reduced AC current, automatic AC plug unlocking and optimized battery use.", "de": "Ladezustand und Restreichweite aus der App lesen; Ladegrenze von 50–100 % in 10-%-Schritten, reduzierten AC-Ladestrom, automatische AC-Steckerentriegelung und optimierte Batterienutzung vormerken und übernehmen." },
-      "0.3.0": { "en": "Select climate or window-heating mode, climate on unlock, automatic window heating and front comfort zones.", "de": "Klimatisierung oder Scheibenheizung, Standklimatisierung bei Entriegelung, automatische Scheibenheizung und vordere Komfortzonen einstellen." },
-      "0.2.0": { "en": "Choose and persist a preconditioning target temperature, apply it without starting climate control, and read the app setting.", "de": "Zieltemperatur für die Vorklimatisierung auswählen, speichern, ohne Klimastart einstellen und den App-Wert auslesen." },
-      "0.1.1": { "en": "Allow normal vehicle response delays and report additional climate-tile confirmation from the app overview.", "de": "Normale Fahrzeug-Verzögerungen abwarten und die Bestätigungsquelle aus der Klima-Kachel zusätzlich anzeigen." },
-      "0.1.0": { "en": "Initial experimental adapter: manage Android Wi-Fi pairing and Volkswagen climate controls inside ioBroker.", "de": "Erster experimenteller Adapter: Android-WLAN-Kopplung und VW-Klimatisierung direkt in ioBroker verwalten." }
+      "0.9.1": {
+        "en": "Update package metadata and Admin layout for npm distribution and ioBroker repository review.",
+        "de": "Paket-Metadaten und Admin-Darstellung für die npm-Veröffentlichung und Prüfung zur Aufnahme ins ioBroker-Verzeichnis aktualisieren.",
+        "ru": "Обновлены метаданные пакета и интерфейс Admin для публикации в npm и проверки для каталога ioBroker.",
+        "pt": "Atualiza os metadados do pacote e o layout do Admin para publicação no npm e análise no catálogo ioBroker.",
+        "nl": "Pakketmetadata en Admin-indeling bijgewerkt voor publicatie op npm en beoordeling voor het ioBroker-register.",
+        "fr": "Mise à jour des métadonnées du paquet et de la présentation Admin pour la publication npm et la revue du catalogue ioBroker.",
+        "it": "Aggiornati i metadati del pacchetto e il layout Admin per la pubblicazione npm e la revisione del catalogo ioBroker.",
+        "es": "Actualiza los metadatos del paquete y el diseño de Admin para la publicación en npm y la revisión del catálogo ioBroker.",
+        "pl": "Aktualizacja metadanych pakietu i układu Admin na potrzeby publikacji npm oraz przeglądu do katalogu ioBroker.",
+        "uk": "Оновлено метадані пакета та інтерфейс Admin для публікації в npm і перевірки для каталогу ioBroker.",
+        "zh-cn": "更新软件包元数据和 Admin 布局，为 npm 发布及 ioBroker 目录审核做准备。"
+      },
+      "0.9.0": {
+        "en": "Explicitly lock and unlock the selected vehicle through the app with a separate permission, encrypted S-PIN configuration, one-attempt authentication and observed lock-state confirmation.",
+        "de": "Das ausgewählte Fahrzeug ausdrücklich über die App ver- und entriegeln, mit eigener Freigabe, verschlüsselter S-PIN-Konfiguration, einmaliger Authentifizierung und Prüfung des App-Verriegelungszustands.",
+        "ru": "Явные команды запирания и отпирания выбранного автомобиля через приложение: отдельное разрешение, зашифрованный S-PIN, одна попытка аутентификации и проверка состояния замков в приложении.",
+        "pt": "Trave e destrave explicitamente o veículo selecionado pelo aplicativo, com permissão separada, S-PIN criptografado, uma única tentativa de autenticação e confirmação do estado exibido.",
+        "nl": "Vergrendel en ontgrendel het gekozen voertuig expliciet via de app, met aparte toestemming, versleutelde S-PIN, één authenticatiepoging en controle van de getoonde vergrendeling.",
+        "fr": "Verrouillage et déverrouillage explicites du véhicule sélectionné via l’application, avec autorisation distincte, S-PIN chiffré, une seule tentative d’authentification et vérification de l’état affiché.",
+        "it": "Blocca e sblocca esplicitamente il veicolo selezionato tramite l’app, con autorizzazione separata, S-PIN cifrato, un solo tentativo di autenticazione e verifica dello stato mostrato.",
+        "es": "Bloquea y desbloquea expresamente el vehículo seleccionado mediante la aplicación, con permiso independiente, S-PIN cifrado, un solo intento de autenticación y comprobación del estado mostrado.",
+        "pl": "Jawne polecenia zamykania i otwierania wybranego pojazdu w aplikacji: osobne zezwolenie, zaszyfrowany S-PIN, jedna próba uwierzytelnienia i kontrola stanu zamków w aplikacji.",
+        "uk": "Явні команди замикання та відмикання вибраного автомобіля через застосунок: окремий дозвіл, зашифрований S-PIN, одна спроба автентифікації та перевірка стану замків у застосунку.",
+        "zh-cn": "通过应用明确锁定和解锁选定车辆，使用独立授权、加密的 S-PIN 配置、单次身份验证及应用锁定状态确认。"
+      },
+      "0.8.0": {
+        "en": "Read individual door, window, trunk and lock states from the app overview with automatic refresh and independent validity metadata.",
+        "de": "Türen, Fenster, Kofferraum und Verriegelung einzeln aus der App-Startseite lesen, regelmäßig aktualisieren und ihre Gültigkeit überwachen.",
+        "ru": "Чтение отдельных состояний дверей, окон, багажника и замков с главного экрана приложения с автообновлением и независимыми сведениями о достоверности.",
+        "pt": "Lê os estados individuais de portas, janelas, porta-malas e travamento na tela inicial do aplicativo, com atualização automática e validade independente.",
+        "nl": "Lees afzonderlijke deur-, raam-, kofferbak- en vergrendelingsstatussen uit het app-overzicht, met automatische updates en eigen geldigheidsgegevens.",
+        "fr": "Lecture des états individuels des portes, vitres, coffre et verrouillage depuis l’accueil de l’application, avec actualisation automatique et validité indépendante.",
+        "it": "Legge i singoli stati di porte, finestrini, bagagliaio e chiusura dalla schermata iniziale dell’app, con aggiornamento automatico e validità indipendente.",
+        "es": "Lee los estados individuales de puertas, ventanas, maletero y bloqueo desde el inicio de la aplicación, con actualización automática y validez independiente.",
+        "pl": "Odczyt osobnych stanów drzwi, szyb, bagażnika i zamków z ekranu głównego aplikacji, z automatycznym odświeżaniem i niezależną kontrolą ważności.",
+        "uk": "Читання окремих станів дверей, вікон, багажника та замків із головного екрана застосунку з автооновленням і незалежними даними про достовірність.",
+        "zh-cn": "从应用主页读取各车门、车窗、后备箱及锁定状态，并自动刷新和独立监测有效性。"
+      },
+      "0.7.0": {
+        "en": "Read and edit app departure timers and charging-location settings with separate wishes, native identity checks and automatic refresh.",
+        "de": "Abfahrtszeiten und Ladeorte der App mit getrennten Wünschen, geprüfter Ortsbindung und regelmäßiger Aktualisierung lesen und bedienen.",
+        "ru": "Чтение и изменение таймеров отправления и настроек мест зарядки в приложении с отдельными пожеланиями, проверкой идентичности места и автообновлением.",
+        "pt": "Lê e edita horários de partida e configurações dos locais de carga no aplicativo, com preferências separadas, verificação de identidade e atualização automática.",
+        "nl": "Lees en wijzig vertrektijden en laadlocatie-instellingen in de app, met aparte wensen, controle van locatie-identiteit en automatische updates.",
+        "fr": "Lecture et modification des programmations de départ et des lieux de recharge, avec souhaits distincts, contrôle de l’identité du lieu et actualisation automatique.",
+        "it": "Legge e modifica gli orari di partenza e le impostazioni dei luoghi di ricarica, con preferenze separate, verifica dell’identità e aggiornamento automatico.",
+        "es": "Lee y edita los horarios de salida y los ajustes de lugares de carga, con preferencias separadas, comprobación de identidad y actualización automática.",
+        "pl": "Odczyt i edycja godzin odjazdu oraz ustawień miejsc ładowania w aplikacji, z osobnymi preferencjami, kontrolą tożsamości miejsca i automatycznym odświeżaniem.",
+        "uk": "Читання й редагування таймерів відправлення та налаштувань місць заряджання з окремими побажаннями, перевіркою ідентичності місця й автооновленням.",
+        "zh-cn": "读取和编辑应用中的出发定时器及充电地点设置，分别保存目标值、核对地点身份并自动刷新。"
+      },
+      "0.6.0": {
+        "en": "Refresh climate, charging and vehicle-report app observations automatically with fair scheduling, manual-command priority and separate read-age diagnostics.",
+        "de": "Klima-, Lade- und Berichtswerte der App automatisch fair aktualisieren, Bedienbefehle bevorzugen und das Alter der App-Auslesung getrennt anzeigen.",
+        "ru": "Автообновление климатических, зарядных данных и отчета автомобиля из приложения с равномерным планированием, приоритетом ручных команд и отдельным возрастом чтения.",
+        "pt": "Atualiza automaticamente clima, carga e relatório do veículo, com agendamento equilibrado, prioridade para comandos manuais e idade da leitura separada.",
+        "nl": "Werk klimaat-, laad- en voertuigrapportgegevens automatisch bij, met eerlijke planning, voorrang voor handmatige opdrachten en aparte ouderdom van uitlezingen.",
+        "fr": "Actualisation automatique des données de climatisation, recharge et rapport du véhicule, avec planification équitable, priorité manuelle et ancienneté de lecture distincte.",
+        "it": "Aggiorna automaticamente i dati di clima, ricarica e rapporto del veicolo, con pianificazione equa, priorità ai comandi manuali e indicazione separata dell’età di lettura.",
+        "es": "Actualiza automáticamente los datos de climatización, carga e informe del vehículo, con planificación equilibrada, prioridad manual y antigüedad de lectura independiente.",
+        "pl": "Automatyczne, sprawiedliwe odświeżanie danych klimatyzacji, ładowania i raportu pojazdu, z priorytetem poleceń ręcznych i osobnym wiekiem odczytu.",
+        "uk": "Автооновлення даних клімату, заряджання та звіту автомобіля із рівномірним плануванням, пріоритетом ручних команд і окремим віком читання.",
+        "zh-cn": "公平调度并自动刷新应用中的空调、充电及车辆报告数据，优先处理手动命令，并单独显示读取时效。"
+      },
+      "0.5.0": {
+        "en": "Read the vehicle health report, mileage, next service, app synchronization label and seven message categories without changing vehicle settings.",
+        "de": "Fahrzeugzustandsbericht, Kilometerstand, nächsten Service, Synchronisationshinweis der App und sieben Meldungsbereiche auslesen, ohne Fahrzeugeinstellungen zu ändern.",
+        "ru": "Чтение отчета о состоянии автомобиля, пробега, следующего обслуживания, отметки синхронизации и семи категорий сообщений без изменения настроек автомобиля.",
+        "pt": "Lê o relatório do veículo, quilometragem, próxima revisão, indicação de sincronização e sete categorias de mensagens, sem alterar as configurações do veículo.",
+        "nl": "Lees het voertuigstatusrapport, kilometerstand, volgende onderhoud, synchronisatiemelding en zeven berichtcategorieën zonder voertuiginstellingen te wijzigen.",
+        "fr": "Lecture du rapport d’état du véhicule, kilométrage, prochain entretien, indication de synchronisation et sept catégories de messages, sans modifier les réglages du véhicule.",
+        "it": "Legge il rapporto sullo stato del veicolo, chilometraggio, prossimo servizio, indicazione di sincronizzazione e sette categorie di messaggi senza modificare le impostazioni.",
+        "es": "Lee el informe del vehículo, kilometraje, próximo servicio, indicación de sincronización y siete categorías de mensajes sin modificar los ajustes del vehículo.",
+        "pl": "Odczyt raportu stanu pojazdu, przebiegu, następnego serwisu, informacji o synchronizacji i siedmiu kategorii komunikatów bez zmiany ustawień pojazdu.",
+        "uk": "Читання звіту про стан автомобіля, пробігу, наступного обслуговування, позначки синхронізації та семи категорій повідомлень без зміни налаштувань автомобіля.",
+        "zh-cn": "读取车辆状态报告、里程、下次保养、应用同步提示和七类消息，不更改车辆设置。"
+      },
+      "0.4.0": {
+        "en": "Read app-reported battery charge and remaining range; stage and apply a 50–100% charge limit in 10% steps, reduced AC current, automatic AC plug unlocking and optimized battery use.",
+        "de": "Ladezustand und Restreichweite aus der App lesen; Ladegrenze von 50–100 % in 10-%-Schritten, reduzierten AC-Ladestrom, automatische AC-Steckerentriegelung und optimierte Batterienutzung vormerken und übernehmen.",
+        "ru": "Чтение заряда и запаса хода из приложения; подготовка и применение лимита заряда 50–100 % с шагом 10 %, пониженного тока AC, авторазблокировки штекера AC и оптимизации батареи.",
+        "pt": "Lê carga e autonomia no aplicativo; prepara e aplica limite de 50–100% em passos de 10%, corrente AC reduzida, desbloqueio automático do conector AC e uso otimizado da bateria.",
+        "nl": "Lees acculading en resterend bereik uit de app; sla een laadlimiet van 50–100% in stappen van 10%, lagere AC-stroom, automatische AC-stekkerontgrendeling en geoptimaliseerd accugebruik op en pas die toe.",
+        "fr": "Lecture de la charge et de l’autonomie ; préparation et application d’une limite de 50–100 % par pas de 10 %, du courant AC réduit, du déverrouillage AC automatique et de l’usage optimisé de la batterie.",
+        "it": "Legge carica e autonomia; prepara e applica un limite del 50–100% a passi del 10%, corrente AC ridotta, sblocco automatico della spina AC e uso ottimizzato della batteria.",
+        "es": "Lee carga y autonomía; prepara y aplica un límite del 50–100% en pasos del 10%, corriente AC reducida, desbloqueo automático del conector AC y uso optimizado de la batería.",
+        "pl": "Odczyt naładowania i zasięgu z aplikacji; zapis i zastosowanie limitu 50–100% co 10%, obniżonego prądu AC, automatycznego odblokowania wtyczki AC i optymalizacji baterii.",
+        "uk": "Читання заряду та запасу ходу із застосунку; підготовка й застосування ліміту 50–100 % із кроком 10 %, зниженого струму AC, авторозблокування штекера AC й оптимізації батареї.",
+        "zh-cn": "读取应用中的电量和剩余续航；预设并应用 50–100%（步长 10%）充电上限、降低交流充电电流、自动解锁交流插头及优化电池使用。"
+      }
     },
-    "titleLang": { "en": "Volkswagen App Control", "de": "Volkswagen App-Steuerung" },
-    "desc": { "en": "Operate the official Volkswagen Android app over Wi-Fi using an adapter-managed ADB runtime.", "de": "Die offizielle Volkswagen-Android-App über WLAN mit einer vom Adapter verwalteten ADB-Laufzeit bedienen." },
-    "authors": ["Borilu"],
-    "keywords": ["volkswagen", "android", "climate", "wifi"],
-    "license": "MIT",
+    "titleLang": {
+      "en": "Volkswagen App Control",
+      "de": "Volkswagen App-Steuerung",
+      "ru": "Управление приложением Volkswagen",
+      "pt": "Controle do aplicativo Volkswagen",
+      "nl": "Volkswagen-appbediening",
+      "fr": "Commande de l’application Volkswagen",
+      "it": "Controllo dell’app Volkswagen",
+      "es": "Control de la aplicación Volkswagen",
+      "pl": "Sterowanie aplikacją Volkswagen",
+      "uk": "Керування застосунком Volkswagen",
+      "zh-cn": "Volkswagen 应用控制"
+    },
+    "desc": {
+      "en": "Operate the official Volkswagen Android app over Wi-Fi using an adapter-managed ADB runtime.",
+      "de": "Die offizielle Volkswagen-Android-App über WLAN mit einer vom Adapter verwalteten ADB-Laufzeit bedienen.",
+      "ru": "Управление официальным приложением Volkswagen для Android по Wi-Fi через среду ADB, управляемую адаптером.",
+      "pt": "Controle o aplicativo oficial Volkswagen para Android por Wi-Fi com um ambiente ADB gerenciado pelo adaptador.",
+      "nl": "Bedien de officiële Volkswagen-Android-app via wifi met een door de adapter beheerde ADB-omgeving.",
+      "fr": "Pilotez l’application officielle Volkswagen pour Android par Wi-Fi avec un environnement ADB géré par l’adaptateur.",
+      "it": "Controlla l’app ufficiale Volkswagen per Android tramite Wi-Fi con un ambiente ADB gestito dall’adattatore.",
+      "es": "Controla la aplicación oficial Volkswagen para Android por Wi-Fi mediante un entorno ADB gestionado por el adaptador.",
+      "pl": "Obsługa oficjalnej aplikacji Volkswagen na Androida przez Wi-Fi za pomocą środowiska ADB zarządzanego przez adapter.",
+      "uk": "Керування офіційним застосунком Volkswagen для Android через Wi-Fi за допомогою середовища ADB, яким керує адаптер.",
+      "zh-cn": "通过适配器管理的 ADB 运行环境，经 Wi-Fi 操作 Volkswagen 官方 Android 应用。"
+    },
+    "authors": [
+      "Borilu <borilu@fn.de>"
+    ],
+    "keywords": [
+      "volkswagen",
+      "android",
+      "climate",
+      "wifi"
+    ],
     "platform": "Javascript/Node.js",
     "mode": "daemon",
     "type": "vehicle",
@@ -31,21 +142,53 @@
     "icon": "vw-app.svg",
     "extIcon": "https://raw.githubusercontent.com/Borilu/ioBroker.vw-app/main/admin/vw-app.svg",
     "readme": "https://github.com/Borilu/ioBroker.vw-app/blob/main/README.md",
-    "adminUI": { "config": "json" },
+    "adminUI": {
+      "config": "json"
+    },
     "dataFolder": "vw-app.%INSTANCE%",
-    "os": ["linux"],
-    "dependencies": [{ "js-controller": ">=6.0.0" }],
-    "globalDependencies": [{ "admin": ">=7.0.0" }]
+    "os": [
+      "linux"
+    ],
+    "dependencies": [
+      {
+        "js-controller": ">=6.0.11"
+      }
+    ],
+    "globalDependencies": [
+      {
+        "admin": ">=7.6.20"
+      }
+    ],
+    "tier": 2,
+    "licenseInformation": {
+      "license": "MIT",
+      "type": "free",
+      "link": "https://spdx.org/licenses/MIT.html"
+    }
   },
-  "encryptedNative": ["sPin"],
-  "protectedNative": ["sPin"],
+  "encryptedNative": [
+    "sPin"
+  ],
+  "protectedNative": [
+    "sPin"
+  ],
   "native": {
-    "hostIp": "", "connectPort": 0, "approvedAppVersion": "", "vehicleMarker": "",
-    "modeTitles": "Klimatisierung|Air conditioning", "allowWrites": false,
-    "allowVehicleLocking": false, "sPin": "",
-    "adbPath": "", "useBundledAdb": true, "commandTimeoutSeconds": 300,
+    "hostIp": "",
+    "connectPort": 0,
+    "approvedAppVersion": "",
+    "vehicleMarker": "",
+    "modeTitles": "Klimatisierung|Air conditioning",
+    "allowWrites": false,
+    "allowVehicleLocking": false,
+    "sPin": "",
+    "adbPath": "",
+    "useBundledAdb": true,
+    "commandTimeoutSeconds": 300,
     "outcomeTimeoutSeconds": 120,
-    "cooldownSeconds": 60, "pollIntervalSeconds": 15, "refreshMaxAgeSeconds": 0, "stayAwakeOnCharge": false,
+    "cooldownSeconds": 60,
+    "pollIntervalSeconds": 15,
+    "refreshMaxAgeSeconds": 0,
+    "stayAwakeOnCharge": false,
     "legacyStatePrefix": ""
   },
   "objects": [],
