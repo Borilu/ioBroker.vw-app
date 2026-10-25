@@ -2,9 +2,9 @@
 
 Mit `vw-app` bedient ioBroker die offizielle Volkswagen-App auf einem Android-Handy. Das Handy bleibt zu Hause im WLAN und am Ladegerät. Die Anmeldung bei Volkswagen erfolgt auf dem Handy.
 
-**Stand: 25. Oktober 2026, Adapter 0.9.2.** Die Installation aus GitHub ist bereits möglich. Die Aufnahme in die normale ioBroker-Adapterliste ist beantragt und noch nicht freigegeben.
+**Stand: 25. Oktober 2026, Adapter 0.10.0.** Die Installation aus GitHub ist bereits möglich. Die Aufnahme in die normale ioBroker-Adapterliste ist beantragt und noch nicht freigegeben.
 
-[Anleitung als PDF herunterladen](https://github.com/Borilu/ioBroker.vw-app/releases/download/v0.9.2/VW-App-Installation-und-Kopplung.pdf) · [Projekt auf GitHub](https://github.com/Borilu/ioBroker.vw-app)
+[Einrichtungsanleitung als PDF herunterladen](https://github.com/Borilu/ioBroker.vw-app/releases/download/v0.9.2/VW-App-Installation-und-Kopplung.pdf) (PDF für 0.9.2, gleicher Kopplungsablauf) · [Projekt auf GitHub](https://github.com/Borilu/ioBroker.vw-app)
 
 Die Screenshots stammen aus den offiziellen ioBroker- und Android-Anleitungen. Android zeigt hier englische Beispielansichten; Samsung und andere Hersteller können anders aussehen. **Alle abgebildeten Adressen, Ports und Codes sind Beispiele. Verwende immer die Angaben deines eigenen Handys.**
 
@@ -32,16 +32,16 @@ Für die Grundeinrichtung brauchst du weder dein Volkswagen-Passwort noch die S-
 
 ![Offizieller ioBroker Dialog mit den Reitern Von npm, Von GitHub, Benutzerdefiniert und Aus Datei](images/setup/iobroker-install-source.png)
 
-5. Trage diese Adresse für die veröffentlichte Version 0.9.2 ein:
+5. Trage diese Adresse für die veröffentlichte Version 0.10.0 ein:
 
    ```text
-   https://github.com/Borilu/ioBroker.vw-app/tree/v0.9.2
+   https://github.com/Borilu/ioBroker.vw-app/tree/v0.10.0
    ```
 
 6. Lass **Instanz erstellen, wenn noch keine existiert** eingeschaltet und starte **Installieren**. Warte, bis ioBroker die Installation abgeschlossen hat.
 7. Öffne **Instanzen** und dort die Einstellungen von **vw-app.0**. Falls keine Instanz vorhanden ist, füge auf der Adapterkachel eine hinzu. Starte die Instanz, falls sie ausgeschaltet ist.
 
-Bei einer Installation aus eigener Quelle prüft ioBroker die Adapter-Abhängigkeiten nicht vollständig. Prüfe deshalb die Voraussetzungen oben vor der Installation. Der Reiter **Von GitHub** kann einen aktuellen Entwicklungsstand installieren; der feste Versionslink oben wählt gezielt 0.9.2.
+Bei einer Installation aus eigener Quelle prüft ioBroker die Adapter-Abhängigkeiten nicht vollständig. Prüfe deshalb die Voraussetzungen oben vor der Installation. Der Reiter **Von GitHub** kann einen aktuellen Entwicklungsstand installieren; der feste Versionslink oben wählt gezielt 0.10.0.
 
 ### Später aus der normalen Adapterliste installieren
 
@@ -130,6 +130,8 @@ Das Display bleibt damit beim Laden eingeschaltet. Nach einem Neustart oder eine
 **15 Sekunden sind der Mindestabstand je Bereich nach dessen letzter Abfrage.** Der Adapter arbeitet die Bereiche nacheinander ab; ein kompletter Durchlauf kann deutlich länger dauern. Lass **App-Auslesung als veraltet markieren nach** zunächst auf **0 = automatisch**.
 
 Die Werte stammen aus der App. Ein frisch ausgelesener App-Wert muss noch keine neue Messung am Auto sein. Regelmäßiges Lesen übernimmt keine gespeicherten Änderungswünsche und startet keine Klimatisierung.
+
+Unter **vehicleInfo.vin** findest du außerdem die FIN des ausgewählten Fahrzeugs. Sie wird regelmäßig aus „Meine Fahrzeuge“ gelesen. Mit **commands.refreshVehicleInfo** lässt sie sich auch gezielt abfragen; **vehicleInfo.observedAt** zeigt die letzte erfolgreiche App-Auslesung.
 
 ## 8 Bei Bedarf die Bedienung freigeben
 
