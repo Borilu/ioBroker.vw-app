@@ -86,6 +86,41 @@ test('the mode picker identifies every choice by its complete heading and its se
     }
 });
 
+test('the observed empty Compose focus wrapper preserves the complete charging choice context', () => {
+    for (const wrapperCount of [0, 1, 2, 4]) {
+        for (const actions of ['[]', '[64]']) {
+            const xml = editNode(chargingModeScreen({ wrapperCount }), 'a11y-actions="[64]"', 'a11y-actions', actions);
+            const screen = new Screen(xml);
+            assert.equal(screen.kind(), 'chargingMode');
+            assert.deepEqual(screen.chargingModeSelection(), { mode: 'departure' });
+            assert.deepEqual(screen.chargingModeTarget('departureClimate'), MODE_POINTS.departureClimate);
+            assert.equal(screen.chargingModeBackContext().target.id, 'chargeModeSelectionBack');
+        }
+    }
+});
+
+test('Compose wrappers may not add interaction, labels, siblings, clipping or unbounded depth', () => {
+    const marker = 'a11y-actions="[64]"';
+    const xml = chargingModeScreen();
+    const variants = [
+        ...['clickable', 'long-clickable', 'checkable', 'checked', 'selected', 'scrollable'].map(key => editNode(xml, marker, key, 'true')),
+        ...['resource-id', 'text', 'content-desc', 'state-description'].map(key => editNode(xml, marker, key, 'unknown')),
+        ...['[16]', '[32]', '[4096]', '[2097152]', '[16908349]', '[64,16]', '[64,64]', 'not json']
+            .map(actions => editNode(xml, marker, 'a11y-actions', actions)),
+        editNode(xml, marker, 'class', 'android.widget.FrameLayout'),
+        editNode(xml, marker, 'enabled', 'false'),
+        editNode(xml, marker, 'visible-to-user', 'false'),
+        editNode(xml, marker, 'bounds', '[0,0][1000,1300]'),
+        xml.replace(/<node [^>]*a11y-actions="\[64\]"[^>]*>/, '$&' + node('', { clickable: 'true' })),
+        chargingModeScreen({ wrapperCount: 5 }),
+    ];
+    for (const changed of variants) {
+        const screen = new Screen(changed);
+        assert.throws(() => screen.chargingModeTarget('immediate'), error => error.code === 'unknown_state');
+        assert.throws(() => screen.chargingModeBackContext(), error => error.code === 'unknown_state');
+    }
+});
+
 test('mode choices follow current labels and geometry rather than fixed indexes or stored points', () => {
     const screen = new Screen(chargingModeScreen({ mode: 'immediate', order: ['departureClimate', 'immediate', 'departure'] }));
     assert.deepEqual(screen.chargingModeSelection(), { mode: 'immediate' });
