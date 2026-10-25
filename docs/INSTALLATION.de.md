@@ -6,6 +6,8 @@ Mit `vw-app` bedient ioBroker die offizielle Volkswagen-App auf einem Android-Ha
 
 [Einrichtungsanleitung als PDF herunterladen](https://github.com/Borilu/ioBroker.vw-app/releases/download/v0.9.2/VW-App-Installation-und-Kopplung.pdf) (PDF für 0.9.2, gleicher Kopplungsablauf) · [Projekt auf GitHub](https://github.com/Borilu/ioBroker.vw-app)
 
+Nach der Einrichtung hilft die [Bedienungsanleitung mit vollständiger Datenpunktreferenz und Bedienfolgen](BEDIENUNG.de.md), auch [als PDF](https://github.com/Borilu/ioBroker.vw-app/releases/download/v0.10.0/VW-App-Bedienungsanleitung.pdf).
+
 Die Screenshots stammen aus den offiziellen ioBroker- und Android-Anleitungen. Android zeigt hier englische Beispielansichten; Samsung und andere Hersteller können anders aussehen. **Alle abgebildeten Adressen, Ports und Codes sind Beispiele. Verwende immer die Angaben deines eigenen Handys.**
 
 ## Vor dem Start
