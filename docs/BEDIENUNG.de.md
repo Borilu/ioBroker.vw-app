@@ -1,10 +1,10 @@
 # VW App in ioBroker bedienen
 
-Diese Anleitung beschreibt die Bedienung von **vw-app 0.10.1**: Klimatisierung, Ladeeinstellungen, Abfahrtszeiten, Ladeorte, Fahrzeugdaten sowie Verriegeln und Entriegeln. Die Datenpunktreferenz nennt alle vom Adapter angelegten Zustände einschließlich der dynamisch erzeugten Ladeorte und der Aktualitätsanzeigen.
+Diese Anleitung beschreibt die Bedienung von **vw-app 0.11.0**: Klimatisierung, Ladeeinstellungen und Lademodi, Abfahrtszeiten, Ladeorte, Fahrzeugdaten sowie Verriegeln und Entriegeln. Die Datenpunktreferenz nennt alle vom Adapter angelegten Zustände einschließlich der dynamisch erzeugten Ladeorte und der Aktualitätsanzeigen.
 
 **Stand: 25. Oktober 2026.** Für Installation und WLAN-Kopplung verwende die [bebilderte Installationsanleitung](INSTALLATION.de.md). Die [Einrichtungsreferenz](ADMIN-SETUP.md) erklärt zusätzlich die Adaptereinstellungen.
 
-[Bedienungsanleitung als PDF für 0.10.0](https://github.com/Borilu/ioBroker.vw-app/releases/download/v0.10.0/VW-App-Bedienungsanleitung.pdf). Dieses PDF stammt aus der Vorversion; die Erklärung der ausschließlich schreibbaren Befehlsknöpfe und ihrer getrennten Rückmeldungen ist hier online für 0.10.1 aktualisiert.
+[Bedienungsanleitung als PDF für 0.10.0](https://github.com/Borilu/ioBroker.vw-app/releases/download/v0.10.0/VW-App-Bedienungsanleitung.pdf). Dieses ältere PDF enthält die neuen Lademodi noch nicht. Die Erklärung der Befehlsknöpfe und der Lademodus-Bedienung ist hier online für 0.11.0 aktualisiert.
 
 ## 1 Datenpunkte finden und bedienen
 
@@ -22,7 +22,7 @@ Diese Anleitung beschreibt die Bedienung von **vw-app 0.10.1**: Klimatisierung, 
 
 `ack=false` bedeutet in ioBroker **unbestätigte Anforderung**. Beim Bearbeiten eines Werts in Admin darf die Eingabe also nicht bereits als bestätigt markiert sein. In Blockly oder Skripten ebenfalls als Anforderung schreiben. `ack=true` bei einem Wunsch bestätigt nur, dass die Auswahl gespeichert wurde. Erst der Übernehmen-Befehl bedient die App.
 
-Befehlsknöpfe besitzen ab 0.10.1 die ioBroker-Metadaten `common.read=false` und `common.write=true`. Sie sind keine lesbaren Zustandsanzeigen. Der Adapter bestätigt das empfangene Ereignis; ein Knopfwert oder dessen Zurücksetzen zeigt weder eine laufende noch eine abgeschlossene Fahrzeugaktion an. Verwende die getrennten Rückmeldungen `operation.busy`, `operation.lastResult`, `operation.lastErrorCode` sowie die zurückgelesenen Istwerte und ihre Aktualität. Beim Upgrade werden nur die betroffenen Objektmetadaten korrigiert; bestehende Werte, Bezeichnungen und Berechtigungen bleiben erhalten, und die Korrektur sendet keinen Handy- oder Fahrzeugbefehl.
+Befehlsknöpfe besitzen ab 0.10.1 die ioBroker-Metadaten `common.read=false` und `common.write=true`. Sie sind keine lesbaren Zustandsanzeigen. Der Adapter bestätigt das empfangene Ereignis; ein Knopfwert oder dessen Zurücksetzen zeigt weder eine laufende noch eine abgeschlossene Fahrzeugaktion an. Verwende die getrennten Rückmeldungen `operation.busy`, `operation.lastResult`, `operation.lastErrorCode` sowie die zurückgelesenen Istwerte und ihre Aktualität. Die Metadatenkorrektur aus 0.10.1 erhält bestehende Werte, Bezeichnungen und Berechtigungen; sie sendet keinen Handy- oder Fahrzeugbefehl.
 
 Schreibe Zahlen als Zahlen, zum Beispiel `22.5` und `80`, und Schalter als echte boolesche Werte `true` oder `false`. Der Text `"false"` ist kein ausgeschalteter Schalter. Ein echter Nullwert `null` bedeutet bei Wünschen **diese App-Einstellung beibehalten**. Der Text `"null"` ist dafür ungeeignet. Falls deine Bedienoberfläche keinen Nullwert zulässt, verwende den jeweiligen Löschen-Befehl.
 
@@ -93,7 +93,28 @@ Dieser Auftrag startet oder stoppt keine Klimatisierung. Die Zonen bestimmen zus
 
 Der Adapter betätigt den angebotenen **Speichern**-Knopf und öffnet die Einstellungen zur Kontrolle erneut. Die globale Ladegrenze unterstützt **50, 60, 70, 80, 90 und 100 %**. Zwischenwerte werden abgewiesen. Laut App gilt diese globale Grenze nicht an vordefinierten Ladeorten. Die Funktion **Optimierte Batterienutzung** erlaubt der App die Nutzung der Hochvoltbatterie für Fernbedienungsfunktionen; sie ist keine automatische 80-%-Ladebegrenzung.
 
-Der Adapter stellt keinen sofortigen Lade-Start/Stopp-Befehl bereit.
+Diese vier Einstellungswünsche ändern keinen Lademodus. Dafür gibt es den folgenden eigenen Bedienablauf.
+
+### Lademodus auswählen und ausdrücklich übernehmen
+
+| Auswahl für `charging.targetMode` | Bedeutung in der App |
+| --- | --- |
+| `immediate` | Sofortladen |
+| `departure` | Laden zur Abfahrtszeit |
+| `departureClimate` | Laden und Klima zur Abfahrtszeit |
+| `null` | Keinen neuen Modus vormerken; vorhandenen App-Modus beibehalten |
+
+Die Modus-Auswahlliste enthält die drei benannten Modi. `null` ist ein echter Nullwert zum Löschen des Wunschs, kein vierter Modus und nicht der Text `"null"`. Bietet deine Oberfläche dafür keine Auswahl, verwende `commands.clearChargingMode`.
+
+1. Schreibe den gewünschten Modus in `charging.targetMode`, beispielsweise `"departure"`.
+2. Warte auf `ack=true` und ein leeres `charging.targetModeError`. Bis hierher wurde nur der Wunsch gespeichert.
+3. Schreibe einmal `commands.applyChargingMode = true` mit `ack=false`.
+4. Warte auf das Auftragsende und prüfe `operation.lastResult` und `operation.lastErrorCode`.
+5. Prüfe den gewünschten Istwert in `charging.mode`, seine gültige Qualität und die frische erfolgreiche Auslesezeit `charging.modeObservedAt`.
+
+**Die App übernimmt die Auswahl sofort, ohne Speichern-Knopf. Ein Moduswechsel kann dadurch unmittelbar Laden auslösen.** Der Adapter betätigt keinen zusätzlichen Lade-Startknopf. Er benötigt die Freigabe für Klima- und Fahrzeugeinstellungen, keine S-PIN. Vor einem möglicherweise wirksamen Modustipp gilt der gemeinsame Mindestabstand zwischen Schaltversuchen: **60 bis 3600 Sekunden**, Standard **60**. Bei unklarem Ergebnis zuerst die App prüfen und über `commands.refreshCharging` neu lesen; den Befehl nicht automatisch wiederholen.
+
+`commands.clearChargingMode` löscht nur den gespeicherten Moduswunsch, ohne Handyauftrag. `commands.applyChargingSettings` und `commands.clearChargingSettings` betreffen weiterhin nur die vier bisherigen Ladewünsche. Ein Modus-Auswahlfehler muss durch gültige Neuauswahl oder Löschen des Moduswunschs behoben werden. Er blockiert weder normale Leseabfragen noch die vier bisherigen Ladeeinstellungen. Ein laufender Auftrag behält seinen zuvor angenommenen Modus; spätere Änderungen gelten für den nächsten Auftrag. Neustart und automatisches Lesen übernehmen keine gespeicherten Wünsche.
 
 ### Daten lesen und ausdrücklich synchronisieren
 
@@ -128,6 +149,10 @@ Die App kann einen Timer beim Speichern zunächst aktivieren. Der Adapter prüft
 4. Löse in diesem Zweig `commands.refresh` aus und warte auf Erfolg.
 5. Verwende dort `timer1`, `timer2` oder `timer3`. Schreibe dessen `targetTime`, `targetDays`, `targetRepeat` und `targetEnabled` wie beim Klimatimer.
 6. Löse `commands.apply` genau dieses Timers aus und prüfe die zurückgelesenen Werte.
+7. Wähle anschließend `charging.targetMode = "departure"` oder `"departureClimate"`, warte auf die Wunschbestätigung und übernimm den Modus mit `commands.applyChargingMode`.
+8. Prüfe den passenden Istwert `charging.mode`, seine gültige Qualität und die frische Zeit `charging.modeObservedAt`.
+
+**Geplantes Laden an einem Ladeort wird nur im Modus `departure` oder `departureClimate` ausgeführt.** Bei `immediate` lassen sich Timer weiterhin bearbeiten; der Adapter stellt den Modus beim Timer-Übernehmen niemals automatisch um. `enabled=true` allein bedeutet deshalb nicht, dass geplantes Laden tatsächlich ausgeführt wird.
 
 **Beispielpfad:** `vw-app.0.chargingLocations.loc_<24hex>.timer1.targetTime`. Ersetze `loc_<24hex>` durch den tatsächlich angelegten Schlüssel. Er ist kein frei wählbarer Name und enthält 24 hexadezimale Zeichen hinter `loc_`. Insgesamt werden bis zu fünf vorhandene Ladeorte unterstützt.
 
@@ -230,6 +255,8 @@ Alle folgenden Datenpunkte sind boolesche **Befehle**. Schreibe einmal `true` mi
 | `commands.synchronize` | Einmal **Jetzt synchronisieren** in der App anfordern, anschließend Ladebereich lesen. Keine Schaltfreigabe nötig. |
 | `commands.applyChargingSettings` | Die vier globalen Ladewünsche speichern und zurücklesen. Schaltfreigabe nötig. |
 | `commands.clearChargingSettings` | Nur die vier globalen Ladewünsche löschen; kein Handyzugriff. |
+| `commands.applyChargingMode` | Nur den gespeicherten Lademodus übernehmen; kann unmittelbar Laden auslösen. Schaltfreigabe und gemeinsamer Schaltabstand nötig, keine S-PIN. |
+| `commands.clearChargingMode` | Nur den Moduswunsch auf `null` setzen; kein Handyzugriff. |
 | `commands.refreshVehicleReport` | Gesamten Fahrzeugzustandsbericht lesen. |
 | `commands.refreshVehicleAccess` | Türen, Fenster, Kofferraum und Verriegelung lesen. |
 | `commands.refreshVehicleInfo` | FIN des bestätigten Fahrzeugs lesen; keine Fahrzeugauswahl ändern. |
@@ -278,8 +305,14 @@ Die vier Optionswünsche werden mit `commands.applySettings` oder beim Start üb
 | `charging.optimizedBatteryUse` | Lesen | Optimierte Batterienutzung: Boolean oder `null`. |
 | `charging.targetOptimizedBatteryUse` | Wunsch | `true` an, `false` aus, `null` beibehalten. |
 | `charging.targetSettingsError` | Lesen | Auswahl-/Speicherfehler der globalen Ladewünsche mit betroffenem Feld. |
+| `charging.mode` | Lesen | `immediate`, `departure` oder `departureClimate` laut App; anfangs unbekannt `null`. Bei historischen Werten Qualität prüfen. |
+| `charging.modeObservedAt` | Lesen | ISO-UTC-Zeit der letzten erfolgreichen Modus-Auslesung oder leer; keine Fahrzeugmesszeit. |
+| `charging.targetMode` | Wunsch | `immediate`, `departure`, `departureClimate` oder `null`; unabhängig von den vier globalen Ladewünschen. |
+| `charging.targetModeError` | Lesen | Fester Auswahl-/Speicherfehler des Moduswunschs; leer nach gültiger gespeicherter Auswahl oder Löschen. |
 
 Übernehmen: `commands.applyChargingSettings`. Wünsche löschen: `commands.clearChargingSettings`. Auslesen: `commands.refreshCharging`. Die Aktualität aller Batterie- und globalen Ladewerte steht unter `refresh.charging`.
+
+Für den Modus gelten die eigenen Befehle `commands.applyChargingMode` und `commands.clearChargingMode`. Er wird mit derselben regelmäßigen Ladeabfrage erneuert, besitzt aber seine tatsächliche erfolgreiche Snapshotzeit `charging.modeObservedAt`. Ist nur der Modus unlesbar oder fehlt dessen gültiger Zeitstempel, bleiben der letzte Modus und seine Zeit historisch erhalten; `charging.mode` bekommt ungültige Qualität (`q=0x82`). Batterie und `refresh.charging.status` können gleichzeitig frisch sein. Auch ein nach seiner eigenen Zeit zu alter Modus wird ungültig. Fehler, Zeitablauf und Neustart schreiben die letzte erfolgreiche Moduszeit nicht fort.
 
 ### 4.5 Türen Fenster Kofferraum und Verriegelung
 
@@ -414,7 +447,7 @@ Zusätzlich hat jeder Ladetimer diese **nur lesbaren** Felder:
 | `profileId` | Profilkennung der App als Dezimalzeichenfolge; nicht verändern. |
 | `isPreferredTimesAvailable` | Boolean: Die App meldet bevorzugte Zeiten für diesen Timer als verfügbar. |
 
-Diese Zusatzfelder lassen sich nicht über die vier Timerwünsche verändern. Das Aktivieren eines Timers erlaubt den geplanten späteren Vorgang gemäß App; es ist kein sofortiger Lade- oder Klimastart.
+Diese Zusatzfelder lassen sich nicht über die vier Timerwünsche verändern. Für geplantes Laden muss zusätzlich `charging.mode` gültig als `departure` oder `departureClimate` beobachtet sein. Timeraktivierung allein bestätigt keinen späteren Ladeablauf und ist kein sofortiger Lade- oder Klimastart; sie ändert den Lademodus nicht.
 
 ### 4.11 Einstellungen je Ladeort
 

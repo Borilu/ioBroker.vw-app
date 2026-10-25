@@ -2,7 +2,7 @@
 
 Für den Einstieg gibt es eine [einfache Anleitung mit Screenshots für Installation und Handy-Kopplung](INSTALLATION.de.md), auch [als PDF zum Herunterladen](https://github.com/Borilu/ioBroker.vw-app/releases/download/v0.9.2/VW-App-Installation-und-Kopplung.pdf). Die folgenden Abschnitte dienen als ausführliche Referenz.
 
-Die separate [Bedienungsanleitung](BEDIENUNG.de.md) führt alle Datenpunktpfade, ihren Inhalt und die erforderlichen Bedienfolgen auf. Sie ist ebenfalls [als PDF für 0.10.0 verfügbar](https://github.com/Borilu/ioBroker.vw-app/releases/download/v0.10.0/VW-App-Bedienungsanleitung.pdf). Die Online-Anleitung enthält die ergänzte Erklärung der ausschließlich schreibbaren Befehlsknöpfe aus 0.10.1.
+Die separate [Bedienungsanleitung](BEDIENUNG.de.md) führt alle Datenpunktpfade, ihren Inhalt und die erforderlichen Bedienfolgen auf. Sie ist ebenfalls [als PDF für 0.10.0 verfügbar](https://github.com/Borilu/ioBroker.vw-app/releases/download/v0.10.0/VW-App-Bedienungsanleitung.pdf). Dieses ältere PDF enthält die Lademodi noch nicht; dafür die aktualisierte Online-Anleitung für 0.11.0 verwenden.
 
 Der Adapter bedient die offizielle Volkswagen-App auf einem Android-Handy. Die Volkswagen-Anmeldung erfolgt auf dem Handy. Für die Einrichtung werden weder das Volkswagen-Passwort noch ein Volkswagen-Zugriffstoken in ioBroker eingetragen.
 
@@ -148,11 +148,36 @@ Nach einem Auswahlfehler ist ein neuer Ladeeinstellungsauftrag mit `charging_sel
 
 Ladewünsche haben eine eigene Speicherwarteschlange. Nur die Übernahme der Ladeeinstellungen wartet auf vorangegangene Ladewünsche. Klimaaufträge und Ladeabfragen warten nicht auf eine laufende Speicherung der Ladewünsche; umgekehrt wartet ein Ladeeinstellungsauftrag nicht auf Temperatur- oder Klimawünsche. Am Handy läuft weiterhin höchstens ein Auftrag gleichzeitig. Ein angenommener Auftrag behält seinen ursprünglichen Schnappschuss; spätere Auswahlen gelten für den nächsten Auftrag. Auswahlfehler überschreiben keine Rückmeldung eines gleichzeitig laufenden Handyauftrags.
 
-Ladeabfragen und Ladefehler verändern keine Klimarückmeldungen. Klimaabfragen und Klimafehler verändern ebenso wenig die Batterie- und Laderückmeldungen. Der Adapter bietet **keine Lade-Start/Stopp-Funktion**; die Ladebefehle starten oder stoppen auch keine Klimatisierung.
+Ladeabfragen und Ladefehler verändern keine Klimarückmeldungen. Klimaabfragen und Klimafehler verändern ebenso wenig die Batterie- und Laderückmeldungen. Die vier Ladeeinstellungswünsche wählen keinen Lademodus. Der separate Modusbefehl kann unmittelbar Laden auslösen; ein zusätzlicher Lade-Start/Stopp-Knopf wird nicht angeboten.
 
 **Optimierte Batterienutzung** bedeutet laut App, dass die Hochvoltbatterie für Fernbedienungsfunktionen der App verwendet werden kann. Das kann die Reichweite beeinflussen. Die Option ist keine automatische 80-%-Batteriepflegebegrenzung. Außerdem weist die App darauf hin, dass die eingestellte Ladegrenze nicht an festgelegten Ladeorten gilt. Die Erläuterungen für das ausgewählte Fahrzeug direkt in der App beachten.
 
 Version 0.4.0 bestand **332 automatisierte Tests auf Linux**. Die Liveprüfung las Ladezustand und km-Reichweite aus der echten App, speicherte die Ladegrenzen 50 und 100 % und bestätigte sie nach erneutem Öffnen. Alle drei Schalter wurden in beiden Stellungen geprüft. Die Ladewünsche blieben nach einem Adapterneustart erhalten. Anschließend wurden die ursprünglichen App-Einstellungen wiederhergestellt und alle vier Wünsche gelöscht; die Klimatisierung blieb ausgeschaltet und unverändert. Die Liveprüfung von `commands.synchronize` löste genau eine Anfrage aus, bestätigte den deaktivierten App-Link, setzte `battery.lastSyncRequestAt` und las anschließend Batterie- und Ladewerte, ohne Einstellungen zu ändern. Damit ist die Anfrage an die App bestätigt; ein abgeschlossener Abgleich mit dem Fahrzeug wurde nicht nachgewiesen. Die neuen Batterie- und Ladefunktionen wurden bislang ausschließlich mit der **deutschen Volkswagen-App 4.8.1 auf einem Galaxy A31 mit Android 12** geprüft.
+
+### 7.1 Lademodus getrennt auswählen
+
+Ab 0.11.0 liest der vorhandene Ladebereich auch den Modus in den Reichweitendetails der App. Die neue Modusauswahl besitzt einen eigenen Wunsch, eigene Speicherung und einen eigenen ausdrücklichen Übernehmen-Befehl; die vier bisherigen Ladeeinstellungswünsche bleiben unabhängig.
+
+| Datenpunkt unter `vw-app.0` | Zugriff | Inhalt oder Bedienung |
+| --- | --- | --- |
+| `charging.mode` | Lesen | `immediate` = Sofortladen, `departure` = Laden zur Abfahrtszeit, `departureClimate` = Laden und Klima zur Abfahrtszeit; anfangs unbekannt `null`, Qualität beachten |
+| `charging.modeObservedAt` | Lesen | ISO-UTC-Zeit der letzten erfolgreichen Modusbeobachtung, sonst leer; keine Fahrzeugmesszeit |
+| `charging.targetMode` | Wunsch | Einer der drei Moduswerte oder `null` zum Beibehalten; mit `ack=false` schreiben |
+| `charging.targetModeError` | Lesen | Fester Auswahl-/Speicherfehler; leer nach gültig gespeicherter Auswahl oder Löschen |
+| `commands.applyChargingMode` | Nur schreiben | Einmal `true`, `ack=false`: gespeicherten Modus übernehmen, Schaltfreigabe erforderlich |
+| `commands.clearChargingMode` | Nur schreiben | Einmal `true`, `ack=false`: nur den Moduswunsch löschen, ohne Handyzugriff |
+
+Die Modus-Auswahlliste enthält nur die drei benannten Modi. `null` ist ein echter Nullwert zum Löschen des Wunschs, kein weiterer Modus und nicht der Text `"null"`. Falls die Oberfläche keinen Nullwert anbietet, dafür `commands.clearChargingMode` verwenden.
+
+Zuerst `charging.targetMode` auswählen und auf dessen Bestätigung `ack=true` sowie ein leeres Fehlerfeld warten. Dann `commands.applyChargingMode` einmal auslösen. Nach dem Auftrag dessen Rückmeldung sowie `charging.mode`, gültige Qualität und eine frische `charging.modeObservedAt` prüfen. Ein bestätigter Wunsch bedeutet nur gespeichert; erst der ausdrückliche Befehl bedient die App.
+
+**Die App speichert den Modus sofort beim Antippen, ohne Speichern-Knopf. Der Wechsel kann unmittelbar Laden auslösen.** Der Adapter betätigt keinen zusätzlichen Startknopf. Vor dem möglicherweise wirksamen Tipp gilt der gemeinsame Schalt-Mindestabstand von **60 bis 3600 Sekunden**, Standard **60**. Keine S-PIN ist erforderlich. Bei unklarem Ergebnis die App prüfen und neu lesen; weder einen automatischen Wiederholungsversuch noch einen zusätzlichen Start nachschieben.
+
+Die Modusdatei und ihre Speicherbarriere sind von den vier bisherigen Ladewünschen getrennt. `commands.applyChargingSettings` übernimmt keinen Modus; `commands.clearChargingSettings` löscht keinen Moduswunsch. Ungültige Auswahl oder fehlgeschlagene Speicherung sperrt nur Mode-Apply bis zur gültigen Neuauswahl oder zum Modus-Löschen. Ein bereits angenommener Auftrag behält seine ursprüngliche Auswahl. Neustart, Wiederverbinden und Polling wenden keine Wünsche an und wiederholen keinen Moduswechsel.
+
+`commands.refreshCharging` sowie die automatische Ladeabfrage erneuern den Modus samt tatsächlicher erfolgreicher Auslesezeit. Ist nur der Modus unlesbar oder fehlt eine gültige Moduszeit, bleiben der bisherige Modus und seine Zeit historisch erhalten, und `charging.mode` erhält `q=0x82`. Die Batterie und `refresh.charging.status` können trotzdem frisch sein. Auch eine nach ihrer eigenen Zeit abgelaufene Modusbeobachtung wird ungültig; Fehler, Ablauf und Neustart schreiben den letzten Erfolgszeitpunkt nicht fort.
+
+**Geplantes Laden über Ladeort-Timer wird nur bei `departure` oder `departureClimate` ausgeführt.** Timer zuerst konfigurieren und aktivieren, danach den passenden Modus ausdrücklich auswählen und übernehmen und den gültigen Istmodus samt frischer Moduszeit prüfen. Timer dürfen auch bei `immediate` bearbeitet werden. Timer-Übernehmen stellt keinen Modus automatisch um; `enabled=true` allein ist kein Nachweis für ausgeführtes geplantes Laden.
 
 ## 8. Fahrzeugzustandsbericht lesen
 
