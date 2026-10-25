@@ -251,12 +251,14 @@ App confirmation may lag behind an accepted selection. Within the configured con
 | `charging.modeObservedAt` | Read-only: ISO UTC time of the last successful mode-reading snapshot, or empty; neither battery-read time nor vehicle telemetry time |
 | `charging.targetMode` | Saved wish: one of the three exact strings, or `null` to keep the app mode; write with `ack=false` |
 | `charging.targetModeError` | Read-only: fixed selection/save error, empty after a valid saved selection or clear |
-| `commands.applyChargingMode` | Write-only: write `true`, `ack=false` once to apply the saved mode; vehicle-setting write permission required |
+| `commands.applyChargingMode` | Write-only: write `true`, `ack=false` once to apply the saved mode; actual changes require vehicle-setting write permission |
 | `commands.clearChargingMode` | Write-only: write `true`, `ack=false` to clear only this wish without phone access |
 
 The enum list contains the three named modes. A real `null` clears the wish; it is neither a fourth mode nor the string `"null"`. If the UI does not offer a null selection, use `commands.clearChargingMode`.
 
 Select `charging.targetMode`, wait for `ack=true` and an empty `charging.targetModeError`, then trigger `commands.applyChargingMode` once. Check `operation.lastResult` and `operation.lastErrorCode`, followed by a valid `charging.mode` and a fresh `charging.modeObservedAt`. The configured common switching-attempt cooldown is **60–3600 seconds**, default **60**, and is reserved before a potentially effective mode tap. After an unknown result, inspect the app and request a read before deciding what to do; do not automatically retry. No S-PIN is needed.
+
+With write permission disabled, this mode command can only confirm an already fulfilled wish from fresh app readings; a different mode is rejected before opening the picker, reserving a switching attempt or selecting a mode.
 
 The mode wish persists separately from the four charge-limit/charging-option wishes. `commands.applyChargingSettings` never applies a mode wish; its clear command never clears one. A mode selection or save error blocks only mode apply until a valid reselect or mode clear. Later changes cannot alter an accepted command's snapshot. Startup, reconnect and automatic reads never apply the wish or repeat the mode change.
 
