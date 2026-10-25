@@ -409,7 +409,19 @@ python scripts/build-android-ui.py --jdk-home /path/to/jdk17 --d8-jar /path/to/r
 
 The script checks the tool checksum, compiles only the two listed implementation sources and excludes compile-only Android API signatures from the DEX payload. R8/D8 is a build dependency and is not distributed with the adapter. The Java helper implementation is part of this project's MIT-licensed source.
 
+### Publishing a version
+
+Keep the version in `package.json`, `io-package.json` and `package-lock.json` synchronized, add a dated changelog entry and update the translated adapter news. Merge the release commit into `main` after its checks pass, then create a matching GitHub tag such as `v0.9.2` on that commit.
+
+The tag triggers `.github/workflows/test-and-release.yml`. Package, lint and Linux integration checks must pass before deployment. The deployment job checks that the tag matches the package version and that the commit belongs to `main`; an existing npm version is retained without another publication attempt. For a new version, the job is configured to publish to npm using GitHub OIDC trusted publishing with provenance. npm's trusted-publisher binding must match this public repository and workflow file. No npm access token is stored in the repository.
+
 ## Changelog
+
+### 0.9.2 (2026-10-25)
+
+- Enable token-free npm publishing with provenance through the checked GitHub release workflow.
+- Document version synchronization, the required Main checks and the matching release tag.
+- Keep vehicle functions, permissions, S-PIN handling and automatic observation refresh unchanged.
 
 ### 0.9.1 (2026-10-25)
 
