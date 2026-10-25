@@ -286,6 +286,22 @@ Die Tür-/Fensterwerte und die Verriegelung sind unabhängig: Ein Fahrzeug kann 
 
 Die Untersuchung am Referenzgerät erfasste alle Öffnungen offen und das Fahrzeug entriegelt, danach das einzelne Schließen von Fahrertür, Fahrerfenster und Kofferraum sowie alle Öffnungen geschlossen bei beiden Verriegelungszuständen. Die jeweiligen Bezeichnungen verschwanden unabhängig voneinander. Private Originalansichten werden nicht veröffentlicht; die öffentlichen Tests verwenden nachgebildete Ansichten.
 
+Eine teilweise gescrollte Fahrzeugübersicht richtet der Adapter über die native Scrollfunktion der App aus. Es gibt dafür keine Wischgeste als Ersatz, die eine Aktualisierung durch Herunterziehen auslösen könnte. Nur eine vollständig sichtbare und eindeutig erkannte Fahrzeug- und Warnanzeige erlaubt die Veröffentlichung der Öffnungszustände. Die bekannte Detailansicht **Fahrzeug** darf der Adapter über ihren Zurück-Pfeil verlassen; offene PIN-Abfragen bleiben geschützt.
+
+## 12. Fahrzeug verriegeln und entriegeln
+
+Voraussetzung ist, dass beide Funktionen für das ausgewählte Fahrzeug bereits manuell in der Volkswagen-App funktionieren. In den Adaptereinstellungen die vierstellige **Volkswagen S-PIN** eingeben und **Fahrzeug verriegeln und entriegeln erlauben** aktivieren, anschließend speichern. Führende Nullen gehören zur PIN. Diese Freigabe ist unabhängig von der Freigabe für Klima- und Einstellungsänderungen; neue und aktualisierte Instanzen erhalten sie nicht automatisch.
+
+Die S-PIN ausschließlich in diesem maskierten Einstellungsfeld hinterlegen, niemals in einem Datenpunkt, Skript, Chat oder Fehlerbericht. `sPin` ist als `encryptedNative` und `protectedNative` deklariert: ioBroker Admin verschlüsselt die gespeicherte Konfiguration und der Controller entschlüsselt sie für den Adapterstart. Eine vollständige Absicherung gegenüber Administratoren des ioBroker-Systems ergibt sich daraus nicht. Die verwendete Admin-/JSON-config-Generation kann beim Speichern die entschlüsselte Konfiguration in die Browserkonsole schreiben; deshalb keine Konsolen- oder Konfigurationsmitschnitte mit eingetragener PIN weitergeben. Siehe [JSON-config 10.1.2](https://github.com/ioBroker/json-config/blob/v10.1.2/src/JsonConfig.tsx#L664-L682).
+
+`commands.lockVehicle` beziehungsweise `commands.unlockVehicle` einmal mit `true` und `ack=false` schreiben. Der Adapter prüft Handy, App-Version, Fahrzeug und den frisch gelesenen Verriegelungszustand. Ist der gewünschte Zustand bereits erkennbar, wird keine PIN eingegeben. Andernfalls öffnet er die passende PIN-Maske und überträgt die PIN einmal über den geschützten Eingabekanal. In der geprüften App benötigen **beide** Richtungen die S-PIN; die vierte Ziffer löst den Auftrag automatisch aus.
+
+Ein begonnener Auftrag wird bei unklarer Rückmeldung nicht wiederholt. `security.blocked` und `security.reason` zeigen die über Neustarts erhaltene Auftragssperre an. Eine offene oder fehlerhafte PIN-Abfrage wird konservativ als ungeklärter Ausgang behandelt; der Adapter versucht keine weiteren PIN-Eingaben. Zuerst App, Fahrzeugzustand und hinterlegte PIN prüfen. Danach lässt sich die Sperre ausdrücklich über **Nach korrigierter S-PIN die Sicherheitssperre zurücksetzen** in den Adaptereinstellungen aufheben. Dies gibt ausschließlich einen späteren eigenen Auftrag frei und sendet selbst keinen Fahrzeugbefehl.
+
+Die Rückmeldung erfolgt über `vehicleAccess.locked` und die zugehörigen Aktualitätsdaten. Das regelmäßige Auslesen bleibt aktiv und erfasst auch manuelle Bedienung oder eine automatische Wiederverriegelung. Es schaltet das Fahrzeug nie selbstständig und gleicht keinen gespeicherten Verriegelungswunsch ab. Eine App-Rückmeldung ist weiterhin keine unabhängige Bestätigung am Fahrzeug.
+
+Nach akzeptierter PIN-Eingabe blendet der Adapter eine noch sichtbare Tastatur nach erneuter Prüfung einmal aus. Eine bereits ausgeblendete Tastatur erhält keinen Zurück-Befehl. Während vorübergehender Ansichtswechsel wartet er innerhalb des eingestellten Bestätigungszeitraums weiter und prüft ausschließlich lesend; PIN und Fahrzeugbefehl werden dabei nicht wiederholt. Am 25. Oktober 2026 wurden mit der korrigierten Version je ein Entriegelungs- und Verriegelungsauftrag erfolgreich geprüft: gültige passende App-Anzeige, fehlerfreie Adapterrückmeldung, aufgehobene lokale Sicherheitssperre und unabhängige Nutzerbestätigung am Fahrzeug. Die Tastatur war nach beiden Aktionen ausgeblendet. Dies bestätigt die Referenzkombination Galaxy A31, Android 12 und Volkswagen-App 4.8.1; andere Ansichten bleiben gesondert zu prüfen.
+
 ## Schnittstelle der Einrichtungsschaltflächen
 
 Alle Aktionen gehen über die ioBroker-Messagebox an die konfigurierte Instanz. Es werden keine beliebigen Shell-Kommandos oder Skripte aus der Oberfläche übertragen.
@@ -297,6 +313,7 @@ Alle Aktionen gehen über die ioBroker-Messagebox an die konfigurierte Instanz. 
 | `probe` | `{hostIp, connectPort}` | Verbindung, Gerätebindung und installierte App-Version prüfen; keine App-Freigabe |
 | `calibrate` | `{hostIp, connectPort}` | App und Fahrzeug lesend übernehmen; geprüfte Profilwerte als Konfigurationsvorschlag zurückgeben |
 | `keepAwake` | `{hostIp, connectPort}` | Android-Wachhalten beim Laden ausdrücklich aktivieren |
+| `resetSecurityBlock` | `{}` | Nur aus ioBroker Admin; lokale Auftragssperre ausdrücklich aufheben, ohne Handybedienung oder PIN-Rückgabe |
 
 `jsonData` interpoliert die Ports als Zeichenfolgen. Das Backend muss sie streng als ganzzahlige Ports zwischen 1 und 65535 prüfen. IP-Adressen werden ebenfalls im Backend geprüft; die Eingabehilfe im Browser ersetzt diese Prüfung nicht.
 
