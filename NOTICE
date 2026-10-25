@@ -22,3 +22,17 @@ archive metadata in https://dl.google.com/android/repository/repository2-3.xml.
 The Android view identifiers were informed by primary documentation and by the
 owner's device. No implementation files or fixtures from third-party Volkswagen
 Home Assistant integrations were copied into this project.
+
+The adapter includes its own Android UI helper in lib/android/vw-ui.jar.
+Its two Java implementation sources are part of this MIT-licensed project.
+The compile-only Android API signature placeholders are original declarations
+used to compile those sources; they are not included in the DEX payload.
+No Android framework implementation, helper APK, exploration service or
+private diagnostic fixture is distributed as part of this helper.
+
+Rebuilding the helper is a developer operation using JDK 17 and the pinned
+Google R8/D8 tool identified by version and SHA-256 in lib/android/manifest.json.
+R8/D8 and the JDK are not included in the adapter and are not required on the
+ioBroker host to run the supplied helper. Their own distribution terms apply
+when developers obtain them; the MIT license above covers the project's own
+source, not those build tools or Android SDK Platform Tools.

@@ -4,13 +4,14 @@ Control the **official Volkswagen Android app over Wi-Fi** from ioBroker.
 
 **Experimental community adapter.** The source has been tested with synthetic Android views. The initial real-device reference is a Galaxy A31 with Android 12, Volkswagen app 4.8.1 and an ID.7 GTX Tourer. This does not establish compatibility with every Volkswagen model, region or future app version. Only the selected vehicle in one phone app is controlled by an instance.
 
-Der Adapter bedient die offizielle Volkswagen-App auf einem Android-Handy. Kopplung, Einrichtung, Klimabefehle und Ladeeinstellungen werden direkt im ioBroker-Adapter verwaltet. Klima-, Lade- und Berichtswerte liest er wahlweise automatisch oder auf Anforderung aus. Die Volkswagen-Anmeldung bleibt auf dem Handy.
+Der Adapter bedient die offizielle Volkswagen-App auf einem Android-Handy. Kopplung, Einrichtung, Klimabefehle, Ladeeinstellungen, Abfahrtszeiten und vorhandene Ladeorte werden direkt im ioBroker-Adapter verwaltet. Die App-Werte liest er wahlweise automatisch oder auf Anforderung aus. Die Volkswagen-Anmeldung bleibt auf dem Handy.
 
 ## What runs where
 
 - One ioBroker adapter handles configuration, pairing, device verification, climate controls and charging settings.
 - No Python bridge, separate HTTP server, systemd service or JavaScript-adapter script is needed.
 - The adapter manages a private native ADB child process. It starts and stops that process with the adapter instance. ADB remains a technical runtime requirement, not an additional service users must configure.
+- Departure controls use the included small Android UI helper through that same ADB connection. No separate VM daemon, phone APK installation, Python process or JDK is required to run it.
 - No VW cloud password or cloud token is entered in ioBroker.
 - Android SDK binaries are not shipped in this GitHub repository or npm package. The setup interface offers an explicit download from Google after acceptance of the linked terms.
 
@@ -102,13 +103,13 @@ The confirmation source describes evidence from the app. Both `app_controls` and
 
 ## Automatic app reads and read age
 
-New instances use `pollIntervalSeconds=15`. Existing instances retain their saved setting: `0` stays disabled, and a missing legacy value also remains disabled. Use `0` for manual reads only, or a whole number from **15 to 86400** to enable automatic reads of **climate, battery/charging and the vehicle report**. No write permission is needed for these reads.
+New instances use `pollIntervalSeconds=15`. Existing instances retain their saved setting: `0` stays disabled, and a missing legacy value also remains disabled. Use `0` for manual reads only, or a whole number from **15 to 86400** to enable automatic reads of **climate, battery/charging, the vehicle report, climate departures, the charging-location list and each present charging location**. No write permission is needed for these reads.
 
-This setting is the minimum wait **from a completed read until that same area becomes due again**. It does not promise a full update every 15 seconds. All three areas share one phone and run fairly, one after another. The adapter also rests between automatic jobs for at least **5 seconds or 25% of the last job's duration**, whichever is longer. Actual round-trip time includes all app navigation, UI reads and recovery pauses. There is no overlapping work or catch-up queue. A failing area receives a progressively longer retry wait, with error backoff limited to five minutes while respecting the configured minimum interval.
+This setting is the minimum wait **from a completed read until that same area becomes due again**. It does not promise a full update every 15 seconds. All areas share one phone and run fairly, one after another. Each newly discovered present charging location adds its own read area, up to five locations. Their timer editors, settings and preferred windows require extra app navigation, so the complete cycle grows with the number of locations. The adapter also rests between automatic jobs for at least **5 seconds or 25% of the last job's duration**, whichever is longer. There is no overlapping work or catch-up queue. A failing area receives a progressively longer retry wait, with error backoff limited to five minutes while respecting the configured minimum interval.
 
-Manual commands take priority. An automatic read stops at a safe step boundary before a manual command takes over; it does not interrupt an unfinished vehicle-setting change. After a control command, a read of the affected area receives priority. That follow-up only reads: it never repeats a Start, Stop, Save or other write. Automatic ticks never press **Jetzt synchronisieren** and never apply temperature, climate or charging wishes.
+Manual commands take priority. An automatic read stops at a safe step boundary before a manual command takes over; it does not interrupt an unfinished vehicle-setting change. After a control command, a read of the affected area receives priority. That follow-up only reads: it never repeats a Start, Stop, Save or other write. Automatic ticks never press **Jetzt synchronisieren** and never apply temperature, climate, charging, departure or location wishes.
 
-The following metadata is read-only. Replace `<area>` with `climate`, `charging` or `vehicleReport`:
+The following metadata is read-only. Replace `<area>` with `climate`, `charging`, `vehicleReport`, `departureClimate`, `departureLocations` or `departureLocation_loc_<24hex>` for an individually discovered location:
 
 | State | Meaning |
 |---|---|
@@ -125,6 +126,8 @@ The following metadata is read-only. Replace `<area>` with `climate`, `charging`
 Set `refreshMaxAgeSeconds` to **0** for an adaptive threshold, or a whole number from **30 to 86400** for an explicit read-age threshold. Automatic mode uses the greater of **90 seconds** and **twice the larger of the configured minimum interval and the estimated full cycle time**. Changing this threshold changes the age classification, not how often the phone is read or when it synchronizes with the vehicle. `operation.lastUpdated`, `battery.observedAt` and `vehicleReport.observedAt` remain the separate app-reading timestamps.
 
 Version 0.6.0 passed **437 automated tests on Linux**. In the preceding RC1 live check on the reference Galaxy A31, a configured 15-second minimum produced repeat reads of each area about **90–92 seconds** apart. With polling disabled and a 30-second age limit, expired observations retained their last values with invalid quality; preferences and synchronization-request history remained unchanged. A manual report request took over the phone from an automatic read in about **1.75 seconds**; that is the handoff time, not the time to finish reading the report. Automatic reads preserved the manual operation feedback. These live checks did not start or stop climate control, save vehicle preferences or request synchronization. Six additional simulated regression tests cover cooperative handoff through the zones page, hard cancellation, deadlines and preservation of manual drafts; they do not represent an additional physical Start/Stop test.
+
+That version 0.6.0 cycle measurement covered the three original areas, before departure and location reads were added. It does not predict the longer version 0.7.0 cycle.
 
 ## Command behavior
 
@@ -262,6 +265,67 @@ Each category has `vehicleReport.<category>.status` and `vehicleReport.<category
 
 Version 0.5.0 passed **391 automated tests on Linux**. Real top and bottom report views were also merged locally into a complete validated model. Two live report reads on a **Galaxy A31 with Android 12 and the German Volkswagen app 4.8.1** correctly captured odometer, service information, summary, synchronization text, all seven categories, the footer and normalized JSON; the second read updated `observedAt`. All 27 actual ioBroker report objects were verified as read-only, matching the automated schema checks. On both reads, 23 monitored climate, charging, preference and synchronization-request values remained exactly unchanged. No vehicle action, Save or synchronization was triggered, and climate control remained off. Active warning configurations were neither created nor checked live.
 
+## Departure times and charging locations
+
+All state IDs below are relative to `vw-app.0`. Version 0.7.0 reads the app's **two climate departure timers** and **up to five charging locations already created in the vehicle**, each with three departure timers. It does not create or delete charging locations.
+
+| State or command | Meaning |
+|---|---|
+| `commands.refreshDepartureClimate` | Read the two climate departure timers |
+| `commands.refreshDepartureLocations` | Discover the current charging-location list and bindings |
+| `departures.climate.observedAt` | Time of the last successful climate-departure app read |
+| `departures.climate.timer1` / `timer2` | Observations and saved wishes for each climate timer |
+| `chargingLocations.observedAt` | Time of the last successful location-list app read |
+| `chargingLocations.loc_<24hex>` | Stable adapter key for a location's confirmed vehicle profile and native app identity |
+| `chargingLocations.loc_<24hex>.commands.refresh` | Read that location's three timers, settings and preferred windows |
+
+Each location publishes `name`, `present`, `activeTimerCount`, `bindingStatus` and `observedAt`. Its key follows the native location identity, rather than its display name or list position. A rename, removal or reappearance retains saved wishes and historical values but invalidates their previous bindings. This also applies after a successful rename through the adapter: every existing non-null wish from the previous binding generation, including the just-used name wish, must be explicitly selected again or cleared before another Apply. Check the current name, presence and binding feedback before applying changes. A rename requires a new complete location-list read; the previous inventory remains stale until that read succeeds.
+
+Each climate timer and each location's `timer1`, `timer2` and `timer3` uses the same fields:
+
+| Field under a timer | Meaning |
+|---|---|
+| `enabled`, `time`, `days`, `repeat` | Read-only app settings; time is `HH:mm`, days is a JSON array of `mon` through `sun` |
+| `date` | Read-only local calendar date of a one-off timer; `null` for a recurring timer |
+| `vehicleOffset`, `isLocalVehicleTime`, `source` | App timing metadata and observation source |
+| `daysSummary`, `daysSummaryRecognized` | Original overview day label and whether its meaning was recognized |
+| `targetEnabled`, `targetTime`, `targetDays`, `targetRepeat` | Saved desired settings; `null` keeps the corresponding app value |
+| `targetError` | Feedback about an invalid or unsaved wish |
+| `commands.apply` | Explicitly apply this timer's saved wishes and verify the saved app result |
+| `commands.clear` | Clear only this timer's wishes without changing the app timer |
+
+Write wishes with `ack=false`. For example, select `targetTime="07:30"`, `targetDays='["mon","wed","fri"]'`, `targetRepeat=true` and the desired Boolean `targetEnabled`, then write `true`, `ack=false` to that timer's `commands.apply`. Supported time changes use **five-minute steps**. A one-off timer (`repeat=false`) requires exactly one selected weekday; its calendar date is determined and reported by the app. The adapter does not convert these times through the ioBroker host's time zone or advance an old one-off date merely by reading it.
+
+Acknowledging a wish only means it was saved privately in the adapter. The separate Apply command requires write permission, keeps a fixed snapshot of its accepted wishes, saves app changes explicitly and reopens the timer for readback. It never presses an immediate climate or charging Start/Stop button. Enabling a scheduled timer does authorize the future operation described by the app. A changed editor's initial native arguments are not treated as its current draft, and an accepted Android input is not a persistence confirmation. Existing manual drafts are neither saved nor discarded automatically. If confirmation is uncertain, inspect the app before explicitly trying another command; writes are never automatically repeated.
+
+The app may switch a timer on when saving it. The adapter then checks the desired enabled state and adjusts it if necessary. With `targetEnabled=null`, the desired final state is the timer's initial enabled state; the app may still enable it temporarily between Save and the subsequent correction.
+
+After Save and directly persisted switch changes, the adapter allows **20 seconds** for the app to settle before reopening and checking the saved result. Together with navigation and full readback, this can make a write take several minutes. This wait supports app stability; it does not establish fresh vehicle telemetry.
+
+Charging timers additionally publish read-only `climatisation`, `profileId` and `isPreferredTimesAvailable`. Applying the four timer wishes preserves those additional settings.
+
+Under each location's `settings`, the supported wishes are `targetName`, `targetReducedAcCurrent` and `targetAutoUnlockAc`. Their read-only counterparts are `name`, `reducedAcCurrent` and `autoUnlockAc`; use that settings group's `commands.apply` or `commands.clear`. In the observed app, the **Direct charge limit** and **Charge limit** are drawn without readable numeric values. Consequently, `settings.directSoc` and `settings.socLimit` remain `null` with unavailable quality, and `settings.socReadCapability` reports `not_exposed_by_app`. These location limits have no writable SOC wishes. The separately verified global `charging.targetSoc` and `commands.applyChargingSettings` remain available and retain their existing meaning; the app states that the global limit does not apply at predefined charging locations.
+
+Under `preferredTimes`, `window1` through `window4` publish read-only `start`, `end`, `enabled` and `editable`. Only each window's nullable `targetEnabled` can be staged; the shared `preferredTimes.commands.apply` and `.commands.clear` apply or clear those four switch wishes. `preferredTimes.targetError` reports selection errors. Start/end times remain read-only: the app instructs owners to configure the exact windows in the vehicle's infotainment system. The raw instruction is available as `preferredTimes.notice`.
+
+Automatic reads include the new areas and use the same age, error and invalid-quality rules described above. Successful app reads do not prove newly transmitted vehicle data, and polling never applies saved wishes or requests synchronization.
+
+### Version 0.7.0 verification
+
+The Linux RC2 validation passed **642/642 tests**, including the POSIX checks. Byte comparisons covered **73 public source files and 42 npm-package files**. Live checks used a **Galaxy A31, Android 12 and the German Volkswagen app 4.8.1**:
+
+| Read-only app operation | Measured duration |
+|---|---|
+| Both climate departure timers | 30.056 s |
+| Inventory of the one existing charging location | 19.833 s |
+| That location's three timers, settings and four preferred windows | 62.688 s |
+
+Each read returned to the vehicle overview without changing app settings. The production controller also changed a disabled one-off charging timer from **Saturday 08:30 to Monday 08:35**, saved it, waited, corrected the app's automatic activation and verified the final disabled state by reopening and fully reading it. This took **152.533 s**; restoring the original timer took **151.817 s**. The restored location, timer, settings and preferred-window contents matched the baseline exactly. A Unicode location-name change together with both reduced-AC-current and automatic-AC-unlock options took **164.472 s**; restoring them took **167.846 s**, again with an exact full-model baseline match.
+
+Enabling preferred window 1 with the production controller took **155.772 s** and was confirmed by a full location read; all other model values remained at baseline. Restoring it to `false` through the **installed version 0.7 adapter**, using `targetEnabled` and `commands.apply`, succeeded in **160.559 s**. All **62 ioBroker observation states** matched the restored baseline; both intentionally unavailable location-SOC values remained `null` with invalid quality. Acknowledgment, quality and app-reading timestamps were checked. The preferred group's `commands.clear` then cleared its four wishes without a phone job. Other wishes and synchronization-request history remained unchanged.
+
+No climate Start/Stop or Synchronize command was issued in these checks. Five-location coverage is synthetic; the live device had one location. The one-off timer test observed Repeat changing within the draft and confirmed a final saved one-off timer; a directly saved recurring-timer scenario was not checked live. The timings above measure individual operations, not a full automatic refresh cycle, and must not be presented as a measured full-cycle duration.
+
 ## Migration from the Python prototype
 
 Stop and disable the previous Python bridge service and its JavaScript-adapter script before this adapter operates the phone. Do not run two app controllers against the same phone.
@@ -281,6 +345,14 @@ npm pack
 
 Tests simulate phone views, ADB processes and adapter lifecycle behavior. Native process startup, real Wi-Fi connectivity and real app behavior additionally need a Linux/device smoke test. Report the phone model, Android version, app version and fixed error code in an issue; do not upload pairing codes, keys, enrollment files, full private UI dumps or VINs.
 
+The release includes the adapter's own Android helper and source hashes under `lib/android`; users do not need a Java toolchain. Rebuilding that helper is a developer task requiring Python 3.9+, JDK 17 and the pinned Google R8/D8 artifact identified in `lib/android/manifest.json`:
+
+```sh
+python scripts/build-android-ui.py --jdk-home /path/to/jdk17 --d8-jar /path/to/r8.jar
+```
+
+The script checks the tool checksum, compiles only the two listed implementation sources and excludes compile-only Android API signatures from the DEX payload. R8/D8 is a build dependency and is not distributed with the adapter. The Java helper implementation is part of this project's MIT-licensed source.
+
 ## License and project status
 
 Adapter source: [MIT](LICENSE). Third-party components retain their licenses; see [NOTICE](NOTICE).
@@ -288,6 +360,14 @@ Adapter source: [MIT](LICENSE). Third-party components retain their licenses; se
 Independent community project, not provided or endorsed by Volkswagen, Google or ioBroker. Volkswagen and Android are trademarks of their respective owners.
 
 ### Changelog
+
+#### 0.7.0
+
+- Read, stage and explicitly apply the two climate departure timers and three timers per existing charging location.
+- Discover up to five vehicle-created locations with stable native bindings and separate refresh/age metadata.
+- Support location names, reduced AC current, AC plug unlocking and preferred-window enable switches; preserve unavailable Canvas SOC values as unknown.
+- Keep preferred start/end windows read-only, preserve manual drafts and verify saved timer changes after reopening.
+- Include an own Android UI helper inside the existing adapter/ADB lifecycle, with no additional daemon or phone APK installation.
 
 #### 0.6.0
 

@@ -13,5 +13,8 @@ command-journal.json
 temperature-preference.json
 settings-preference.json
 charging-preference.json
+departure-preference.json
+departure-location-bindings.json
+ui-requests/
 *.log
 .DS_Store

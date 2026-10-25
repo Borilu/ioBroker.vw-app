@@ -463,6 +463,14 @@ test('new private directories and atomically replaced data files use restrictive
     await store.write('enrollment', { deviceId: ANDROID });
     assert.equal((await fs.stat(store.file('enrollment'))).mode & 0o777, 0o600);
     assert.deepEqual(await store.read('enrollment'), { deviceId: ANDROID });
+    for (const name of ['departure-preference', 'departure-location-bindings']) {
+        await store.write(name, { version: 1, test: 'first' });
+        assert.equal((await fs.stat(store.file(name))).mode & 0o777, 0o600);
+        await fs.chmod(store.file(name), 0o644);
+        await store.write(name, { version: 1, test: 'replacement' });
+        assert.equal((await fs.stat(store.file(name))).mode & 0o777, 0o600);
+        assert.deepEqual(await new StateStore(store.dataDir).read(name), { version: 1, test: 'replacement' });
+    }
     assert.ok(!(await fs.readdir(store.dataDir)).some(name => name.endsWith('.tmp')));
 });
 

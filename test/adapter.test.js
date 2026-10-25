@@ -14,6 +14,7 @@ const { MIN_TEMPERATURE_CELSIUS, MAX_TEMPERATURE_CELSIUS, TEMPERATURE_STEP_CELSI
 const { DEFAULT_TARGET_SETTINGS, SETTINGS_KEYS } = require('../lib/settings');
 const { DEFAULT_TARGET_CHARGING, CHARGING_KEYS, MIN_TARGET_SOC, MAX_TARGET_SOC, TARGET_SOC_STEP } = require('../lib/charging');
 const { REPORT_CATEGORIES } = require('../lib/vehicle-report');
+const { localKey } = require('../lib/departures-adapter');
 
 const VEHICLE = 'Ihr Fahrzeug: ID.7 GTX Tourer. ';
 const DEVICE = 'serial:TEST-ADAPTER-42';
@@ -78,6 +79,7 @@ class RecordingScheduler {
     notifyAvailable() { this.available++; }
     request(domain, options) { this.requests.push({ domain, ...options }); return this.started; }
     snapshot() { return { runningDomain: null, estimatedCycleMs: 112500, domains: {} }; }
+    setDomains(domains) { this.options.domains = [...domains]; }
 }
 
 function singleAdminSuccess(controlName, response, result) {
@@ -112,7 +114,7 @@ async function fixture(t, options = {}) {
             this.logs = []; this.responses = []; this.intervals = []; this.clearedIntervals = [];
             this.log = Object.fromEntries(['info', 'warn', 'error', 'debug'].map(level => [level, message => this.logs.push({ level, message })]));
         }
-        async setObjectNotExistsAsync(id, value) { if (!this.objects.has(id)) this.objects.set(id, clone(value)); }
+        async setObjectNotExistsAsync(id, value) { if (options.objectWrite) await options.objectWrite(id, value); if (!this.objects.has(id)) this.objects.set(id, clone(value)); }
         async getStateAsync(id) { return clone(this.states.get(id) || null); }
         async setStateAsync(id, value) {
             if (this.stopping && id === 'info.connection' && options.shutdownStateFailure) throw new Error('SECRET STATE WRITE ERROR');
@@ -207,6 +209,9 @@ async function fixture(t, options = {}) {
             const observedAt = new Date(options.clock ? options.clock.now() : Date.now()).toISOString();
             if (['chargingStatus', 'applyChargingSettings', 'synchronize'].includes(action)) return { ...chargingResult(input.targetCharging), ...(options.clock ? { observedAt } : {}) };
             if (action === 'vehicleReportStatus') return { ...vehicleReportResult(), ...(options.clock ? { observedAt } : {}) };
+            if (action === 'departuresClimateStatus' || action === 'applyDepartureClimateTimer') return departureClimateResult(observedAt);
+            if (action === 'departuresLocationsStatus') return departureInventoryResult(options.departureLocations || [], observedAt);
+            if (['departuresLocationStatus', 'applyDepartureLocationTimer', 'applyDepartureLocationSettings', 'applyDeparturePreferredTimes'].includes(action)) return departureLocationResult(input.location, observedAt);
             return { appState: environment.appState, appVersion: '4.8.1', vehicleConfirmed: false,
                 observedAt, temperature: input.targetTemperature,
                 confirmationSource: 'app_controls' };
@@ -240,6 +245,27 @@ async function fixture(t, options = {}) {
 }
 
 function enrolled() { return { deviceId: DEVICE, profile: { appVersion: '4.8.1', vehicleMarker: VEHICLE } }; }
+function departureTimer(id, profileId = null) {
+    return { id, enabled: false, time: '07:30', days: ['mon', 'wed'], repeat: true, date: null,
+        vehicleOffset: '+02:00', isLocalVehicleTime: false, source: 'editor_initial_snapshot',
+        daysSummary: 'Mo., Mi.', daysSummaryRecognized: true,
+        ...(profileId === null ? {} : { climatisation: false, profileId, isPreferredTimesAvailable: true }) };
+}
+function departureEnvelope(domain, observedAt = '2026-10-25T10:00:00.000Z') {
+    return { domain, source: 'volkswagen_android_app', vehicleConfirmed: false, appVersion: '4.8.1', observedAt };
+}
+function departureClimateResult(observedAt) {
+    return { ...departureEnvelope('departureClimate', observedAt), timers: ['1', '2'].map(id => departureTimer(id)) };
+}
+function departureInventoryResult(locations = [], observedAt) {
+    return { ...departureEnvelope('departureLocations', observedAt), locations: clone(locations) };
+}
+function departureLocationResult(location = { nativeId: '700', name: 'Synthetischer Ort A' }, observedAt) {
+    return { ...departureEnvelope('departureLocation', observedAt), location: { ...location },
+        timers: ['1', '2', '3'].map(id => departureTimer(id, location.nativeId)),
+        settings: { name: location.name, directSoc: null, socLimit: null, reducedAcCurrent: false, autoUnlockAc: true },
+        preferredTimes: { windows: ['1', '2', '3', '4'].map(id => ({ id, start: '00:00', end: '06:00', enabled: false, editable: false })), notice: null } };
+}
 function expectedCall(action, targetTemperature, targetSettings = DEFAULT_TARGET_SETTINGS) {
     return { action, input: { targetTemperature,
         ...(['start', 'applySettings'].includes(action) ? { targetSettings: { ...targetSettings } } : {}) } };
@@ -1589,7 +1615,7 @@ test('refresh metadata writes only changed values while the one-second tick stil
 test('automatic age limit follows the estimated complete cycle while explicit limits override it', async t => {
     const clock = fakeClock();
     const f = await fixture(t, { clock, RefreshScheduler: RecordingScheduler, config: { pollIntervalSeconds: 15 } });
-    assert.equal(f.value('refresh.climate.maxAgeSeconds'), 225);
+    assert.equal(f.value('refresh.climate.maxAgeSeconds'), 375);
     await f.adapter.scheduler.options.onUpdate({ estimatedCycleMs: 300000, runningDomain: null, domains: {} });
     assert.equal(f.value('refresh.charging.maxAgeSeconds'), 600);
     f.adapter.settings.refreshMaxAgeSeconds = 45; await f.adapter.updateFreshness();
@@ -1800,3 +1826,501 @@ test('unload aborts operations, cancels controller, stops runtime and releases l
         assert.ok(!JSON.stringify(f.adapter.logs).includes('SECRET'));
     }
 });
+
+test('departure timer states separate read-only initial observations from nullable staged wishes and own-only buttons', async t => {
+    const f = await fixture(t, { enrollment: enrolled(), fakeController: true });
+    for (const id of ['1', '2']) {
+        const path = 'departures.climate.timer' + id;
+        for (const field of ['enabled', 'time', 'days', 'repeat', 'date', 'vehicleOffset', 'isLocalVehicleTime', 'source', 'daysSummary', 'daysSummaryRecognized']) {
+            assert.equal(f.adapter.objects.get(path + '.' + field).common.write, false);
+            assert.equal(f.value(path + '.' + field), null);
+            assert.equal(f.adapter.states.get(path + '.' + field).q, 0x82);
+        }
+        for (const field of ['targetEnabled', 'targetTime', 'targetDays', 'targetRepeat']) {
+            assert.equal(f.adapter.objects.get(path + '.' + field).common.write, true);
+            assert.equal(f.value(path + '.' + field), null);
+        }
+        assert.equal(f.adapter.objects.get(path + '.commands.apply').common.role, 'button');
+    }
+    await f.adapter.onStateChange('vw-app.0.commands.refreshDepartureClimate', { val: true, ack: true });
+    await f.adapter.onStateChange('vw-app.0.commands.refreshDepartureClimate', { val: 'true', ack: false });
+    await f.adapter.onStateChange('0_userdata.0.departures.refreshDepartureClimate', { val: true, ack: false });
+    assert.equal(f.records.controllerCalls.length, 0);
+    await f.adapter.onStateChange('vw-app.0.commands.refreshDepartureClimate', { val: true, ack: false });
+    assert.deepEqual(f.records.controllerCalls, [{ action: 'departuresClimateStatus', input: {} }]);
+    assert.equal(f.value('commands.refreshDepartureClimate'), false);
+    assert.equal(f.value('departures.climate.timer1.enabled'), false);
+    assert.equal(f.value('departures.climate.timer1.days'), '["mon","wed"]');
+    assert.equal(f.value('refresh.departureClimate.status'), 'fresh');
+    assert.equal(f.value('climate.appState'), 'unknown');
+});
+
+test('timer wishes acknowledge only saved strict fields, allow staging intermediate combinations, and never optimistically alter observations', async t => {
+    const f = await fixture(t, { enrollment: enrolled(), fakeController: true, config: { allowWrites: true } });
+    const path = 'departures.climate.timer1';
+    for (const [field, value] of [['targetEnabled', true], ['targetTime', '00:00'], ['targetDays', '["sun","mon"]'], ['targetRepeat', false]]) {
+        await f.adapter.onStateChange('vw-app.0.' + path + '.' + field, { val: value, ack: false });
+    }
+    assert.equal(f.records.phones.length, 0);
+    assert.equal(f.value(path + '.targetDays'), '["mon","sun"]');
+    assert.equal(f.value(path + '.targetRepeat'), false);
+    assert.equal(f.value(path + '.enabled'), null);
+    assert.equal(f.value(path + '.targetError'), '');
+    assert.ok(f.memory['departure-preference']);
+    await f.adapter.onStateChange('vw-app.0.' + path + '.commands.apply', { val: true, ack: false });
+    assert.deepEqual(f.records.controllerCalls, [{ action: 'applyDepartureClimateTimer', input: {
+        timerId: '1', targetTimer: { enabled: true, time: '00:00', days: ['mon', 'sun'], repeat: false } } }]);
+    assert.equal(f.value(path + '.enabled'), false);
+    assert.equal(f.value(path + '.time'), '07:30');
+    assert.equal(f.value(path + '.targetTime'), '00:00');
+    await f.adapter.onStateChange('vw-app.0.' + path + '.commands.clear', { val: true, ack: false });
+    for (const field of ['targetEnabled', 'targetTime', 'targetDays', 'targetRepeat']) assert.equal(f.value(path + '.' + field), null);
+    assert.equal(f.records.controllerCalls.length, 1);
+});
+
+test('timer selection errors remain field-local and a later different successful field cannot silently repair them', async t => {
+    const f = await fixture(t, { enrollment: enrolled(), fakeController: true, config: { allowWrites: true } });
+    const group = f.adapter.departures.groups.get('departures.climate.timer1');
+    await f.adapter.departures.stage(group, { time: '07:30' });
+    await rejectsCode(f.adapter.departures.stage(group, { repeat: 'false' }), 'invalid_departure_timer');
+    await f.adapter.departures.stage(group, { enabled: false });
+    assert.match(f.value(group.id + '.targetError'), /repeat/);
+    await rejectsCode(f.adapter.command('applyDepartureClimateTimer', { timerId: '1' }), 'departure_selection_failed');
+    assert.equal(f.records.phones.length, 0);
+    await f.adapter.departures.stage(group, { repeat: false });
+    await f.adapter.command('applyDepartureClimateTimer', { timerId: '1' });
+    assert.equal(f.records.controllerCalls.length, 1);
+    assert.equal(f.value(group.id + '.targetError'), '');
+});
+
+test('a pending failed timer save blocks its immediate apply without overriding the saved target or unrelated manual feedback', async t => {
+    let fail = false;
+    const f = await fixture(t, { enrollment: enrolled(), fakeController: true, config: { allowWrites: true },
+        storeWrite: async name => { if (name === 'departure-preference' && fail) throw new BridgeError('state_not_saved', 'Private value was not saved.'); } });
+    const group = f.adapter.departures.groups.get('departures.climate.timer1');
+    await f.adapter.departures.stage(group, { time: '07:30' });
+    fail = true;
+    const selected = f.adapter.departures.stage(group, { time: '08:30' });
+    const apply = f.adapter.command('applyDepartureClimateTimer', { timerId: '1' });
+    await rejectsCode(selected, 'state_not_saved');
+    await rejectsCode(apply, 'departure_selection_failed');
+    assert.equal(f.value(group.id + '.targetTime'), '07:30');
+    assert.equal(f.records.phones.length, 0);
+    fail = false;
+    await f.adapter.departures.stage(group, { time: '08:30' });
+    await f.adapter.command('applyDepartureClimateTimer', { timerId: '1' });
+    assert.equal(f.records.controllerCalls[0].input.targetTimer.time, '08:30');
+});
+
+test('accepted timer snapshots wait for earlier persistence and later changes affect only the following command', async t => {
+    const writing = deferred(), save = deferred(), executing = deferred(), finish = deferred();
+    const f = await fixture(t, { enrollment: enrolled(), fakeController: true, config: { allowWrites: true },
+        storeWrite: async (name, value) => {
+            if (name === 'departure-preference' && value.groups['departures.climate.timer1']?.time?.value === '08:30'
+                && value.groups['departures.climate.timer1']?.enabled?.value === null) { writing.resolve(); await save.promise; }
+        }, controllerExecute: async () => { executing.resolve(); await finish.promise; return departureClimateResult(); } });
+    t.after(() => { save.resolve(); finish.resolve(); });
+    const group = f.adapter.departures.groups.get('departures.climate.timer1');
+    const prior = f.adapter.departures.stage(group, { time: '08:30' }); await writing.promise;
+    const apply = f.adapter.command('applyDepartureClimateTimer', { timerId: '1' });
+    const later = f.adapter.departures.stage(group, { enabled: true });
+    assert.equal(f.records.phones.length, 0);
+    save.resolve(); await prior; await later; await executing.promise;
+    assert.deepEqual(f.records.controllerCalls[0].input.targetTimer, { enabled: null, time: '08:30', days: null, repeat: null });
+    finish.resolve(); await apply;
+    assert.equal(f.value(group.id + '.targetEnabled'), true);
+});
+
+test('stuck departure persistence never blocks status, stop, or any departure read while its own apply keeps waiting', { timeout: 3000 }, async t => {
+    const writing = deferred(), save = deferred();
+    const f = await fixture(t, { enrollment: enrolled(), fakeController: true, config: { allowWrites: true },
+        storeWrite: async name => { if (name === 'departure-preference') { writing.resolve(); await save.promise; } } });
+    t.after(() => save.resolve());
+    const group = f.adapter.departures.groups.get('departures.climate.timer1');
+    const selection = f.adapter.departures.stage(group, { enabled: false }); await writing.promise;
+    for (const action of ['status', 'stop', 'departuresClimateStatus', 'departuresLocationsStatus']) await f.adapter.command(action);
+    assert.deepEqual(f.records.controllerCalls.map(call => call.action), ['status', 'stop', 'departuresClimateStatus', 'departuresLocationsStatus']);
+    const apply = f.adapter.command('applyDepartureClimateTimer', { timerId: '1' });
+    await Promise.resolve(); assert.equal(f.records.controllerCalls.length, 4);
+    save.resolve(); await selection; await apply;
+    assert.equal(f.records.controllerCalls.length, 5);
+});
+
+test('new observations are fully validated before publication and errors keep only the affected domain historical and invalid', async t => {
+    let malformed = false;
+    const f = await fixture(t, { enrollment: enrolled(), fakeController: true, controllerExecute: async action => {
+        if (action !== 'departuresClimateStatus') return chargingResult();
+        const result = departureClimateResult();
+        if (malformed) { result.timers[0].time = '08:30'; result.timers[1].time = 'WRONG'; }
+        return result;
+    } });
+    await f.adapter.command('chargingStatus');
+    const charging = new Map([...f.adapter.states].filter(([id]) => id.startsWith('battery.') || id.startsWith('charging.')));
+    await f.adapter.command('departuresClimateStatus');
+    const timestamp = f.value('departures.climate.observedAt');
+    const writes = f.adapter.writes.length;
+    malformed = true;
+    await rejectsCode(f.adapter.command('departuresClimateStatus'), 'invalid_departures_result');
+    assert.equal(f.value('departures.climate.timer1.time'), '07:30');
+    assert.equal(f.value('departures.climate.observedAt'), timestamp);
+    assert.equal(f.value('refresh.departureClimate.lastReadAt'), timestamp);
+    assert.equal(f.value('refresh.departureClimate.status'), 'error');
+    assert.equal(f.adapter.states.get('departures.climate.timer1.enabled').q, 0x82);
+    assert.equal(f.adapter.writes.slice(writes).some(row => row.id === 'departures.climate.timer1.time' && row.value.val === '08:30'), false);
+    for (const [id, value] of charging) assert.deepEqual(f.adapter.states.get(id), value);
+});
+
+test('complete inventory discovers only real locations, keeps keys across reorder and does not rewrite unchanged private bindings', async t => {
+    let rows = [{ nativeId: '700', name: 'Synthetischer Ort A', activeCount: 0 }, { nativeId: '701', name: 'Synthetischer Ort B', activeCount: 1 }];
+    const f = await fixture(t, { enrollment: enrolled(), fakeController: true, config: { pollIntervalSeconds: 15 }, RefreshScheduler: RecordingScheduler,
+        controllerExecute: async () => departureInventoryResult(rows) });
+    assert.deepEqual(f.adapter.scheduler.options.domains, ['climate', 'charging', 'vehicleReport', 'departureClimate', 'departureLocations']);
+    await f.adapter.command('departuresLocationsStatus');
+    const keys = rows.map(row => localKey(VEHICLE, row.nativeId));
+    assert.equal(f.value('chargingLocations.count'), 2);
+    assert.equal(f.adapter.scheduler.options.domains.length, 7);
+    for (const key of keys) assert.ok(f.adapter.scheduler.options.domains.includes('departureLocation_' + key));
+    const writes = f.records.stores[0].writes.filter(write => write.name === 'departure-location-bindings').length;
+    rows = [...rows].reverse(); await f.adapter.command('departuresLocationsStatus');
+    assert.equal(f.records.stores[0].writes.filter(write => write.name === 'departure-location-bindings').length, writes);
+    assert.equal(f.value('chargingLocations.' + keys[0] + '.name'), 'Synthetischer Ort A');
+    assert.equal(f.adapter.scheduler.options.domains.filter(domain => domain.startsWith('departureLocation_')).length, 2);
+    rows = [...rows, { ...rows[0] }];
+    await rejectsCode(f.adapter.command('departuresLocationsStatus'), 'invalid_departures_result');
+    assert.equal(f.value('chargingLocations.count'), 2);
+    assert.equal(f.adapter.states.get('chargingLocations.count').q, 0x82);
+});
+
+test('location observations expose all three timers and four fixed windows without fake SOC values or writable time limits', async t => {
+    const rows = [{ nativeId: '700', name: 'Synthetischer Ort A', activeCount: 0 }];
+    const f = await fixture(t, { enrollment: enrolled(), fakeController: true, departureLocations: rows });
+    await f.adapter.command('departuresLocationsStatus');
+    const key = localKey(VEHICLE, '700'), path = 'chargingLocations.' + key;
+    await f.adapter.departureCommand('departuresLocationStatus', { locationKey: key });
+    assert.deepEqual(f.records.controllerCalls.at(-1), { action: 'departuresLocationStatus', input: { location: { nativeId: '700', name: rows[0].name } } });
+    for (const id of ['1', '2', '3']) {
+        assert.equal(f.value(path + '.timer' + id + '.profileId'), '700');
+        assert.equal(f.adapter.objects.get(path + '.timer' + id + '.climatisation').common.write, false);
+    }
+    for (const field of ['directSoc', 'socLimit']) {
+        assert.equal(f.value(path + '.settings.' + field), null);
+        assert.equal(f.adapter.states.get(path + '.settings.' + field).q, 0x82);
+        assert.equal(f.adapter.objects.get(path + '.settings.' + field).common.write, false);
+    }
+    assert.equal(f.value(path + '.settings.socReadCapability'), 'not_exposed_by_app');
+    assert.equal(f.adapter.objects.has(path + '.settings.targetSoc'), false);
+    for (const id of ['1', '2', '3', '4']) {
+        assert.equal(f.value(path + '.preferredTimes.window' + id + '.enabled'), false);
+        assert.equal(f.adapter.objects.get(path + '.preferredTimes.window' + id + '.start').common.write, false);
+        assert.equal(f.adapter.objects.get(path + '.preferredTimes.window' + id + '.end').common.write, false);
+        assert.equal(f.adapter.objects.get(path + '.preferredTimes.window' + id + '.targetEnabled').common.write, true);
+    }
+});
+
+test('external location rename preserves staged values but requires each affected wish to be reselected or cleared', async t => {
+    let name = 'Synthetischer Ort A';
+    const f = await fixture(t, { enrollment: enrolled(), fakeController: true, config: { allowWrites: true },
+        controllerExecute: async (action, options) => action === 'departuresLocationsStatus'
+            ? departureInventoryResult([{ nativeId: '700', name, activeCount: 0 }]) : departureLocationResult(options.location) });
+    await f.adapter.command('departuresLocationsStatus');
+    const key = localKey(VEHICLE, '700'), group = f.adapter.departures.groups.get('chargingLocations.' + key + '.timer1');
+    await f.adapter.departureCommand('departuresLocationStatus', { locationKey: key });
+    const observedAt = f.value('chargingLocations.' + key + '.observedAt');
+    await f.adapter.departures.stage(group, { time: '08:30', enabled: false });
+    name = 'Synthetischer Ort Neu'; await f.adapter.command('departuresLocationsStatus');
+    assert.equal(f.value(group.id + '.targetTime'), '08:30');
+    assert.match(f.value(group.id + '.targetError'), /departure_binding_changed/);
+    assert.equal(f.value('refresh.departureLocation_' + key + '.status'), 'stale');
+    assert.equal(f.adapter.states.get(group.id + '.time').q, 0x82);
+    assert.equal(f.value('chargingLocations.' + key + '.settings.name'), 'Synthetischer Ort A');
+    assert.equal(f.adapter.states.get('chargingLocations.' + key + '.settings.name').q, 0x82);
+    assert.equal(f.value('chargingLocations.' + key + '.observedAt'), observedAt);
+    const before = f.records.phones.length;
+    await rejectsCode(f.adapter.departureCommand('applyDepartureLocationTimer', { locationKey: key, timerId: '1' }), 'departure_binding_changed');
+    assert.equal(f.records.phones.length, before);
+    await f.adapter.departures.stage(group, { time: '08:30' });
+    await rejectsCode(f.adapter.departureCommand('applyDepartureLocationTimer', { locationKey: key, timerId: '1' }), 'departure_binding_changed');
+    await f.adapter.departures.stage(group, { enabled: false });
+    await f.adapter.departureCommand('applyDepartureLocationTimer', { locationKey: key, timerId: '1' });
+    assert.equal(f.records.controllerCalls.at(-1).input.location.name, name);
+    assert.equal(f.value(group.id + '.targetError'), '');
+});
+
+test('removed locations lose their automatic jobs and reappearing identities cannot revive old wishes', async t => {
+    let rows = [{ nativeId: '700', name: 'Synthetischer Ort A', activeCount: 0 }];
+    const f = await fixture(t, { enrollment: enrolled(), fakeController: true, config: { allowWrites: true, pollIntervalSeconds: 15 }, RefreshScheduler: RecordingScheduler,
+        controllerExecute: async (action, options) => action === 'departuresLocationsStatus' ? departureInventoryResult(rows) : departureLocationResult(options.location) });
+    await f.adapter.command('departuresLocationsStatus');
+    const key = localKey(VEHICLE, '700'), domain = 'departureLocation_' + key, path = 'chargingLocations.' + key;
+    await f.adapter.departureCommand('departuresLocationStatus', { locationKey: key });
+    const readAt = f.value(path + '.observedAt');
+    await f.adapter.departures.stage(f.adapter.departures.groups.get(path + '.timer1'), { time: '08:30' });
+    rows = []; await f.adapter.command('departuresLocationsStatus');
+    assert.equal(f.adapter.scheduler.options.domains.includes(domain), false);
+    assert.equal(f.value(path + '.present'), false);
+    assert.equal(f.value(path + '.timer1.time'), '07:30');
+    assert.equal(f.adapter.states.get(path + '.timer1.time').q, 0x82);
+    assert.equal(f.value(path + '.observedAt'), readAt);
+    rows = [{ nativeId: '700', name: 'Synthetischer Ort A', activeCount: 0 }]; await f.adapter.command('departuresLocationsStatus');
+    assert.equal(f.adapter.scheduler.options.domains.includes(domain), true);
+    assert.equal(f.value('refresh.' + domain + '.status'), 'stale');
+    assert.equal(f.adapter.states.get(path + '.timer1.time').q, 0x82);
+    await rejectsCode(f.adapter.departureCommand('applyDepartureLocationTimer', { locationKey: key, timerId: '1' }), 'departure_binding_changed');
+});
+
+test('restart restores location wishes privately and schedules no phantom places before a new verified inventory', async t => {
+    const rows = [{ nativeId: '700', name: 'Synthetischer Ort A', activeCount: 0 }];
+    const first = await fixture(t, { enrollment: enrolled(), fakeController: true, departureLocations: rows });
+    await first.adapter.command('departuresLocationsStatus');
+    const key = localKey(VEHICLE, '700'), path = 'chargingLocations.' + key + '.timer1';
+    await first.adapter.departures.stage(first.adapter.departures.groups.get(path), { time: '08:30', enabled: false });
+    const restarted = await fixture(t, { memory: first.memory, fakeController: true, config: { allowWrites: true, pollIntervalSeconds: 15 },
+        RefreshScheduler: RecordingScheduler, departureLocations: rows });
+    assert.equal(restarted.value(path + '.targetTime'), '08:30');
+    assert.equal(restarted.value(path + '.targetEnabled'), false);
+    assert.equal(restarted.adapter.scheduler.options.domains.some(domain => domain.startsWith('departureLocation_')), false);
+    await rejectsCode(restarted.adapter.departureCommand('applyDepartureLocationTimer', { locationKey: key, timerId: '1' }), 'departure_binding_changed');
+    await restarted.adapter.command('departuresLocationsStatus');
+    await restarted.adapter.departureCommand('applyDepartureLocationTimer', { locationKey: key, timerId: '1' });
+    assert.equal(restarted.records.controllerCalls.at(-1).input.targetTimer.time, '08:30');
+    const missingBindings = clone(first.memory); delete missingBindings['departure-location-bindings'];
+    const unbound = await fixture(t, { memory: missingBindings, fakeController: true, config: { allowWrites: true }, departureLocations: rows });
+    await unbound.adapter.command('departuresLocationsStatus');
+    await rejectsCode(unbound.adapter.departureCommand('applyDepartureLocationTimer', { locationKey: key, timerId: '1' }), 'departure_binding_changed');
+});
+
+test('gear and preferred-window snapshots apply only their selected group and readonly times remain unchanged', async t => {
+    const rows = [{ nativeId: '700', name: 'Synthetischer Ort A', activeCount: 0 }];
+    const f = await fixture(t, { enrollment: enrolled(), fakeController: true, config: { allowWrites: true }, departureLocations: rows });
+    await f.adapter.command('departuresLocationsStatus');
+    const key = localKey(VEHICLE, '700'), path = 'chargingLocations.' + key;
+    const settings = f.adapter.departures.groups.get(path + '.settings'), preferred = f.adapter.departures.groups.get(path + '.preferredTimes');
+    await f.adapter.departures.stage(settings, { reducedAcCurrent: true, autoUnlockAc: false });
+    await f.adapter.departures.stage(preferred, { '2': true });
+    await f.adapter.departureCommand('applyDepartureLocationSettings', { locationKey: key });
+    assert.deepEqual(f.records.controllerCalls.at(-1).input.targetSettings, { name: null, reducedAcCurrent: true, autoUnlockAc: false });
+    assert.equal(Object.hasOwn(f.records.controllerCalls.at(-1).input, 'targetPreferredTimes'), false);
+    await f.adapter.departureCommand('applyDeparturePreferredTimes', { locationKey: key });
+    assert.deepEqual(f.records.controllerCalls.at(-1).input.targetPreferredTimes,
+        ['1', '2', '3', '4'].map(id => ({ id, enabled: id === '2' ? true : null })));
+    assert.equal(f.value(path + '.preferredTimes.window2.enabled'), false);
+    assert.equal(f.value(path + '.preferredTimes.window2.targetEnabled'), true);
+    assert.equal(f.value(path + '.preferredTimes.window2.start'), '00:00');
+});
+
+test('departure TTL preserves all successful values and timestamps but not stale quality, then a new read restores only known fields', async t => {
+    const clock = fakeClock();
+    const f = await fixture(t, { enrollment: enrolled(), fakeController: true, clock, config: { refreshMaxAgeSeconds: 30 } });
+    await f.adapter.command('departuresClimateStatus');
+    const readAt = f.value('departures.climate.observedAt');
+    await clock.advance(31000);
+    assert.equal(f.value('refresh.departureClimate.status'), 'stale');
+    assert.equal(f.value('departures.climate.timer1.time'), '07:30');
+    assert.equal(f.adapter.states.get('departures.climate.timer1.time').q, 0x82);
+    assert.equal(f.value('departures.climate.observedAt'), readAt);
+    await f.adapter.command('departuresClimateStatus');
+    assert.equal(f.value('refresh.departureClimate.status'), 'fresh');
+    assert.equal(f.adapter.states.get('departures.climate.timer1.time').q, undefined);
+    assert.equal(f.adapter.states.get('departures.climate.timer1.date').q, 0x82);
+});
+
+test('automatic rotation fairly reads all five actual locations plus old and new areas without applying persisted wishes or syncing', async t => {
+    const clock = fakeClock();
+    const locations = Array.from({ length: 5 }, (_, index) => ({ nativeId: String(700 + index), name: 'Synthetischer Ort ' + index, activeCount: 0 }));
+    const f = await fixture(t, { enrollment: enrolled(), fakeController: true, clock, departureLocations: locations,
+        config: { pollIntervalSeconds: 15 } });
+    await f.adapter.departures.stage(f.adapter.departures.groups.get('departures.climate.timer1'), { enabled: true });
+    await f.adapter.command('status');
+    const manual = { result: f.value('operation.lastResult'), error: f.value('operation.lastError'), code: f.value('operation.lastErrorCode') };
+    await clock.advance(180000);
+    const calls = f.records.controllerCalls;
+    for (const action of ['status', 'chargingStatus', 'vehicleReportStatus', 'departuresClimateStatus', 'departuresLocationsStatus']) {
+        assert.ok(calls.filter(call => call.action === action).length >= 2, action);
+    }
+    for (const location of locations) assert.ok(calls.filter(call => call.action === 'departuresLocationStatus'
+        && call.input.location.nativeId === location.nativeId).length >= 2, location.nativeId);
+    assert.equal(f.adapter.activeReadDomains.length, 10);
+    assert.equal(calls.some(call => /apply|start|stop|synchronize/i.test(call.action)), false);
+    assert.equal(f.value('departures.climate.timer1.targetEnabled'), true);
+    assert.equal(f.value('operation.lastResult'), manual.result);
+    assert.equal(f.value('operation.lastError'), manual.error);
+    assert.equal(f.value('operation.lastErrorCode'), manual.code);
+    for (const domain of f.adapter.activeReadDomains) assert.equal(f.value('refresh.' + domain + '.status'), 'fresh', domain);
+});
+
+test('a new-domain automatic read cooperatively yields to one manual stop without changing its historical quality or manual feedback', async t => {
+    const entered = deferred(), release = deferred();
+    const f = await fixture(t, { enrollment: enrolled(), fakeController: true, cooperativeHandoff: true,
+        config: { allowWrites: true, pollIntervalSeconds: 15 }, RefreshScheduler: RecordingScheduler,
+        controllerExecute: async action => {
+            if (action === 'departuresClimateStatus') { entered.resolve(); await release.promise; throw new BridgeError('cancelled', 'Intentional handoff.'); }
+            return { appState: 'off', appVersion: '4.8.1', observedAt: new Date().toISOString(), temperature: null };
+        } });
+    t.after(() => release.resolve());
+    const running = f.adapter.scheduler.options.run('departureClimate'); await entered.promise;
+    const automatic = f.records.controllers[0];
+    const stop = f.adapter.command('stop');
+    assert.equal(automatic.handoffRequested, true);
+    assert.equal(automatic.cancelled, undefined);
+    assert.equal(f.adapter.pendingManual, true);
+    await rejectsCode(f.adapter.command('departuresLocationsStatus'), 'busy');
+    assert.equal(f.records.controllerCalls.length, 1);
+    release.resolve(); await running; await stop;
+    assert.deepEqual(f.records.controllerCalls.map(call => call.action), ['departuresClimateStatus', 'stop']);
+    assert.equal(f.value('refresh.departureClimate.status'), 'unknown');
+    assert.equal(f.value('refresh.departureClimate.lastErrorCode'), '');
+    assert.equal(f.value('operation.lastResult'), 'succeeded');
+    assert.equal(f.adapter.busy, false); assert.equal(f.adapter.pendingManual, false);
+});
+
+test('uncertain departure writes schedule only the affected read area and preserve the failed operation after background recovery', async t => {
+    let failWrite = true;
+    const f = await fixture(t, { enrollment: enrolled(), fakeController: true,
+        config: { allowWrites: true, pollIntervalSeconds: 15 }, RefreshScheduler: RecordingScheduler,
+        controllerExecute: async action => {
+            if (action === 'applyDepartureClimateTimer' && failWrite) throw new BridgeError('outcome_unknown', 'App confirmation is missing.');
+            return departureClimateResult();
+        } });
+    await f.adapter.departures.stage(f.adapter.departures.groups.get('departures.climate.timer1'), { time: '08:30' });
+    await rejectsCode(f.adapter.command('applyDepartureClimateTimer', { timerId: '1' }), 'outcome_unknown');
+    assert.deepEqual(f.adapter.scheduler.requests, [{ domain: 'departureClimate', priority: true, delayMs: 2000 }]);
+    failWrite = false;
+    await f.adapter.scheduler.options.run('departureClimate');
+    assert.deepEqual(f.records.controllerCalls.map(call => call.action), ['applyDepartureClimateTimer', 'departuresClimateStatus']);
+    assert.equal(f.value('operation.lastResult'), 'failed');
+    assert.equal(f.value('operation.lastErrorCode'), 'outcome_unknown');
+    assert.equal(f.value('refresh.departureClimate.status'), 'fresh');
+});
+
+test('a verified own location rename changes its private generation and requests inventory without applying other old wishes', async t => {
+    const oldName = 'Synthetischer Ort A', newName = 'Synthetischer Ort Neu';
+    const f = await fixture(t, { enrollment: enrolled(), fakeController: true,
+        config: { allowWrites: true, pollIntervalSeconds: 15 }, RefreshScheduler: RecordingScheduler,
+        controllerExecute: async (action, options) => {
+            if (action === 'departuresLocationsStatus') return departureInventoryResult([{ nativeId: '700', name: oldName, activeCount: 0 }]);
+            const result = departureLocationResult({ ...options.location, name: newName });
+            return { ...result, changed: true, renamedFrom: oldName };
+        } });
+    await f.adapter.command('departuresLocationsStatus');
+    const key = localKey(VEHICLE, '700'), path = 'chargingLocations.' + key;
+    await f.adapter.departures.stage(f.adapter.departures.groups.get(path + '.timer1'), { enabled: true });
+    await f.adapter.departures.stage(f.adapter.departures.groups.get(path + '.settings'), { name: newName });
+    await f.adapter.departureCommand('applyDepartureLocationSettings', { locationKey: key });
+    assert.equal(f.value(path + '.settings.name'), newName);
+    assert.equal(f.adapter.departures.bindings[key].name, newName);
+    assert.equal(f.adapter.departures.bindings[key].generation, 2);
+    assert.equal(f.value('refresh.departureLocations.status'), 'stale');
+    assert.equal(f.adapter.states.get('chargingLocations.json').q, 0x82);
+    assert.equal(f.adapter.states.get(path + '.name').q, 0x82);
+    assert.equal(f.value(path + '.name'), oldName);
+    assert.equal(f.value('refresh.departureLocation_' + key + '.status'), 'fresh');
+    assert.equal(f.value(path + '.timer1.targetEnabled'), true);
+    assert.match(f.value(path + '.timer1.targetError'), /departure_binding_changed/);
+    assert.deepEqual(f.adapter.scheduler.requests, [{ domain: 'departureLocations', priority: true, delayMs: 2000 },
+        { domain: 'departureLocation_' + key, priority: true, delayMs: 2000 }]);
+    assert.deepEqual(f.records.controllerCalls.map(call => call.action), ['departuresLocationsStatus', 'applyDepartureLocationSettings']);
+});
+
+test('damaged saved timer fields survive unrelated repairs and restart until each is explicitly selected or cleared', async t => {
+    const path = 'departures.climate.timer1';
+    const f = await fixture(t, { enrollment: enrolled(), fakeController: true, memory: { 'departure-preference': {
+        version: 1, groups: { [path]: { enabled: { value: false, token: null }, time: { value: Infinity, token: null },
+            days: { value: null, token: null }, repeat: { value: null, token: null } } } } } });
+    await f.adapter.departures.stage(f.adapter.departures.groups.get(path), { enabled: false });
+    const restarted = await fixture(t, { memory: f.memory, fakeController: true, config: { allowWrites: true } });
+    assert.equal(restarted.value(path + '.targetEnabled'), false);
+    assert.match(restarted.value(path + '.targetError'), /time/);
+    await rejectsCode(restarted.adapter.command('applyDepartureClimateTimer', { timerId: '1' }), 'departure_selection_failed');
+    await restarted.adapter.departures.stage(restarted.adapter.departures.groups.get(path), { time: '08:30' });
+    await restarted.adapter.command('applyDepartureClimateTimer', { timerId: '1' });
+    assert.equal(restarted.records.controllerCalls.length, 1);
+});
+
+test('unload waits for an accepted departure preference write so restart restores it', async t => {
+    const writing = deferred(), save = deferred();
+    const f = await fixture(t, { enrollment: enrolled(), fakeController: true,
+        storeWrite: async name => { if (name === 'departure-preference') { writing.resolve(); await save.promise; } } });
+    t.after(() => save.resolve());
+    const path = 'departures.climate.timer1';
+    const selection = f.adapter.departures.stage(f.adapter.departures.groups.get(path), { enabled: false }); await writing.promise;
+    let unloaded = false; const unload = f.adapter.onUnload(() => { unloaded = true; });
+    await Promise.resolve(); assert.equal(unloaded, false);
+    save.resolve(); await selection; await unload;
+    const restarted = await fixture(t, { memory: f.memory, fakeController: true });
+    assert.equal(restarted.value(path + '.targetEnabled'), false);
+});
+
+for (const targetPatch of [{ enabled: true }, { time: '08:30' }]) {
+test('a location timer attempt invalidates its inventory count after uncertain ' + Object.keys(targetPatch)[0] + ' input', async t => {
+    let fail = false;
+    const f = await fixture(t, { enrollment: enrolled(), fakeController: true,
+        config: { allowWrites: true, pollIntervalSeconds: 15 }, RefreshScheduler: RecordingScheduler,
+        controllerExecute: async (action, options) => {
+            if (action === 'departuresLocationsStatus') return departureInventoryResult([{ nativeId: '700', name: 'Synthetischer Ort A', activeCount: 0 }]);
+            if (fail) throw new BridgeError('outcome_unknown', 'No reliable confirmation.');
+            return departureLocationResult(options.location);
+        } });
+    await f.adapter.command('departuresLocationsStatus');
+    const key = localKey(VEHICLE, '700'), path = 'chargingLocations.' + key;
+    await f.adapter.departures.stage(f.adapter.departures.groups.get(path + '.timer1'), targetPatch);
+    fail = true;
+    await rejectsCode(f.adapter.departureCommand('applyDepartureLocationTimer', { locationKey: key, timerId: '1' }), 'outcome_unknown');
+    assert.equal(f.value('refresh.departureLocations.status'), 'stale');
+    assert.equal(f.value(path + '.activeTimerCount'), 0);
+    assert.equal(f.adapter.states.get(path + '.activeTimerCount').q, 0x82);
+    assert.deepEqual(f.adapter.scheduler.requests, [{ domain: 'departureLocations', priority: true, delayMs: 2000 },
+        { domain: 'departureLocation_' + key, priority: true, delayMs: 2000 }]);
+});
+}
+
+test('later invalid staging cannot poison an already accepted snapshot waiting for an earlier valid save', async t => {
+    const writing = deferred(), release = deferred();
+    const f = await fixture(t, { enrollment: enrolled(), fakeController: true, config: { allowWrites: true },
+        storeWrite: async name => { if (name === 'departure-preference') { writing.resolve(); await release.promise; } } });
+    t.after(() => release.resolve());
+    const group = f.adapter.departures.groups.get('departures.climate.timer1');
+    const prior = f.adapter.departures.stage(group, { time: '07:30' }); await writing.promise;
+    const accepted = f.adapter.command('applyDepartureClimateTimer', { timerId: '1' });
+    const later = f.adapter.departures.stage(group, { time: 'invalid' });
+    release.resolve(); await prior;
+    await rejectsCode(later, 'invalid_departure_timer');
+    await accepted;
+    assert.equal(f.records.controllerCalls.length, 1);
+    assert.equal(f.records.controllerCalls[0].input.targetTimer.time, '07:30');
+    assert.equal(group.failed.time, true);
+    assert.match(f.value(group.id + '.targetError'), /time/);
+    assert.equal(f.value('operation.lastResult'), 'succeeded');
+    await rejectsCode(f.adapter.command('applyDepartureClimateTimer', { timerId: '1' }), 'departure_selection_failed');
+});
+
+for (const failurePoint of ['refreshMetadata', 'lateGroupTarget']) {
+    test('a transient database definition failure is repaired by the next complete inventory: ' + failurePoint, async t => {
+        let failed = false;
+        const key = localKey(VEHICLE, '700'), path = 'chargingLocations.' + key, domain = 'departureLocation_' + key;
+        const failingId = failurePoint === 'refreshMetadata' ? 'refresh.' + domain + '.lastErrorCode' : path + '.settings.targetName';
+        const f = await fixture(t, { enrollment: enrolled(), fakeController: true,
+            config: { allowWrites: true, pollIntervalSeconds: 15 }, RefreshScheduler: RecordingScheduler,
+            departureLocations: [{ nativeId: '700', name: 'Synthetischer Ort A', activeCount: 0 }],
+            objectWrite: async id => { if (!failed && id === failingId) { failed = true; throw new Error('PRIVATE DATABASE ERROR'); } } });
+        await rejectsCode(f.adapter.command('departuresLocationsStatus'), 'invalid_departures_result');
+        assert.equal(failed, true);
+        assert.equal(f.adapter.objects.has(failingId), false);
+        assert.equal(f.adapter.activeReadDomains.includes(domain), false);
+        const before = f.adapter.writes.length;
+        await f.adapter.updateFreshness();
+        if (failurePoint === 'refreshMetadata') assert.equal(f.adapter.writes.slice(before).some(row => row.id.startsWith('refresh.' + domain + '.')), false);
+        await f.adapter.command('departuresLocationsStatus');
+        for (const field of ['status', 'lastReadAt', 'ageSeconds', 'lastErrorCode', 'lastDurationSeconds', 'maxAgeSeconds']) {
+            assert.equal(f.adapter.objects.get('refresh.' + domain + '.' + field).common.write, false);
+        }
+        assert.equal(f.adapter.objects.get(path + '.settings.targetName').common.write, true);
+        assert.equal(f.adapter.objects.get(path + '.preferredTimes.window4.targetEnabled').common.write, true);
+        assert.equal(f.adapter.activeReadDomains.includes(domain), true);
+        await f.adapter.onStateChange('vw-app.0.' + path + '.settings.targetReducedAcCurrent', { val: true, ack: false });
+        assert.equal(f.value(path + '.settings.targetReducedAcCurrent'), true);
+        await f.adapter.onStateChange('vw-app.0.' + path + '.settings.commands.apply', { val: true, ack: false });
+        assert.equal(f.records.controllerCalls.at(-1).action, 'applyDepartureLocationSettings');
+        assert.equal(f.records.controllerCalls.at(-1).input.targetSettings.reducedAcCurrent, true);
+        assert.equal(f.value('refresh.departureLocations.status'), 'fresh');
+    });
+}

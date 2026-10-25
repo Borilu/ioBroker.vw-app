@@ -2,6 +2,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const assert = require('node:assert/strict');
+const crypto = require('node:crypto');
 const root = path.resolve(__dirname, '..');
 const pkg = require(path.join(root, 'package.json'));
 const io = require(path.join(root, 'io-package.json'));
@@ -48,4 +49,24 @@ for (const [name, minimum] of [['pollIntervalSeconds', 15], ['refreshMaxAgeSecon
 assert.equal(ui.items.commandTimeoutSeconds.min, 30);
 assert.equal(ui.items.commandTimeoutSeconds.max, 360);
 assert(!pkg.files.some(s => /node_modules|adb-home|runtime\//.test(s)));
+const androidRoot = path.join(root, 'lib/android');
+const payload = JSON.parse(fs.readFileSync(path.join(androidRoot, 'manifest.json'), 'utf8'));
+const sha = data => crypto.createHash('sha256').update(data).digest('hex');
+assert.equal(payload.format, 'vw-app-android-ui-v1');
+assert.equal(payload.jar, 'vw-ui.jar');
+assert.equal(payload.minAndroidApi, 30);
+assert.equal(payload.d8Version, '9.5.28');
+assert.equal(payload.d8Sha256, '38a9ffaaebbd17d1514e3ecbff5a85b989bb13c551b9e224c7409514eea84ff5');
+const sourcePaths = [
+    'compile-only/android/os/Bundle.java',
+    'compile-only/com/android/uiautomator/testrunner/UiAutomatorTestRunner.java',
+    'src/vw/app/bridge/AccessibilityActionRunner.java',
+    'src/vw/app/bridge/ExtendedUiDumpRunner.java',
+];
+assert.deepEqual(payload.sources.map(item => item.path).sort(), sourcePaths);
+for (const source of payload.sources) assert.equal(sha(fs.readFileSync(path.join(androidRoot, source.path))), source.sha256);
+const jar = fs.readFileSync(path.join(androidRoot, 'vw-ui.jar'));
+assert.equal(jar.length, payload.bytes);
+assert.equal(sha(jar), payload.sha256);
+assert(!fs.existsSync(path.join(androidRoot, 'src/vw/app/bridge/ExplorationUiDumpRunner.java')));
 console.log('Adapter metadata, setup inputs and package boundaries are consistent.');
