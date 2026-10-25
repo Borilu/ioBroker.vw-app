@@ -105,22 +105,25 @@ All IDs are relative to `vw-app.0` (replace `0` with the instance number).
 | `info.runtimeReady` | Private ADB runtime is running |
 | `info.appVersion` | Observed Volkswagen app version |
 | `info.status` | Setup/runtime/operation status |
+| `commands.refreshVehicleInfo` | Write `true`, `ack=false` to read the selected vehicle's VIN from the app |
+| `vehicleInfo.vin` | Read-only vehicle identification number (VIN/FIN) observed in the app |
+| `vehicleInfo.observedAt` | Last successful vehicle-information app read |
 
 Buttons reset automatically. Without a selected target temperature, the app's existing temperature is preserved. Stop ends the climate operation exposed by the app's single Stop button, which may include window heating. With `climate.targetMode=null`, Start keeps the existing requirement for a recognized air-conditioning mode. An explicit `windowHeating` preference selects the separate window-heating operation; a staged temperature is ignored for that mode.
 
-Manual reads remain separate: `commands.refresh` reads climate status, `commands.refreshCharging` reads battery and charging values, and `commands.refreshVehicleReport` reads the vehicle report. Automatic reads use the same validated app views and do not apply saved preferences.
+Manual reads remain separate: `commands.refresh` reads climate status, `commands.refreshCharging` reads battery and charging values, `commands.refreshVehicleReport` reads the vehicle report, and `commands.refreshVehicleInfo` reads the selected vehicle's VIN. Automatic reads use the same validated app views and do not apply saved preferences.
 
 The confirmation source describes evidence from the app. Both `app_controls` and `app_overview` remain app observations; `climate.vehicleConfirmed` stays `false`. The inspected Android UI hierarchy did not expose the visible 30-minute countdown, so the adapter does not estimate or publish remaining minutes.
 
 ## Automatic app reads and read age
 
-New instances use `pollIntervalSeconds=15`. Existing instances retain their saved setting: `0` stays disabled, and a missing legacy value also remains disabled. Use `0` for manual reads only, or a whole number from **15 to 86400** to enable automatic reads of **climate, battery/charging, the vehicle report, doors/windows/trunk/locking, climate departures, the charging-location list and each present charging location**. No write permission is needed for these reads.
+New instances use `pollIntervalSeconds=15`. Existing instances retain their saved setting: `0` stays disabled, and a missing legacy value also remains disabled. Use `0` for manual reads only, or a whole number from **15 to 86400** to enable automatic reads of **climate, battery/charging, the vehicle report, doors/windows/trunk/locking, the selected vehicle's VIN, climate departures, the charging-location list and each present charging location**. No write permission is needed for these reads.
 
 This setting is the minimum wait **from a completed read until that same area becomes due again**. It does not promise a full update every 15 seconds. All areas share one phone and run fairly, one after another. Each newly discovered present charging location adds its own read area, up to five locations. Their timer editors, settings and preferred windows require extra app navigation, so the complete cycle grows with the number of locations. The adapter also rests between automatic jobs for at least **5 seconds or 25% of the last job's duration**, whichever is longer. There is no overlapping work or catch-up queue. A failing area receives a progressively longer retry wait, with error backoff limited to five minutes while respecting the configured minimum interval.
 
 Manual commands take priority. An automatic read stops at a safe step boundary before a manual command takes over; it does not interrupt an unfinished vehicle-setting change. After a control command, a read of the affected area receives priority. That follow-up only reads: it never repeats a Start, Stop, Save or other write. Automatic ticks never press **Jetzt synchronisieren** and never apply temperature, climate, charging, departure or location wishes.
 
-The following metadata is read-only. Replace `<area>` with `climate`, `charging`, `vehicleReport`, `vehicleAccess`, `departureClimate`, `departureLocations` or `departureLocation_loc_<24hex>` for an individually discovered location:
+The following metadata is read-only. Replace `<area>` with `climate`, `charging`, `vehicleReport`, `vehicleAccess`, `vehicleInfo`, `departureClimate`, `departureLocations` or `departureLocation_loc_<24hex>` for an individually discovered location:
 
 | State | Meaning |
 |---|---|
@@ -134,7 +137,7 @@ The following metadata is read-only. Replace `<area>` with `climate`, `charging`
 
 `fresh` means that a successful **app read** is still within its age threshold. `stale` marks an aged observation, `error` a failed read, and `unknown` the absence of a successful observation. None of these labels establishes when the vehicle measured or transmitted its data. The app's raw synchronization hint remains separate in `vehicleReport.synchronizationText`.
 
-Set `refreshMaxAgeSeconds` to **0** for an adaptive threshold, or a whole number from **30 to 86400** for an explicit read-age threshold. Automatic mode uses the greater of **90 seconds** and **twice the larger of the configured minimum interval and the estimated full cycle time**. Changing this threshold changes the age classification, not how often the phone is read or when it synchronizes with the vehicle. `operation.lastUpdated`, `battery.observedAt` and `vehicleReport.observedAt` remain the separate app-reading timestamps.
+Set `refreshMaxAgeSeconds` to **0** for an adaptive threshold, or a whole number from **30 to 86400** for an explicit read-age threshold. Automatic mode uses the greater of **90 seconds** and **twice the larger of the configured minimum interval and the estimated full cycle time**. Changing this threshold changes the age classification, not how often the phone is read or when it synchronizes with the vehicle. `operation.lastUpdated`, `battery.observedAt`, `vehicleReport.observedAt` and `vehicleInfo.observedAt` remain the separate app-reading timestamps.
 
 Version 0.6.0 passed **437 automated tests on Linux**. In the preceding RC1 live check on the reference Galaxy A31, a configured 15-second minimum produced repeat reads of each area about **90–92 seconds** apart. With polling disabled and a 30-second age limit, expired observations retained their last values with invalid quality; preferences and synchronization-request history remained unchanged. A manual report request took over the phone from an automatic read in about **1.75 seconds**; that is the handoff time, not the time to finish reading the report. Automatic reads preserved the manual operation feedback. These live checks did not start or stop climate control, save vehicle preferences or request synchronization. Six additional simulated regression tests cover cooperative handoff through the zones page, hard cancellation, deadlines and preservation of manual drafts; they do not represent an additional physical Start/Stop test.
 
@@ -276,6 +279,21 @@ Each category has `vehicleReport.<category>.status` and `vehicleReport.<category
 
 Version 0.5.0 passed **391 automated tests on Linux**. Real top and bottom report views were also merged locally into a complete validated model. Two live report reads on a **Galaxy A31 with Android 12 and the German Volkswagen app 4.8.1** correctly captured odometer, service information, summary, synchronization text, all seven categories, the footer and normalized JSON; the second read updated `observedAt`. All 27 actual ioBroker report objects were verified as read-only, matching the automated schema checks. On both reads, 23 monitored climate, charging, preference and synchronization-request values remained exactly unchanged. No vehicle action, Save or synchronization was triggered, and climate control remained off. Active warning configurations were neither created nor checked live.
 
+## Vehicle identification number
+
+Version 0.10.0 adds the read-only **VIN** (German **FIN**) of the selected vehicle. The adapter reads it from the app's vehicle management, reached through the vehicle icon at the top right of the overview. It does not add, select or remove another vehicle.
+
+| State | Meaning |
+|---|---|
+| `vehicleInfo.vin` | Vehicle identification number observed for the enrolled selected vehicle |
+| `vehicleInfo.observedAt` | ISO timestamp of the last successful vehicle-information app read |
+| `commands.refreshVehicleInfo` | Write `true`, `ack=false` for an immediate read-only query |
+| `refresh.vehicleInfo.*` | Read age, status, error, duration and validity threshold for this separate area |
+
+Automatic refresh includes `vehicleInfo` in the same fair queue and uses the configured minimum interval. The additional navigation lengthens the full cycle; it does not delay a manual command beyond the existing safe handoff rules. No permission for vehicle-setting changes or S-PIN is needed. Reading does not apply preferences, switch vehicles or request synchronization.
+
+A missing, ambiguous or invalid VIN is not guessed. On failed or aged reads, the last successfully observed VIN remains as a historical value with invalid quality; its successful reading timestamp is retained. After a restart, retained vehicle information is also invalid until the next successful read. Problems in this area do not invalidate the independently observed door and window states. A successful read confirms the selected app view, not new vehicle telemetry.
+
 ## Doors, windows, trunk and locking
 
 Version 0.8.0 reads the individual opening states and the lock state from the vehicle overview. All IDs below are relative to `vw-app.0` and are read-only except the refresh button.
@@ -416,6 +434,12 @@ Keep the version in `package.json`, `io-package.json` and `package-lock.json` sy
 The tag triggers `.github/workflows/test-and-release.yml`. Package, lint and Linux integration checks must pass before deployment. The deployment job checks that the tag matches the package version and that the commit belongs to `main`; an existing npm version is retained without another publication attempt. For a new version, the job is configured to publish to npm using GitHub OIDC trusted publishing with provenance. npm's trusted-publisher binding must match this public repository and workflow file. No npm access token is stored in the repository.
 
 ## Changelog
+
+### 0.10.0 (2026-10-25)
+
+- Read the selected vehicle's VIN from the app's vehicle management.
+- Add a separate automatic and manual vehicle-information read with freshness, error handling and historical-value preservation.
+- Keep VIN observation read-only and independent of vehicle-setting and locking permissions.
 
 ### 0.9.2 (2026-10-25)
 
