@@ -1,8 +1,21 @@
 {
   "common": {
     "name": "vw-app",
-    "version": "0.10.1",
+    "version": "0.11.0",
     "news": {
+      "0.11.0": {
+        "en": "Read and explicitly select three charging modes with a separate saved wish, snapshot time and validity; keep charging settings and departure timers independent.",
+        "de": "Drei Lademodi mit getrennt gespeichertem Wunsch, Beobachtungszeit und Gültigkeit auslesen und ausdrücklich wählen; Ladeeinstellungen und Abfahrtstimer bleiben unabhängig.",
+        "ru": "Чтение и явный выбор трёх режимов зарядки с отдельным сохранённым пожеланием, временем наблюдения и достоверностью; настройки зарядки и таймеры отправления остаются независимыми.",
+        "pt": "Lê e seleciona explicitamente três modos de carga, com preferência salva separadamente, horário da leitura e validade; configurações de carga e horários de partida permanecem independentes.",
+        "nl": "Lees en kies drie laadmodi met een apart opgeslagen wens, waarnemingstijd en geldigheid; laadinstellingen en vertrektimers blijven onafhankelijk.",
+        "fr": "Lecture et sélection explicite de trois modes de recharge avec souhait enregistré séparément, heure de lecture et validité ; réglages de recharge et horaires de départ indépendants.",
+        "it": "Legge e seleziona esplicitamente tre modalità di ricarica con preferenza salvata separatamente, ora di lettura e validità; impostazioni di ricarica e timer di partenza restano indipendenti.",
+        "es": "Lee y selecciona expresamente tres modos de carga con una preferencia guardada aparte, hora de lectura y validez; los ajustes de carga y horarios de salida siguen siendo independientes.",
+        "pl": "Odczyt i jawny wybór trzech trybów ładowania z osobno zapisanym wyborem, czasem odczytu i ważnością; ustawienia ładowania i timery odjazdu pozostają niezależne.",
+        "uk": "Читання та явний вибір трьох режимів заряджання з окремо збереженим побажанням, часом спостереження й достовірністю; налаштування заряджання та таймери відправлення залишаються незалежними.",
+        "zh-cn": "读取并明确选择三种充电模式，分别保存目标模式、读取时间和有效性；充电设置与出发定时器保持独立。"
+      },
       "0.10.1": {
         "en": "Correct command-button and vehicle-access object metadata, and migrate existing definitions without changing state values or sending vehicle commands.",
         "de": "Objektmetadaten der Befehlsknöpfe und Fahrzeugzugangssensoren korrigieren und bestehende Definitionen ohne Wertänderungen oder Fahrzeugbefehle aktualisieren.",
@@ -80,19 +93,6 @@
         "pl": "Odczyt osobnych stanów drzwi, szyb, bagażnika i zamków z ekranu głównego aplikacji, z automatycznym odświeżaniem i niezależną kontrolą ważności.",
         "uk": "Читання окремих станів дверей, вікон, багажника та замків із головного екрана застосунку з автооновленням і незалежними даними про достовірність.",
         "zh-cn": "从应用主页读取各车门、车窗、后备箱及锁定状态，并自动刷新和独立监测有效性。"
-      },
-      "0.7.0": {
-        "en": "Read and edit app departure timers and charging-location settings with separate wishes, native identity checks and automatic refresh.",
-        "de": "Abfahrtszeiten und Ladeorte der App mit getrennten Wünschen, geprüfter Ortsbindung und regelmäßiger Aktualisierung lesen und bedienen.",
-        "ru": "Чтение и изменение таймеров отправления и настроек мест зарядки в приложении с отдельными пожеланиями, проверкой идентичности места и автообновлением.",
-        "pt": "Lê e edita horários de partida e configurações dos locais de carga no aplicativo, com preferências separadas, verificação de identidade e atualização automática.",
-        "nl": "Lees en wijzig vertrektijden en laadlocatie-instellingen in de app, met aparte wensen, controle van locatie-identiteit en automatische updates.",
-        "fr": "Lecture et modification des programmations de départ et des lieux de recharge, avec souhaits distincts, contrôle de l’identité du lieu et actualisation automatique.",
-        "it": "Legge e modifica gli orari di partenza e le impostazioni dei luoghi di ricarica, con preferenze separate, verifica dell’identità e aggiornamento automatico.",
-        "es": "Lee y edita los horarios de salida y los ajustes de lugares de carga, con preferencias separadas, comprobación de identidad y actualización automática.",
-        "pl": "Odczyt i edycja godzin odjazdu oraz ustawień miejsc ładowania w aplikacji, z osobnymi preferencjami, kontrolą tożsamości miejsca i automatycznym odświeżaniem.",
-        "uk": "Читання й редагування таймерів відправлення та налаштувань місць заряджання з окремими побажаннями, перевіркою ідентичності місця й автооновленням.",
-        "zh-cn": "读取和编辑应用中的出发定时器及充电地点设置，分别保存目标值、核对地点身份并自动刷新。"
       }
     },
     "titleLang": {
