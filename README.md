@@ -6,7 +6,7 @@ Control the **official Volkswagen Android app over Wi-Fi** from ioBroker.
 
 Pairing, setup, climate controls, charging settings, departures, existing charging locations and explicit lock/unlock commands are managed by the adapter. App observations can be read automatically or on request. Volkswagen sign-in stays on the phone; the optional S-PIN is configured in the adapter settings.
 
-Manufacturer information: [Volkswagen app and digital services](https://www.volkswagen.de/de/besitzer-und-service/digitale-extras/volkswagen-apps-login-und-shop.html). Start with the [illustrated German installation and phone pairing guide](docs/INSTALLATION.de.md), also available as a [PDF](https://github.com/Borilu/ioBroker.vw-app/releases/download/v0.9.2/VW-App-Installation-und-Kopplung.pdf). The [German user manual](docs/BEDIENUNG.de.md) explains everyday operation, all data point paths and the order of steps for changing settings; it is also available as a [PDF](https://github.com/Borilu/ioBroker.vw-app/releases/download/v0.10.0/VW-App-Bedienungsanleitung.pdf). The [detailed German setup reference](docs/ADMIN-SETUP.md) describes the adapter configuration.
+Manufacturer information: [Volkswagen app and digital services](https://www.volkswagen.de/de/besitzer-und-service/digitale-extras/volkswagen-apps-login-und-shop.html). Start with the [illustrated German installation and phone pairing guide](docs/INSTALLATION.de.md), also available as a [PDF for 0.9.2 with the same pairing steps](https://github.com/Borilu/ioBroker.vw-app/releases/download/v0.9.2/VW-App-Installation-und-Kopplung.pdf). The [German user manual](docs/BEDIENUNG.de.md) explains everyday operation, all data point paths and the order of steps for changing settings. Its [PDF for 0.10.0](https://github.com/Borilu/ioBroker.vw-app/releases/download/v0.10.0/VW-App-Bedienungsanleitung.pdf) predates the button metadata clarification in 0.10.1; use the current online manual for command feedback. The [detailed German setup reference](docs/ADMIN-SETUP.md) describes the adapter configuration.
 
 ## What runs where
 
@@ -109,7 +109,7 @@ All IDs are relative to `vw-app.0` (replace `0` with the instance number).
 | `vehicleInfo.vin` | Read-only vehicle identification number (VIN/FIN) observed in the app |
 | `vehicleInfo.observedAt` | Last successful vehicle-information app read |
 
-Buttons reset automatically. Without a selected target temperature, the app's existing temperature is preserved. Stop ends the climate operation exposed by the app's single Stop button, which may include window heating. With `climate.targetMode=null`, Start keeps the existing requirement for a recognized air-conditioning mode. An explicit `windowHeating` preference selects the separate window-heating operation; a staged temperature is ignored for that mode.
+Buttons are write-only (`common.read=false`, `common.write=true`): write `true`, `ack=false` once. The adapter acknowledges the event, but a button value or its reset is not command feedback. Check `operation.busy`, `operation.lastResult`, `operation.lastErrorCode` and the observed values; local wish-clearing commands instead confirm the saved wishes and their selection-error fields. Without a selected target temperature, the app's existing temperature is preserved. Stop ends the climate operation exposed by the app's single Stop button, which may include window heating. With `climate.targetMode=null`, Start keeps the existing requirement for a recognized air-conditioning mode. An explicit `windowHeating` preference selects the separate window-heating operation; a staged temperature is ignored for that mode.
 
 Manual reads remain separate: `commands.refresh` reads climate status, `commands.refreshCharging` reads battery and charging values, `commands.refreshVehicleReport` reads the vehicle report, and `commands.refreshVehicleInfo` reads the selected vehicle's VIN. Automatic reads use the same validated app views and do not apply saved preferences.
 
@@ -239,7 +239,7 @@ Version 0.4.0 passed **332 automated tests on Linux**. Live checks read battery 
 
 ## Read the vehicle status report
 
-Write `true` with `ack=false` to **`commands.refreshVehicleReport`** to read the Volkswagen app's **vehicle status report**. The button resets automatically. This is the only report control: every state under `vehicleReport` is read-only. There are no report wishes or apply/save commands, and reading the report does not request synchronization or start or stop a vehicle function. The permission to change vehicle settings is not needed; the calibrated phone, vehicle and app checks still apply.
+Write `true` with `ack=false` to **`commands.refreshVehicleReport`** to read the Volkswagen app's **vehicle status report**. Check the separate operation and freshness states for its result. This is the only report control: every state under `vehicleReport` is read-only. There are no report wishes or apply/save commands, and reading the report does not request synchronization or start or stop a vehicle function. The permission to change vehicle settings is not needed; the calibrated phone, vehicle and app checks still apply.
 
 The report can be read on request or as part of automatic app updates. `commands.refresh` remains a climate read. A report read does not wait for temperature, climate or charging preference saves; only one phone operation can run at a time.
 
@@ -317,7 +317,7 @@ The reference-device discovery recorded all openings open and the vehicle unlock
 
 ## Lock and unlock the vehicle
 
-Version 0.9.0 adds the explicit buttons **`commands.lockVehicle`** and **`commands.unlockVehicle`**. Write `true` with `ack=false` to the chosen button. It resets automatically and submits at most one switching attempt for that accepted command. An already satisfied command only reads and reports the app state; it does not enter a PIN or clear a previous authentication block. There is no writable `targetLocked` preference, no automatic reconciliation and no locking or unlocking during startup, ordinary reads or polling.
+Version 0.9.0 adds the explicit buttons **`commands.lockVehicle`** and **`commands.unlockVehicle`**. Write `true` with `ack=false` to the chosen button. It submits at most one switching attempt for that accepted command; check the separate operation and observed lock-state feedback. An already satisfied command only reads and reports the app state; it does not enter a PIN or clear a previous authentication block. There is no writable `targetLocked` preference, no automatic reconciliation and no locking or unlocking during startup, ordinary reads or polling.
 
 Locking and unlocking use the independent vehicle lock/unlock permission (`allowVehicleLocking`, default `false`). The existing climate/vehicle-settings permission does not enable these commands. Both actual switching directions require a saved S-PIN consisting of exactly four digits; leading zeroes are preserved. A missing or invalid PIN does not disable climate functions or read-only updates. The adapter also requires the calibrated phone, selected vehicle, approved app version and an unambiguous supported control layout. Unexpected views or an unsupported layout stop the command.
 
@@ -429,11 +429,17 @@ The script checks the tool checksum, compiles only the two listed implementation
 
 ### Publishing a version
 
-Keep the version in `package.json`, `io-package.json` and `package-lock.json` synchronized, add a dated changelog entry and update the translated adapter news. Merge the release commit into `main` after its checks pass, then create a matching GitHub tag such as `v0.9.2` on that commit.
+Keep the version in `package.json`, `io-package.json` and `package-lock.json` synchronized, add a dated changelog entry and update the translated adapter news. Merge the release commit into `main` after its checks pass, then create a matching GitHub tag such as `v0.10.1` on that commit.
 
 The tag triggers `.github/workflows/test-and-release.yml`. Package, lint and Linux integration checks must pass before deployment. The deployment job checks that the tag matches the package version and that the commit belongs to `main`; an existing npm version is retained without another publication attempt. For a new version, the job is configured to publish to npm using GitHub OIDC trusted publishing with provenance. npm's trusted-publisher binding must match this public repository and workflow file. No npm access token is stored in the repository.
 
 ## Changelog
+
+### 0.10.1 (2026-10-25)
+
+- Correct the 43 object-structure findings in the reference installation: mark command buttons write-only and use valid sensor roles for doors, windows, trunk and lock observations.
+- Migrate only the affected button read flags and vehicle-access roles on existing objects, preserving their names, permissions, native fields and state values.
+- Keep opening and lock Boolean meanings unchanged; update the operation manual to distinguish command buttons from separate job feedback. The metadata migration sends no phone or vehicle command.
 
 ### 0.10.0 (2026-10-25)
 
