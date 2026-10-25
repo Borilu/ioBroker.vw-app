@@ -533,3 +533,312 @@ test('cooldown failure after a confirmed temperature selection remains a cooldow
     assert.equal(temperatureTaps(phone).length, 1);
     assert.equal(ctaCount(phone), 0);
 });
+
+function vehicleInfoSetup(t, options = {}) {
+    const context = setup([], { allowWrites: false });
+    const { controller, phone, clock, store } = context;
+    const ui = require('../lib/vehicle-info-ui');
+    const flow = require('../lib/vehicle-info-controller');
+    const syntheticVin = 'TESTCAR0000000001';
+    phone.page = options.initialPage || 'overview';
+    phone.vehicleMatches = true;
+    phone.infoMatches = true;
+    phone.infoReads = 0;
+    phone.versionReads = 0;
+    phone.readNative = async () => {
+        phone.dumpCount++;
+        await phone._call('nativeRead', phone.dumpCount);
+        if (options.wrongVehicleAtRead === phone.dumpCount) phone.vehicleMatches = false;
+        if (options.handoffAtRead === phone.dumpCount) assert.equal(controller.requestReadHandoff(), true);
+        if (options.cancelAtRead === phone.dumpCount) controller.cancel();
+        const page = phone.page;
+        const vehicleMatches = phone.vehicleMatches;
+        return { page, known: page === 'vehicleInfo', infoMatches: phone.infoMatches,
+            kind: () => page, checkClear: () => {},
+            requireVehicle: marker => {
+                assert.deepEqual(marker, controller.config.vehicleMarker);
+                if (!vehicleMatches) throw new BridgeError('wrong_vehicle', 'SECRET WRONG VEHICLE');
+            }, overviewNeedsTop: () => false, _find: () => [] };
+    };
+    phone.dump = async () => { throw new Error('Standard UI dumps are not a FIN-read fallback'); };
+    phone.version = async () => {
+        phone.versionReads++;
+        await phone._call('version');
+        return phone.versionReads === options.changedAtVersion ? '999.0' : '4.8.1';
+    };
+    phone.tap = async (x, y) => {
+        await phone._call('tap', x, y);
+        if (x === 111 && y === 222 && phone.page === 'overview') {
+            phone.page = options.pageAfterEntry || 'vehicleInfo';
+            if (options.expireAfterEntry) clock.value += controller.config.commandTimeoutSeconds * 1000;
+        } else if (x === 33 && y === 44 && phone.page === 'vehicleInfo') {
+            phone.page = 'overview';
+            if (options.wrongAfterReturn) phone.vehicleMatches = false;
+        } else assert.fail('No vehicle selection, add, delete, edit or vehicle command may be tapped');
+    };
+    t.mock.method(flow, 'readVehicleInfoScreen', current => {
+        assert.equal(current, controller);
+        return current._step(() => phone.readNative());
+    });
+    for (const name of ['read', 'write']) store[name] = async () => assert.fail('A FIN read does not access wishes or command history');
+    t.mock.method(ui, 'vehicleInfoPage', screen => screen.kind() === 'vehicleInfo' && screen.known);
+    t.mock.method(ui, 'vehicleInfoEntryTarget', screen => {
+        assert.equal(screen.kind(), 'overview');
+        return { x: 111, y: 222 };
+    });
+    t.mock.method(ui, 'vehicleInfoBackTarget', screen => {
+        assert.equal(screen.kind(), 'vehicleInfo'); assert.equal(screen.known, true);
+        return { x: 33, y: 44 };
+    });
+    t.mock.method(ui, 'readVehicleInfo', (screen, marker) => {
+        assert.equal(screen.kind(), 'vehicleInfo');
+        assert.deepEqual(marker, controller.config.vehicleMarker);
+        phone.infoReads++;
+        if (options.parserError) {
+            if (options.formAfterParserError) phone.page = 'vehicleEditForm';
+            throw options.parserError;
+        }
+        if (!screen.infoMatches) throw new BridgeError('wrong_vehicle', 'SECRET WRONG VIN CARD');
+        return { vin: options.changeVinAtRead === phone.infoReads ? 'TESTCAR0000000002' : syntheticVin };
+    });
+    return { ...context, syntheticVin };
+}
+
+test('FIN read uses only inspected navigation, rechecks its value and returns Home before reporting', async t => {
+    const { controller, phone, store, clock, syntheticVin } = vehicleInfoSetup(t);
+    const unused = Object.defineProperty({}, 'targetTemperature', { get() { throw new Error('No staged setting is consulted'); } });
+    const result = await controller.execute('refreshVehicleInfo', unused);
+    assert.deepEqual(result, { domain: 'vehicleInfo', source: 'volkswagen_android_app', vehicleConfirmed: false,
+        appVersion: '4.8.1', vehicleInfo: { vin: syntheticVin }, observedAt: new Date(clock.value).toISOString() });
+    assert.deepEqual(phone.calls.filter(call => call[0] === 'tap'), [['tap', 111, 222], ['tap', 33, 44]]);
+    assert.equal(phone.calls.filter(call => ['back', 'swipe'].includes(call[0])).length, 0);
+    assert.equal(phone.infoReads, 2); assert.equal(phone.versionReads, 5);
+    assert.equal(phone.page, 'overview'); assert.equal(store.reservations, 0);
+    assert.equal(phone.deadline, null); assert.equal(controller.busy, false);
+    assert.equal(controller.readOnlyExecution, false); assert.equal(controller.readHandoffProtected, false);
+    assert.equal(controller.readVehicleInfoNative, false);
+});
+
+test('a malformed FIN returns through the known header once and never exposes the parser message', async t => {
+    const { controller, phone, store } = vehicleInfoSetup(t, {
+        parserError: new BridgeError('invalid_vehicle_info', 'SECRET VIN IN PARSER FAILURE'),
+    });
+    await rejectsCode(controller.execute('refreshVehicleInfo'), 'invalid_vehicle_info');
+    assert.equal(phone.page, 'overview');
+    assert.deepEqual(phone.calls.filter(call => call[0] === 'tap'), [['tap', 111, 222], ['tap', 33, 44]]);
+    assert.equal(store.reservations, 0); assert.equal(phone.deadline, null); assert.equal(controller.busy, false);
+});
+
+test('FIN failure cleanup never closes an unrecognized vehicle-editing form', async t => {
+    const { controller, phone } = vehicleInfoSetup(t, {
+        parserError: new BridgeError('invalid_vehicle_info', 'SECRET VIN'), formAfterParserError: true,
+    });
+    await rejectsCode(controller.execute('refreshVehicleInfo'), 'invalid_vehicle_info');
+    assert.equal(phone.page, 'vehicleEditForm');
+    assert.deepEqual(phone.calls.filter(call => call[0] === 'tap'), [['tap', 111, 222]]);
+    assert.equal(phone.calls.filter(call => call[0] === 'back').length, 0);
+});
+
+test('a wrong enrolled vehicle in the fresh Home snapshot blocks FIN navigation', async t => {
+    const { controller, phone } = vehicleInfoSetup(t, { wrongVehicleAtRead: 2 });
+    await rejectsCode(controller.execute('refreshVehicleInfo'), 'wrong_vehicle');
+    assert.equal(phone.calls.filter(call => call[0] === 'tap').length, 0);
+    assert.equal(phone.infoReads, 0); assert.equal(phone.page, 'overview');
+});
+
+test('a vehicle mismatch after the FIN header return prevents a successful result', async t => {
+    const { controller, phone } = vehicleInfoSetup(t, { wrongAfterReturn: true });
+    await rejectsCode(controller.execute('refreshVehicleInfo'), 'wrong_vehicle');
+    assert.deepEqual(phone.calls.filter(call => call[0] === 'tap'), [['tap', 111, 222], ['tap', 33, 44]]);
+    assert.equal(phone.page, 'overview'); assert.equal(controller.busy, false);
+});
+
+test('a FIN changing between fresh views is rejected and only the known header is used to return', async t => {
+    const { controller, phone } = vehicleInfoSetup(t, { changeVinAtRead: 2 });
+    await rejectsCode(controller.execute('refreshVehicleInfo'), 'vehicle_info_changed');
+    assert.equal(phone.infoReads, 2); assert.equal(phone.page, 'overview');
+    assert.deepEqual(phone.calls.filter(call => call[0] === 'tap'), [['tap', 111, 222], ['tap', 33, 44]]);
+});
+
+test('a final app-version change prevents a FIN result even after a successful Home return', async t => {
+    const { controller, phone } = vehicleInfoSetup(t, { changedAtVersion: 5 });
+    await rejectsCode(controller.execute('refreshVehicleInfo'), 'version_not_approved');
+    assert.equal(phone.page, 'overview'); assert.equal(phone.versionReads, 5);
+    assert.deepEqual(phone.calls.filter(call => call[0] === 'tap'), [['tap', 111, 222], ['tap', 33, 44]]);
+});
+
+test('a cooperative handoff during FIN reading waits for a verified Home return and publishes no result', async t => {
+    const { controller, phone } = vehicleInfoSetup(t, { handoffAtRead: 3 });
+    await rejectsCode(controller.execute('refreshVehicleInfo'), 'cancelled');
+    assert.equal(phone.page, 'overview'); assert.equal(phone.infoReads, 2);
+    assert.deepEqual(phone.calls.filter(call => call[0] === 'tap'), [['tap', 111, 222], ['tap', 33, 44]]);
+    assert.equal(controller.readOnlyExecution, false); assert.equal(controller.readHandoffRequested, false);
+    assert.equal(controller.readHandoffProtected, false); assert.equal(controller.busy, false);
+});
+
+test('an unknown destination has a bounded wait without a guessed return or vehicle-selection gesture', async t => {
+    const { controller, phone, clock } = vehicleInfoSetup(t, { pageAfterEntry: 'unknown' });
+    await rejectsCode(controller.execute('refreshVehicleInfo'), 'unexpected_screen');
+    assert.equal(clock.value, 1700000020000);
+    assert.deepEqual(phone.calls.filter(call => call[0] === 'tap'), [['tap', 111, 222]]);
+    assert.equal(phone.calls.filter(call => call[0] === 'back').length, 0);
+    assert.equal(phone.deadline, null); assert.equal(controller.busy, false);
+});
+
+for (const [label, options, code] of [['expired deadline', { expireAfterEntry: true }, 'phone_timeout'],
+    ['shutdown', { cancelAtRead: 3 }, 'cancelled']]) {
+    test('a FIN ' + label + ' stops inputs and always releases the bounded lifecycle', async t => {
+        const { controller, phone } = vehicleInfoSetup(t, options);
+        await rejectsCode(controller.execute('refreshVehicleInfo'), code);
+        assert.deepEqual(phone.calls.filter(call => call[0] === 'tap'), [['tap', 111, 222]]);
+        assert.equal(phone.deadline, null); assert.equal(controller.deadline, null);
+        assert.equal(controller.busy, false); assert.equal(controller.readHandoffProtected, false);
+        assert.equal(controller.readVehicleInfoNative, false);
+    });
+}
+
+test('a competing FIN request cannot clear the active reader reservation or handoff flags', async t => {
+    const { controller, phone } = vehicleInfoSetup(t);
+    let release, entered;
+    const gate = new Promise(resolve => { release = resolve; });
+    const connected = new Promise(resolve => { entered = resolve; });
+    phone.hooks.connect = async () => { entered(); await gate; };
+    const active = controller.execute('refreshVehicleInfo');
+    await connected;
+    await rejectsCode(controller.execute('refreshVehicleInfo'), 'busy');
+    assert.equal(controller.busy, true); assert.equal(controller.readOnlyExecution, true);
+    release(); await active;
+    assert.equal(controller.busy, false); assert.equal(controller.readOnlyExecution, false);
+});
+
+test('a recognized vehicle-information page is safely recovered before another overview read', async t => {
+    const { controller, phone } = vehicleInfoSetup(t, { initialPage: 'vehicleInfo' });
+    controller.readVehicleInfoNative = true;
+    const result = await controller._overview();
+    assert.equal(result.kind(), 'overview'); assert.equal(phone.page, 'overview');
+    assert.equal(phone.infoReads, 0);
+    assert.deepEqual(phone.calls.filter(call => call[0] === 'tap'), [['tap', 33, 44]]);
+    assert.equal(phone.calls.filter(call => call[0] === 'back').length, 0);
+});
+
+test('foreign FIN errors never expose their code getter or arbitrary message', async t => {
+    let reads = 0;
+    const foreign = Object.defineProperty({ message: 'SECRET PERSONAL IDENTIFIER' }, 'code', {
+        get() { reads++; return 'SECRET'; },
+    });
+    const { controller, phone } = vehicleInfoSetup(t, { parserError: foreign });
+    await rejectsCode(controller.execute('refreshVehicleInfo'), 'vehicle_info_unavailable');
+    assert.equal(reads, 0); assert.equal(phone.page, 'overview');
+});
+
+function syntheticFinNativeObservation() {
+    const window = { id: 7, type: 1, active: true, focused: true, accessibilityFocused: false, layer: 0,
+        title: 'Synthetic FIN window', bounds: [0, 0, 1080, 2400] };
+    const windows = { vwWindows: [window], multipleVwApplicationWindows: false, foreignWindowCount: 0 };
+    return { format: 'vw-app-extended-accessibility-v1', package: PACKAGE, readOnly: true,
+        startedAtEpochMs: 10000, finishedAtEpochMs: 10001, windowId: 7,
+        windowsBefore: structuredClone(windows), windowsAfter: structuredClone(windows), nodeCount: 1,
+        root: { package: PACKAGE, id: null, class: 'android.widget.FrameLayout',
+            text: 'Synthetic native FIN view', description: null, stateDescription: null,
+            bounds: [0, 0, 1080, 2400], visible: true, enabled: true, clickable: false, longClickable: false,
+            checkable: false, checked: false, selected: false, scrollable: false, focusable: false, focused: false,
+            accessibilityFocused: false, password: false, heading: false, screenReaderFocusable: false,
+            importantForAccessibility: true, rangeInfo: null, actions: [], children: [] } };
+}
+
+test('the FIN native reader rebuilds validated XML from its own observation without a standard dump or supplied XML', async () => {
+    const { readVehicleInfoScreen } = require('../lib/vehicle-info-controller');
+    let nativeReads = 0;
+    const controller = { phone: {
+        async departureView() { nativeReads++; return { observation: syntheticFinNativeObservation(), xml: 'SECRET UNRELATED XML' }; },
+        async dump() { assert.fail('A standard dump must not be used'); },
+    }, async _step(operation) { return operation(); }, _check() {} };
+    const screen = await readVehicleInfoScreen(controller);
+    assert.equal(nativeReads, 1);
+    assert.equal(screen.nodes.length, 1);
+    assert.equal(screen.nodes[0].attrs.text, 'Synthetic native FIN view');
+    assert.equal(screen.summary().some(row => Object.values(row).some(value => value.includes('SECRET'))), false);
+});
+
+test('missing, incomplete or foreign native FIN observations fail closed without standard-UI fallback', async () => {
+    const { readVehicleInfoScreen } = require('../lib/vehicle-info-controller');
+    const foreign = syntheticFinNativeObservation(); foreign.package = 'unrelated.package';
+    const badWindow = syntheticFinNativeObservation(); badWindow.windowsAfter.vwWindows[0].focused = false;
+    for (const observation of [null, {}, foreign, badWindow]) {
+        const controller = { phone: {
+            async departureView() { return { observation, xml: OVERVIEW }; },
+            async dump() { assert.fail('A standard dump must not be used'); },
+        }, async _step(operation) { return operation(); }, _check() {} };
+        await rejectsCode(readVehicleInfoScreen(controller), 'extended_ui_unavailable');
+    }
+    const missing = { phone: { async dump() { assert.fail('No missing-native fallback'); } },
+        async _step(operation) { return operation(); }, _check() {} };
+    await rejectsCode(readVehicleInfoScreen(missing), 'extended_ui_unavailable');
+});
+
+test('the native FIN reader rejects a protected PIN view without returning its contents', async () => {
+    const { readVehicleInfoScreen } = require('../lib/vehicle-info-controller');
+    for (const password of [true, false]) {
+        const observation = syntheticFinNativeObservation();
+        observation.root.password = password;
+        observation.root.text = password ? 'SECRET PROTECTED VALUE' : 'S-PIN eingeben SECRET';
+        const controller = { phone: { async departureView() { return { observation }; } },
+            async _step(operation) { return operation(); }, _check() {} };
+        await rejectsCode(readVehicleInfoScreen(controller), password ? 'extended_ui_unavailable' : 'security_ui_active');
+    }
+});
+
+test('FIN controller and actual UI helpers read only the active vehicle from complete native frames', async () => {
+    const { controller, phone, store } = setup([], { allowWrites: false });
+    const base = syntheticFinNativeObservation();
+    const nativeNode = (attributes = {}, children = []) => ({
+        ...structuredClone(base.root), class: 'android.view.View', text: null, ...attributes, children,
+    });
+    const nativeText = (text, bounds) => nativeNode({ class: 'android.widget.TextView', text, bounds });
+    const vehicleCard = (name, vin, active, y) => nativeNode({ clickable: true, bounds: [0, y, 1080, y + 353] }, [
+        nativeText(name, [53, y + 21, 850, y + 100]),
+        nativeText(vin, [53, y + 121, 1027, y + 177]),
+        nativeText('Hauptnutzer', [53, y + 198, 1027, y + 254]),
+        nativeText('', [53, y + 275, 1027, y + 332]),
+        ...(active ? [nativeNode({ id: 'activeBadge', bounds: [903, y + 34, 1027, y + 87] }, [
+            nativeText('Aktiv', [924, y + 39, 1006, y + 82]),
+        ])] : []),
+    ]);
+    const home = nativeNode({ class: 'android.widget.FrameLayout' }, [
+        nativeNode({ description: VEHICLE + 'Gerade synchronisiert', bounds: [53, 100, 900, 172] }),
+        nativeNode({ id: 'climateTile', bounds: [10, 1000, 500, 1200] }),
+        nativeNode({ id: 'vehicleCarPlus', clickable: true, bounds: [933, 79, 1059, 205] }, [
+            nativeNode({ description: 'Fahrzeuge verwalten', bounds: [965, 111, 1028, 174] }),
+        ]),
+    ]);
+    const garage = nativeNode({ class: 'android.widget.FrameLayout' }, [
+        nativeNode({ id: 'garageBack', class: 'android.widget.Button', clickable: true, bounds: [22, 79, 148, 205] }),
+        nativeNode({ description: 'Meine Fahrzeuge', bounds: [137, 111, 943, 172] }),
+        vehicleCard('Anderes synthetisches Fahrzeug', 'TESTCAR0000000002', false, 205),
+        vehicleCard('ID.7 GTX Tourer', 'TESTCAR0000000001', true, 700),
+        nativeNode({ class: 'android.widget.Button', text: 'Fahrzeug verbinden', clickable: true, bounds: [100, 1500, 980, 1640] }),
+    ]);
+    const count = root => 1 + root.children.reduce((sum, child) => sum + count(child), 0);
+    let page = 'overview'; let nativeReads = 0;
+    phone.departureView = async () => {
+        nativeReads++;
+        await phone._call('nativeRead');
+        const root = structuredClone(page === 'overview' ? home : garage);
+        return { observation: { ...structuredClone(base), root, nodeCount: count(root) }, xml: 'UNRELATED XML MUST NOT BE USED' };
+    };
+    phone.dump = async () => { throw new Error('No standard dump or cached view is permitted for FIN'); };
+    phone.tap = async (x, y) => {
+        await phone._call('tap', x, y);
+        if (page === 'overview' && x === 996 && y === 142) page = 'vehicleInfo';
+        else if (page === 'vehicleInfo' && x === 85 && y === 142) page = 'overview';
+        else assert.fail('No other vehicle, card, connect or edit control may be touched');
+    };
+    for (const name of ['read', 'write']) store[name] = async () => assert.fail('FIN never reads wishes or a command journal');
+    const result = await controller.execute('refreshVehicleInfo');
+    assert.equal(result.vehicleInfo.vin, 'TESTCAR0000000001', 'The first, inactive vehicle must be ignored');
+    assert.equal(result.domain, 'vehicleInfo'); assert.equal(result.vehicleConfirmed, false);
+    assert.equal(nativeReads, 6); assert.equal(page, 'overview');
+    assert.deepEqual(phone.calls.filter(call => call[0] === 'tap'), [['tap', 996, 142], ['tap', 85, 142]]);
+    assert.equal(phone.calls.filter(call => ['back', 'swipe', 'dump'].includes(call[0])).length, 0);
+    assert.equal(store.reservations, 0); assert.equal(controller.readVehicleInfoNative, false);
+});

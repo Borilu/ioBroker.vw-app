@@ -56,7 +56,7 @@ function fixture(overrides = {}) {
 
 test('constructor validates callbacks and timing without coercion', () => {
     const valid = { run: async () => {}, canRun: () => true, intervalMs: 15000 };
-    assert.deepEqual(DOMAINS, ['climate', 'charging', 'vehicleReport', 'vehicleAccess']);
+    assert.deepEqual(DOMAINS, ['climate', 'charging', 'vehicleReport', 'vehicleAccess', 'vehicleInfo']);
     assert.equal(Object.isFrozen(DOMAINS), true);
     for (const intervalMs of [undefined, null, '15000', 14999, -1, NaN, Infinity, 15000.5]) {
         assert.throws(() => new RefreshScheduler({ ...valid, intervalMs }), TypeError);
@@ -78,7 +78,7 @@ test('snapshot is independent serializable data with conservative estimates befo
     const { scheduler, clock } = fixture();
     const snapshot = scheduler.snapshot();
     assert.equal(snapshot.runningDomain, null);
-    assert.equal(snapshot.estimatedCycleMs, 150000);
+    assert.equal(snapshot.estimatedCycleMs, 187500);
     for (const domain of DOMAINS) assert.deepEqual(snapshot.domains[domain], {
         lastDurationMs: null, estimatedDurationMs: 30000, nextDueAt: 0, failures: 0,
     });
@@ -100,7 +100,7 @@ test('start makes all domains due immediately and repeated starts do not duplica
     assert.deepEqual(calls.map(row => row.domain), ['climate']);
     assert.equal(scheduler.snapshot().domains.climate.lastDurationMs, 0);
     assert.equal(scheduler.snapshot().domains.climate.estimatedDurationMs, 15000);
-    assert.equal(scheduler.snapshot().estimatedCycleMs, 132500);
+    assert.equal(scheduler.snapshot().estimatedCycleMs, 170000);
     assert.deepEqual(updates.at(-1), scheduler.snapshot());
     scheduler.stop();
 });
@@ -109,7 +109,7 @@ test('automatic reads use fair round robin with a completion pause and no accumu
     const { scheduler, clock, calls } = fixture();
     scheduler.start();
     await clock.advance(30000);
-    assert.deepEqual(calls.map(row => row.domain), ['climate', 'charging', 'vehicleReport', 'vehicleAccess', 'climate', 'charging', 'vehicleReport']);
+    assert.deepEqual(calls.map(row => row.domain), ['climate', 'charging', 'vehicleReport', 'vehicleAccess', 'vehicleInfo', 'climate', 'charging']);
     assert.deepEqual(calls.map(row => row.at - calls[0].at), [0, 5000, 10000, 15000, 20000, 25000, 30000]);
     assert.equal(clock.timers.size, 1);
     scheduler.stop();
@@ -130,7 +130,7 @@ test('a long read cannot overlap another job and increases the global pause to a
     assert.equal(state.lastDurationMs, 60000);
     assert.equal(state.estimatedDurationMs, 45000);
     assert.equal(state.nextDueAt, clock.time + 15000);
-    assert.equal(scheduler.snapshot().estimatedCycleMs, 168750);
+    assert.equal(scheduler.snapshot().estimatedCycleMs, 206250);
     await clock.advance(14999);
     assert.equal(calls.length, 1);
     await clock.advance(1);
@@ -188,7 +188,7 @@ test('requested delays coalesce to their earliest time without postponing automa
     scheduler.request('climate', { delayMs: 40000, priority: true });
     assert.equal(scheduler.snapshot().domains.climate.nextDueAt, clock.time + 20000);
     await clock.advance(19999);
-    assert.equal(calls.length, 4);
+    assert.equal(calls.length, 5);
     await clock.advance(1);
     assert.equal(calls.at(-1).domain, 'climate');
     scheduler.request('climate', { delayMs: 120000 });
@@ -286,6 +286,34 @@ test('domain errors back off exponentially, cannot be shortened by requests and 
     assert.ok(calls.some(row => row.domain === 'charging'));
     assert.ok(calls.some(row => row.domain === 'vehicleReport'));
     assert.equal(scheduler.snapshot().domains.charging.failures, 0);
+    scheduler.stop();
+});
+
+test('a FIN-read failure backs off only vehicle information while the other areas retain fair turns', async () => {
+    const { scheduler, clock, calls } = fixture();
+    let fail = true;
+    scheduler._run = domain => {
+        calls.push({ domain, at: clock.time });
+        if (domain === 'vehicleInfo' && fail) throw new Error('FIN_READ_FAILED');
+    };
+    scheduler.start();
+    await clock.advance(20000);
+    const failed = scheduler.snapshot().domains.vehicleInfo;
+    assert.equal(failed.failures, 1);
+    assert.equal(failed.nextDueAt, clock.time + 30000);
+    scheduler.request('vehicleInfo', { priority: true });
+    assert.equal(scheduler.snapshot().domains.vehicleInfo.nextDueAt, failed.nextDueAt);
+    await clock.advance(20000);
+    assert.equal(calls.filter(row => row.domain === 'vehicleInfo').length, 1);
+    for (const domain of DOMAINS.filter(domain => domain !== 'vehicleInfo')) {
+        assert.ok(calls.filter(row => row.domain === domain).length >= 2, domain);
+        assert.equal(scheduler.snapshot().domains[domain].failures, 0, domain);
+    }
+    fail = false;
+    await clock.advance(10000);
+    assert.equal(calls.filter(row => row.domain === 'vehicleInfo').length, 2);
+    assert.equal(scheduler.snapshot().domains.vehicleInfo.failures, 0);
+    assert.equal(scheduler.snapshot().domains.vehicleInfo.nextDueAt, clock.time + 15000);
     scheduler.stop();
 });
 
@@ -455,7 +483,7 @@ test('adding and reordering domains preserves completed durations, error backoff
     scheduler.request('charging', { delayMs: 2000, priority: true });
     const before = scheduler.snapshot();
     assert.equal(before.domains.charging.nextDueAt, clock.time + 2000);
-    scheduler.setDomains(['vehicleReport', 'vehicleAccess', 'charging', 'departureClimate', 'climate']);
+    scheduler.setDomains(['vehicleReport', 'vehicleAccess', 'vehicleInfo', 'charging', 'departureClimate', 'climate']);
     const added = scheduler.snapshot();
     for (const domain of DOMAINS) assert.deepEqual(added.domains[domain], before.domains[domain]);
     assert.equal(added.domains.departureClimate.nextDueAt, clock.time);
@@ -584,7 +612,7 @@ test('five discovered locations share fair turns with existing areas despite rep
     const { scheduler, clock, calls } = fixture({ domains });
     scheduler.start();
     await clock.advance(0);
-    for (let step = 0; step < 44; step++) {
+    for (let step = 0; step < domains.length * 4; step++) {
         scheduler.request('climate', { priority: true });
         await clock.advance(5000);
     }
