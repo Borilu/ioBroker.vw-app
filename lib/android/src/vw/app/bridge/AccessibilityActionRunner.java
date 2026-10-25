@@ -4,6 +4,7 @@ import android.os.Bundle;
 import com.android.uiautomator.testrunner.UiAutomatorTestRunner;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.security.MessageDigest;
 import java.nio.ByteBuffer;
 import java.nio.channels.SeekableByteChannel;
 import java.nio.charset.CodingErrorAction;
@@ -17,6 +18,7 @@ import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -61,6 +63,8 @@ public final class AccessibilityActionRunner extends UiAutomatorTestRunner {
     @Override protected void start() {
         try {
             if (unsupported) throw new Failure("UNSUPPORTED_OPTIONS");
+            String securityMode = optionalParameter("securityMode");
+            if (securityMode != null) { security(securityMode); return; }
             Path requestPath = path(parameter("request"));
             Path out = path(parameter("out"));
             if (requestPath.equals(out)) throw new Failure("INVALID_PATH");
@@ -118,6 +122,78 @@ public final class AccessibilityActionRunner extends UiAutomatorTestRunner {
             if (!(value instanceof String)) throw new Failure("INVALID_PATH");
             return (String)value;
         } catch (Throwable error) { throw new Failure("INVALID_PATH"); }
+    }
+    private String optionalParameter(String name) throws Failure {
+        try {
+            Object value = params.getClass().getMethod("getString", String.class).invoke(params, name);
+            if (value == null) return null;
+            if (!(value instanceof String)) throw new Failure("INVALID_REQUEST");
+            return (String)value;
+        } catch (Throwable error) { throw new Failure("INVALID_REQUEST"); }
+    }
+    /** Dedicated stdin/stdout protocol. No files, post-read, PIN echo or retry. */
+    private void security(String mode) throws Failure {
+        Session session = new Session();
+        Map<String,Object> result = object();
+        String prefix;
+        if ("probe".equals(mode)) {
+            String nonce = parameter("nonce");
+            if (!uuid(nonce)) throw new Failure("INVALID_REQUEST");
+            result.put("format", "vw-app-security-status-v1"); result.put("nonce", nonce);
+            result.put("kind", "other"); result.put("operation", null); result.put("contextDigest", null); result.put("errorCode", null);
+            try {
+                session.open();
+                PinContext context = session.pinContext();
+                try {
+                    result.put("kind", context.kind); result.put("operation", context.operation);
+                    if ("pinEmpty".equals(context.kind)) result.put("contextDigest", context.digest);
+                    if ("pinUnsupported".equals(context.kind)) result.put("errorCode", "SECURITY_CONTEXT_UNSUPPORTED");
+                } finally { session.recycle(context.target); }
+            } catch (Throwable error) { result.put("kind", "other"); result.put("operation", null); result.put("contextDigest", null); result.put("errorCode", "SECURITY_CONTEXT_UNAVAILABLE"); }
+            finally {
+                if (!session.close()) { result.put("kind", "other"); result.put("operation", null); result.put("contextDigest", null); result.put("errorCode", "SECURITY_SESSION_CLEANUP"); }
+            }
+            prefix = "VW_SECURITY_STATUS_RESULT ";
+        } else if ("entry".equals(mode)) {
+            Outcome outcome = new Outcome();
+            String nonce = null;
+            try {
+                Map<String,Object> request = record(Parser.parse(stdinRequest()), "schemaVersion,nonce,operation,contextDigest,pin");
+                String candidateNonce = string(request.get("nonce"), false);
+                if (!uuid(candidateNonce)) throw new Failure("SECURITY_INVALID_REQUEST");
+                nonce = candidateNonce;
+                String operation = string(request.get("operation"), false), digest = string(request.get("contextDigest"), false);
+                String pin = string(request.get("pin"), false);
+                if (integer(request.get("schemaVersion")) != 1 || !("unlock".equals(operation) || "lock".equals(operation))
+                        || !digest.matches("[a-f0-9]{64}") || !pin.matches("[0-9]{4}")) throw new Failure("SECURITY_INVALID_REQUEST");
+                session.open();
+                session.enterPin(operation, digest, pin, outcome);
+                request.put("pin", null); pin = null;
+            } catch (Failure error) { outcome.error = error.code.startsWith("SECURITY_") ? error.code : "SECURITY_CONTEXT_MISMATCH"; }
+            catch (Throwable error) { outcome.error = outcome.attempted ? "SECURITY_ACTION_OUTCOME_UNKNOWN" : "SECURITY_CONTEXT_MISMATCH"; }
+            finally { if (!session.close() && outcome.error == null) outcome.error = "SECURITY_SESSION_CLEANUP"; }
+            result.put("format", "vw-app-security-entry-v1"); result.put("nonce", nonce);
+            result.put("beforeMatched", Boolean.valueOf(outcome.beforeMatched)); result.put("actionAttempted", Boolean.valueOf(outcome.attempted));
+            result.put("actionAccepted", outcome.accepted); result.put("errorCode", outcome.error);
+            prefix = "VW_SECURITY_ENTRY_RESULT ";
+        } else throw new Failure("INVALID_REQUEST");
+        Json json = new Json(); json.value(result);
+        System.out.println(prefix + json.toString()); System.out.flush(); System.exit(0);
+    }
+    private static boolean uuid(String value) { return value != null && value.matches("[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}"); }
+    private static String stdinRequest() throws Failure {
+        byte[] buffer = new byte[4097]; int count = 0;
+        try {
+            for (;;) {
+                int read = System.in.read(buffer, count, buffer.length - count);
+                if (read == -1) break;
+                count += read;
+                if (count >= buffer.length) throw new Failure("SECURITY_INVALID_REQUEST");
+            }
+            return StandardCharsets.UTF_8.newDecoder().onMalformedInput(CodingErrorAction.REPORT)
+                    .onUnmappableCharacter(CodingErrorAction.REPORT).decode(ByteBuffer.wrap(buffer, 0, count)).toString();
+        } catch (Throwable error) { throw new Failure("SECURITY_INVALID_REQUEST"); }
+        finally { Arrays.fill(buffer, (byte)0); }
     }
     private static Path path(String value) throws Failure {
         if (value == null || value.contains("..")
@@ -242,8 +318,7 @@ public final class AccessibilityActionRunner extends UiAutomatorTestRunner {
         final long deadline = System.nanoTime() + 12000000000L;
         final Map<String,Method> methods = new HashMap<String,Method>();
 
-        void act(Spec spec, Outcome outcome) throws Failure {
-            Object root = null, current = null, target = null;
+        void open() throws Failure {
             try {
                 wrapper = Class.forName(WRAPPER).getConstructor().newInstance();
                 call(wrapper, "connect"); connected = true;
@@ -256,8 +331,16 @@ public final class AccessibilityActionRunner extends UiAutomatorTestRunner {
                 infoClass.getField("flags").setInt(info, flags);
                 call(automation, "setServiceInfo", new Class<?>[]{infoClass}, new Object[]{info});
                 idle();
+            } catch (Failure error) { throw error; }
+            catch (Throwable error) { throw new Failure("PLATFORM_API"); }
+        }
+        void act(Spec spec, Outcome outcome) throws Failure {
+            Object root = null, current = null, target = null;
+            try {
+                open();
                 root = call(automation, "getRootInActiveWindow");
                 checkContext(root, spec);
+                rejectSecurity(root, 0, new int[]{0});
                 if (!Boolean.TRUE.equals(call(root, "refresh"))) throw new Failure("STALE_NODE");
                 Match match = new Match();
                 try {
@@ -268,6 +351,7 @@ public final class AccessibilityActionRunner extends UiAutomatorTestRunner {
                 if (!Boolean.TRUE.equals(call(target, "refresh")) || !matches(target, spec.target, match.path, true)) throw new Failure("STALE_NODE");
                 current = call(automation, "getRootInActiveWindow");
                 checkContext(current, spec);
+                rejectSecurity(current, 0, new int[]{0});
                 if (!Boolean.TRUE.equals(call(current, "refresh"))) throw new Failure("STALE_NODE");
                 Match verify = new Match();
                 try {
@@ -280,6 +364,7 @@ public final class AccessibilityActionRunner extends UiAutomatorTestRunner {
                 } finally { recycle(verify.target); }
                 if (!Boolean.TRUE.equals(call(target, "refresh")) || !matches(target, spec.target, verify.path, true)) throw new Failure("STALE_NODE");
                 checkContext(current, spec);
+                rejectSecurity(current, 0, new int[]{0});
                 if (!supports(target, spec.actionId)) throw new Failure("ACTION_UNAVAILABLE");
                 Object arguments = null;
                 if ("setProgress".equals(spec.action)) {
@@ -316,7 +401,7 @@ public final class AccessibilityActionRunner extends UiAutomatorTestRunner {
         void checkContext(Object root, Spec spec) throws Failure {
             checkPackage(root);
             int currentWindowId = integer(call(root,"getWindowId"));
-            if (spec.windowId != null && currentWindowId != spec.windowId.intValue()) throw new Failure("WINDOW_CHANGED");
+            if (spec != null && spec.windowId != null && currentWindowId != spec.windowId.intValue()) throw new Failure("WINDOW_CHANGED");
             if (sessionWindowId != null && currentWindowId != sessionWindowId.intValue()) throw new Failure("WINDOW_CHANGED");
             sessionWindowId = Integer.valueOf(currentWindowId);
             Object raw = call(automation,"getWindows");
@@ -341,6 +426,141 @@ public final class AccessibilityActionRunner extends UiAutomatorTestRunner {
                 } finally { recycle(windowRoot); recycle(window); }
             }
             if (active != 1 || focused != 1 || applicationWindows != 1 || sessionBounds == null) throw new Failure("AMBIGUOUS_WINDOW");
+        }
+        void rejectSecurity(Object node, int depth, int[] visited) throws Failure {
+            if (depth > 40 || ++visited[0] > 2000) throw new Failure("TREE_LIMIT");
+            checkPackage(node);
+            String text = nullable(call(node,"getText")), description = nullable(call(node,"getContentDescription"));
+            if (Boolean.TRUE.equals(call(node,"isPassword")) || pinLabel(text) || pinLabel(description)) throw new Failure("SENSITIVE_UI");
+            int count = integer(call(node,"getChildCount"));
+            if (count < 0 || count > 2000) throw new Failure("TREE_LIMIT");
+            for (int index=0; index<count; index++) {
+                Object child = call(node,"getChild",new Class<?>[]{int.class},new Object[]{Integer.valueOf(index)});
+                try { rejectSecurity(child,depth+1,visited); } finally { recycle(child); }
+            }
+        }
+        boolean inside(int[] bounds) {
+            return sessionBounds != null && bounds[0] >= sessionBounds[0] && bounds[1] >= sessionBounds[1]
+                    && bounds[2] <= sessionBounds[2] && bounds[3] <= sessionBounds[3]
+                    && bounds[2] > bounds[0] && bounds[3] > bounds[1];
+        }
+        PinContext pinContext() throws Failure {
+            Object root = null;
+            PinContext context = new PinContext();
+            try {
+                root = call(automation,"getRootInActiveWindow"); checkContext(root,null);
+                if (!Boolean.TRUE.equals(call(root,"refresh"))) throw new Failure("STALE_NODE");
+                scanPin(root,"0",0,true,true,context);
+                checkContext(root,null);
+                context.finish();
+                return context;
+            } catch (Failure error) { recycle(context.target); throw error; }
+            finally { recycle(root); }
+        }
+        void scanPin(Object node, String path, int depth, boolean ancestors, boolean staticAncestors, PinContext context) throws Failure {
+            if (depth > 40 || ++context.visited > 2000) throw new Failure("TREE_LIMIT");
+            checkPackage(node);
+            int[] bounds = rectangle(node);
+            boolean staticAllowed = staticAncestors && inside(bounds) && Boolean.TRUE.equals(call(node,"isEnabled"));
+            boolean allowed = ancestors && staticAllowed && Boolean.TRUE.equals(call(node,"isVisibleToUser"));
+            String cls = nullable(call(node,"getClassName")), text = nullable(call(node,"getText")), description = nullable(call(node,"getContentDescription"));
+            boolean password = Boolean.TRUE.equals(call(node,"isPassword"));
+            if (password || pinLabel(text) || pinLabel(description)) context.sensitive = true;
+            if (allowed && description != null && description.startsWith("Ihr Fahrzeug: ")) context.homeVehicle++;
+            if (allowed && ("Fahrzeug. Verriegelt. Details öffnen".equals(description) || "Fahrzeug. Entriegelt. Details öffnen".equals(description))) context.homeAccess++;
+            if ("S-PIN eingeben".equals(text) && "android.widget.TextView".equals(cls)) {
+                context.headers++;
+                if (allowed) { context.headerPath=path; context.headerBounds=bounds; }
+            }
+            if ("Show PIN".equals(text) && "android.widget.TextView".equals(cls)) {
+                context.shows++;
+                if (allowed) context.showPath=path;
+            }
+            String footerOperation = null;
+            if ("Bitte stellen Sie vor dem Entriegeln sicher, dass Ihr Fahrzeug für Unbefugte nicht zugänglich ist.".equals(text)) footerOperation="unlock";
+            if ("Bitte stellen Sie vor dem Verriegeln sicher, dass sich keine weiteren Personen im Fahrzeug befinden. Die (ausstattungsabhängige) SAFE-Verriegelung ist nicht aktiv.".equals(text)) footerOperation="lock";
+            if (footerOperation != null && "android.widget.TextView".equals(cls)) {
+                context.footers++;
+                // On both observed forms the keyboard obscures this exact
+                // noninteractive footer. Visibility is not an input exception:
+                // enabled, bounded ancestry is still required for static context.
+                if (staticAllowed) { context.footerPath=path; context.footerBounds=bounds; context.footerOperation=footerOperation; }
+            }
+            if ("android.widget.EditText".equals(cls)) {
+                context.fields++;
+                // The observed VW Compose S-PIN field reports isPassword=false.
+                // Only this independently recognized form permits that exception.
+                if (allowed && !password && nullable(call(node,"getViewIdResourceName")) == null
+                        && integer(call(node,"getWindowId"))==sessionWindowId.intValue()
+                        && Boolean.TRUE.equals(call(node,"isFocused")) && Boolean.TRUE.equals(call(node,"isEditable")) && supports(node,2097152)) {
+                    context.fieldPath=path; context.fieldBounds=bounds;
+                    context.empty=(text == null || text.length()==0) && "Leer".equals(nullable(call(node,"getStateDescription")));
+                    context.nonEmpty=text != null && text.length()>0;
+                    String fieldError=nullable(call(node,"getError"));
+                    context.fieldError=fieldError != null && fieldError.length()>0;
+                    try {
+                        Class<?> nodeClass=Class.forName("android.view.accessibility.AccessibilityNodeInfo");
+                        recycle(context.target); context.target=nodeClass.getMethod("obtain",nodeClass).invoke(null,node);
+                    } catch (Throwable error) { throw new Failure("PLATFORM_API"); }
+                }
+            }
+            int count=integer(call(node,"getChildCount"));
+            if(count<0||count>2000)throw new Failure("TREE_LIMIT");
+            for(int index=0;index<count;index++){
+                Object child=call(node,"getChild",new Class<?>[]{int.class},new Object[]{Integer.valueOf(index)});
+                try{scanPin(child,path+"."+index,depth+1,allowed,staticAllowed,context);}finally{recycle(child);}
+            }
+        }
+        void validatePinTarget(PinContext context) throws Failure {
+            Object node=context.target;
+            checkPackage(node);
+            if(!"android.widget.EditText".equals(nullable(call(node,"getClassName")))
+                    ||nullable(call(node,"getViewIdResourceName"))!=null||Boolean.TRUE.equals(call(node,"isPassword"))
+                    ||integer(call(node,"getWindowId"))!=sessionWindowId.intValue()
+                    ||!Boolean.TRUE.equals(call(node,"isVisibleToUser"))||!Boolean.TRUE.equals(call(node,"isEnabled"))
+                    ||!Boolean.TRUE.equals(call(node,"isFocused"))||!Boolean.TRUE.equals(call(node,"isEditable"))
+                    ||!Arrays.equals(context.fieldBounds,rectangle(node))||!inside(rectangle(node))||!supports(node,2097152))throw new Failure("SECURITY_CONTEXT_MISMATCH");
+            String value=nullable(call(node,"getText")),state=nullable(call(node,"getStateDescription")),error=nullable(call(node,"getError"));
+            if(value!=null&&value.length()!=0||!"Leer".equals(state)||error!=null&&error.length()!=0)throw new Failure("SECURITY_CONTEXT_MISMATCH");
+        }
+        void enterPin(String operation, String digest, String pin, Outcome outcome) throws Failure {
+            PinContext first=null, current=null;
+            Object arguments=null,activeRoot=null;
+            try {
+                first=pinContext();
+                if(!"pinEmpty".equals(first.kind)||!operation.equals(first.operation)||!digest.equals(first.digest))throw new Failure("SECURITY_CONTEXT_MISMATCH");
+                recycle(first.target); first.target=null;
+                current=pinContext();
+                if(!"pinEmpty".equals(current.kind)||!operation.equals(current.operation)||!digest.equals(current.digest)
+                        ||!Boolean.TRUE.equals(call(current.target,"refresh")))throw new Failure("SECURITY_CONTEXT_MISMATCH");
+                validatePinTarget(current);
+                // Refresh can replace all field metadata and its ancestry. A
+                // third whole-form scan must match after it. Act only on that
+                // fresh traversal's node, without another unchecked refresh.
+                recycle(current.target);current.target=null;
+                current=pinContext();
+                if(!"pinEmpty".equals(current.kind)||!operation.equals(current.operation)||!digest.equals(current.digest))throw new Failure("SECURITY_CONTEXT_MISMATCH");
+                activeRoot=call(automation,"getRootInActiveWindow");checkContext(activeRoot,null);
+                validatePinTarget(current);
+                try {
+                    arguments=Class.forName("android.os.Bundle").getConstructor().newInstance();
+                    String key=(String)Class.forName("android.view.accessibility.AccessibilityNodeInfo").getField("ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE").get(null);
+                    call(arguments,"putCharSequence",new Class<?>[]{String.class,CharSequence.class},new Object[]{key,pin});
+                } catch(Throwable error){throw new Failure("SECURITY_ACTION_UNAVAILABLE");}
+                outcome.beforeMatched=true; outcome.attempted=true;
+                try {
+                    Object accepted=call(current.target,"performAction",new Class<?>[]{int.class,Class.forName("android.os.Bundle")},new Object[]{Integer.valueOf(2097152),arguments});
+                    if(!(accepted instanceof Boolean))throw new Failure("SECURITY_ACTION_OUTCOME_UNKNOWN");
+                    outcome.accepted=(Boolean)accepted;
+                    if(!outcome.accepted.booleanValue())outcome.error="SECURITY_ACTION_NOT_ACCEPTED";
+                } catch(Throwable error){outcome.accepted=null;outcome.error="SECURITY_ACTION_OUTCOME_UNKNOWN";}
+                // Auto-submit occurs after the fourth digit. Do not read any UI
+                // node, wait for a result tree, press Enter or issue another action.
+            } finally {
+                if(arguments!=null)try{call(arguments,"clear");}catch(Throwable ignored){}
+                if(first!=null)recycle(first.target);if(current!=null)recycle(current.target);
+                recycle(activeRoot);
+            }
         }
         void find(Object node, String path, int depth, Spec spec, Match match, boolean ancestorsAllowed) throws Failure {
             if (depth > 40 || ++match.visited > 2000) throw new Failure("TREE_LIMIT");
@@ -472,6 +692,31 @@ public final class AccessibilityActionRunner extends UiAutomatorTestRunner {
         void recycle(Object node){if(node!=null)try{node.getClass().getMethod("recycle").invoke(node);}catch(Throwable ignored){}}
     }
     private static final class Match {int visited,targets,headers;Object target;String path,headerPath;}
+    private static boolean pinLabel(String value){return value!=null&&value.contains("S-PIN eingeben");}
+    private static final class PinContext {
+        int visited,headers,fields,shows,footers,homeVehicle,homeAccess;
+        boolean sensitive,empty,nonEmpty,fieldError;
+        String kind="other",operation,digest,headerPath,fieldPath,showPath,footerPath,footerOperation;
+        int[] headerBounds,fieldBounds,footerBounds;
+        Object target;
+        void finish() throws Failure {
+            if(!sensitive){if(homeVehicle==1&&homeAccess==1&&fields==0)kind="home";return;}
+            kind="pinUnsupported";
+            if(headers!=1||fields!=1||shows!=1||footers!=1||headerPath==null||fieldPath==null||showPath==null||footerPath==null
+                    ||fieldError||!parent(headerPath).equals(parent(fieldPath))||!parent(footerPath).equals(parent(fieldPath))
+                    ||!showPath.startsWith(fieldPath+".")||headerBounds[3]>fieldBounds[1]||footerBounds[1]<fieldBounds[3])return;
+            operation=footerOperation;
+            if(nonEmpty){kind="pinNonEmpty";return;}
+            if(!empty)return;
+            kind="pinEmpty";
+            try{
+                String context="vw-app-pin-context-v1|"+operation+"|"+headerPath+"|"+Arrays.toString(headerBounds)+"|"+fieldPath+"|"+Arrays.toString(fieldBounds)+"|"+showPath+"|"+footerPath+"|"+Arrays.toString(footerBounds);
+                byte[] hash=MessageDigest.getInstance("SHA-256").digest(context.getBytes(StandardCharsets.UTF_8));
+                StringBuilder out=new StringBuilder();for(byte value:hash){int n=value&255;if(n<16)out.append('0');out.append(Integer.toHexString(n));}digest=out.toString();
+            }catch(Throwable error){throw new Failure("SECURITY_CONTEXT_MISMATCH");}
+        }
+        static String parent(String path){int dot=path.lastIndexOf('.');return dot<0?"":path.substring(0,dot);}
+    }
 
     private static Map<String,Object> object(){return new LinkedHashMap<String,Object>();}
     @SuppressWarnings("unchecked") private static Map<String,Object> record(Object value,String keys)throws Failure{

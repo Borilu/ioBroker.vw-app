@@ -183,6 +183,7 @@ public final class ExtendedUiDumpRunner extends UiAutomatorTestRunner {
                 WindowSnapshot beforeWindows = windows();
                 root = required(automation, "getRootInActiveWindow");
                 checkRoot(root);
+                rejectSensitive(root, 0, new int[]{0});
                 int beforeId = number(required(root, "getWindowId"));
                 String beforeClass = string(required(root, "getClassName"));
                 long startedAt = System.currentTimeMillis();
@@ -199,6 +200,7 @@ public final class ExtendedUiDumpRunner extends UiAutomatorTestRunner {
 
                 after = required(automation, "getRootInActiveWindow");
                 checkRoot(after);
+                rejectSensitive(after, 0, new int[]{0});
                 if (number(required(after, "getWindowId")) != beforeId
                         || !equal(beforeClass, string(required(after, "getClassName")))) {
                     throw new Failure("ACTIVE_WINDOW_CHANGED");
@@ -237,6 +239,20 @@ public final class ExtendedUiDumpRunner extends UiAutomatorTestRunner {
             return result;
         }
 
+        private void rejectSensitive(Object node, int depth, int[] visited) throws Failure {
+            if (depth > MAX_DEPTH || ++visited[0] > MAX_NODES) throw new Failure("LIMIT_EXCEEDED");
+            checkRoot(node);
+            String text = string(required(node, "getText"));
+            String description = string(required(node, "getContentDescription"));
+            if (Boolean.TRUE.equals(required(node, "isPassword")) || text != null && text.contains("S-PIN eingeben")
+                    || description != null && description.contains("S-PIN eingeben")) throw new Failure("SENSITIVE_UI");
+            int count = number(required(node, "getChildCount"));
+            if (count < 0 || count > MAX_NODES) throw new Failure("LIMIT_EXCEEDED");
+            for (int index=0; index<count; index++) {
+                Object child = required(node, "getChild", new Class<?>[]{int.class}, new Object[]{Integer.valueOf(index)});
+                try { rejectSensitive(child, depth+1, visited); } finally { recycle(child); }
+            }
+        }
         private void checkRoot(Object root) throws Failure {
             if (root == null) throw new Failure("ROOT_UNAVAILABLE");
             if (!EXPECTED_PACKAGE.equals(string(required(root, "getPackageName")))) {
@@ -302,6 +318,9 @@ public final class ExtendedUiDumpRunner extends UiAutomatorTestRunner {
             checkBudget();
             if (depth > MAX_DEPTH || ++nodes > MAX_NODES) throw new Failure("LIMIT_EXCEEDED");
             checkRoot(value); // Verify every child before reading any textual app data.
+            String securityText = string(required(value, "getText")), securityDescription = string(required(value, "getContentDescription"));
+            if (Boolean.TRUE.equals(required(value, "isPassword")) || securityText != null && securityText.contains("S-PIN eingeben")
+                    || securityDescription != null && securityDescription.contains("S-PIN eingeben")) throw new Failure("SENSITIVE_UI");
             Map<String, Object> fields = map();
             fields.put("package", EXPECTED_PACKAGE);
             fields.put("id", text(value, "getViewIdResourceName"));
