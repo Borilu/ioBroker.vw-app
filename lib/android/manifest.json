@@ -1,0 +1,28 @@
+{
+  "format": "vw-app-android-ui-v1",
+  "jar": "vw-ui.jar",
+  "bytes": 20014,
+  "sha256": "ef5c15c6004f991e9739e7b0a7b234c35276fc6c48c4a0f2e5b5356df5861b1e",
+  "minAndroidApi": 30,
+  "javaRelease": 8,
+  "d8Version": "9.5.28",
+  "d8Sha256": "38a9ffaaebbd17d1514e3ecbff5a85b989bb13c551b9e224c7409514eea84ff5",
+  "sources": [
+    {
+      "path": "compile-only/android/os/Bundle.java",
+      "sha256": "9369e08cb0eeebdc86c864f8f46ebd0fdc32cabc6b1050307d332034c1d0db47"
+    },
+    {
+      "path": "compile-only/com/android/uiautomator/testrunner/UiAutomatorTestRunner.java",
+      "sha256": "7c8f8e5172fcd81f4c63bb1ecb4ed449ec1c812ac8bcd76a224a569a2f6bb100"
+    },
+    {
+      "path": "src/vw/app/bridge/AccessibilityActionRunner.java",
+      "sha256": "06e7d5b0463024889f894e2f1277e884b9c7043fb704034a7b20a768c4e8858a"
+    },
+    {
+      "path": "src/vw/app/bridge/ExtendedUiDumpRunner.java",
+      "sha256": "65ff126b7adb1d7f379a67ee85d26dcc9fd84cdd7d1ecf77f9e75dc6eba3d833"
+    }
+  ]
+}
