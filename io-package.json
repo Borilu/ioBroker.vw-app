@@ -1,8 +1,21 @@
 {
   "common": {
     "name": "vw-app",
-    "version": "0.9.1",
+    "version": "0.9.2",
     "news": {
+      "0.9.2": {
+        "en": "Enable token-free npm publishing and provenance through the checked GitHub release workflow; vehicle functions remain unchanged.",
+        "de": "Tokenfreie npm-Veröffentlichung mit Herkunftsnachweis über den geprüften GitHub-Release-Ablauf vorbereiten; Fahrzeugfunktionen bleiben unverändert.",
+        "ru": "Подготовлена публикация в npm без токенов с подтверждением происхождения через проверяемый процесс релизов GitHub; функции автомобиля не изменены.",
+        "pt": "Prepara a publicação npm sem token e com comprovação de origem pelo fluxo de lançamento GitHub com verificações; as funções do veículo permanecem iguais.",
+        "nl": "Publicatie op npm zonder token en met herkomstbewijs via de gecontroleerde GitHub-releaseworkflow voorbereiden; voertuigfuncties blijven gelijk.",
+        "fr": "Prépare la publication npm sans jeton avec attestation de provenance via le processus de publication GitHub contrôlé ; les fonctions du véhicule restent inchangées.",
+        "it": "Prepara la pubblicazione npm senza token con attestazione di provenienza tramite il flusso di rilascio GitHub con verifiche; le funzioni del veicolo restano invariate.",
+        "es": "Prepara la publicación npm sin token y con certificación de procedencia mediante el flujo de publicación GitHub con verificaciones; las funciones del vehículo no cambian.",
+        "pl": "Przygotowanie publikacji npm bez tokenu i z potwierdzeniem pochodzenia przez sprawdzany proces wydań GitHub; funkcje pojazdu pozostają bez zmian.",
+        "uk": "Підготовлено публікацію в npm без токенів із підтвердженням походження через процес випуску GitHub із перевірками; функції автомобіля не змінено.",
+        "zh-cn": "准备通过经检查的 GitHub 发布工作流进行无令牌 npm 发布并提供来源证明；车辆功能保持不变。"
+      },
       "0.9.1": {
         "en": "Update package metadata and Admin layout for npm distribution and ioBroker repository review.",
         "de": "Paket-Metadaten und Admin-Darstellung für die npm-Veröffentlichung und Prüfung zur Aufnahme ins ioBroker-Verzeichnis aktualisieren.",
@@ -80,19 +93,6 @@
         "pl": "Odczyt raportu stanu pojazdu, przebiegu, następnego serwisu, informacji o synchronizacji i siedmiu kategorii komunikatów bez zmiany ustawień pojazdu.",
         "uk": "Читання звіту про стан автомобіля, пробігу, наступного обслуговування, позначки синхронізації та семи категорій повідомлень без зміни налаштувань автомобіля.",
         "zh-cn": "读取车辆状态报告、里程、下次保养、应用同步提示和七类消息，不更改车辆设置。"
-      },
-      "0.4.0": {
-        "en": "Read app-reported battery charge and remaining range; stage and apply a 50–100% charge limit in 10% steps, reduced AC current, automatic AC plug unlocking and optimized battery use.",
-        "de": "Ladezustand und Restreichweite aus der App lesen; Ladegrenze von 50–100 % in 10-%-Schritten, reduzierten AC-Ladestrom, automatische AC-Steckerentriegelung und optimierte Batterienutzung vormerken und übernehmen.",
-        "ru": "Чтение заряда и запаса хода из приложения; подготовка и применение лимита заряда 50–100 % с шагом 10 %, пониженного тока AC, авторазблокировки штекера AC и оптимизации батареи.",
-        "pt": "Lê carga e autonomia no aplicativo; prepara e aplica limite de 50–100% em passos de 10%, corrente AC reduzida, desbloqueio automático do conector AC e uso otimizado da bateria.",
-        "nl": "Lees acculading en resterend bereik uit de app; sla een laadlimiet van 50–100% in stappen van 10%, lagere AC-stroom, automatische AC-stekkerontgrendeling en geoptimaliseerd accugebruik op en pas die toe.",
-        "fr": "Lecture de la charge et de l’autonomie ; préparation et application d’une limite de 50–100 % par pas de 10 %, du courant AC réduit, du déverrouillage AC automatique et de l’usage optimisé de la batterie.",
-        "it": "Legge carica e autonomia; prepara e applica un limite del 50–100% a passi del 10%, corrente AC ridotta, sblocco automatico della spina AC e uso ottimizzato della batteria.",
-        "es": "Lee carga y autonomía; prepara y aplica un límite del 50–100% en pasos del 10%, corriente AC reducida, desbloqueo automático del conector AC y uso optimizado de la batería.",
-        "pl": "Odczyt naładowania i zasięgu z aplikacji; zapis i zastosowanie limitu 50–100% co 10%, obniżonego prądu AC, automatycznego odblokowania wtyczki AC i optymalizacji baterii.",
-        "uk": "Читання заряду та запасу ходу із застосунку; підготовка й застосування ліміту 50–100 % із кроком 10 %, зниженого струму AC, авторозблокування штекера AC й оптимізації батареї.",
-        "zh-cn": "读取应用中的电量和剩余续航；预设并应用 50–100%（步长 10%）充电上限、降低交流充电电流、自动解锁交流插头及优化电池使用。"
       }
     },
     "titleLang": {
