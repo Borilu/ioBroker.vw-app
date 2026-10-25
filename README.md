@@ -243,6 +243,8 @@ Version 0.11.0 adds a separate charging-mode wish and explicit command. The app 
 
 Version 0.11.1 also recognizes the supported picker layout with an additional empty, noninteractive Compose wrapper. In 0.11.0 this layout could fail with `unknown_state` before a mode-option tap. The exact three-choice, selection, geometry and overlay checks remain required; updating does not automatically submit a mode command.
 
+App confirmation may lag behind an accepted selection. Within the configured confirmation window and overall command deadline, the adapter waits using read-only observations and, when needed, safely reopens the range details from the confirmed vehicle overview. A picker return uses one native header action followed by read-only waiting. The mode selection and header action are never repeated to obtain confirmation. An unknown result can therefore follow an effective selection: read the mode with `commands.refreshCharging` before considering another command.
+
 | State relative to `vw-app.0` | Access and meaning |
 |---|---|
 | `charging.mode` | Read-only: `immediate` (charge immediately), `departure` (charge for departure), `departureClimate` (charge and climate for departure), or `null` before a known observation; check quality |
@@ -463,6 +465,7 @@ The tag triggers `.github/workflows/test-and-release.yml`. Package, lint and Lin
 ### 0.11.1 (2026-10-25)
 
 - Recognize the verified empty, inert Compose wrapper around the charging-mode picker that 0.11.0 rejected before tapping a mode option.
+- Handle delayed app confirmation within the configured outcome window through bounded reads, safe overview-to-range observation and read-only waiting after one native header return; do not repeat switching commands.
 - Retain the exact three mode cards, consistent selection, geometry and overlay guards; keep data points, permissions and explicit command behavior unchanged.
 
 ### 0.11.0 (2026-10-25)

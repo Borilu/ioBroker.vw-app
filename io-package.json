@@ -4,17 +4,17 @@
     "version": "0.11.1",
     "news": {
       "0.11.1": {
-        "en": "Recognize an additional empty Compose wrapper in the charging-mode picker while retaining all mode-card, selection, geometry and overlay guards.",
-        "de": "Einen zusätzlichen leeren Compose-Wrapper der Lademodusauswahl erkennen; alle Prüfungen der Moduskarten, Auswahl, Geometrie und Überlagerungen bleiben erhalten.",
-        "ru": "Распознавание дополнительной пустой оболочки Compose в выборе режима зарядки с сохранением всех проверок карточек, выбора, геометрии и перекрытий.",
-        "pt": "Reconhece uma camada Compose vazia adicional na seleção do modo de carga, mantendo todas as verificações dos cartões, seleção, geometria e sobreposições.",
-        "nl": "Herkent een extra lege Compose-container in de laadmoduskeuze, met behoud van alle controles op moduskaarten, selectie, geometrie en overlays.",
-        "fr": "Reconnaît un conteneur Compose vide supplémentaire dans le choix du mode de recharge, tout en conservant les contrôles des cartes, de la sélection, de la géométrie et des superpositions.",
-        "it": "Riconosce un contenitore Compose vuoto aggiuntivo nella scelta della modalità di ricarica, mantenendo tutti i controlli su schede, selezione, geometria e sovrapposizioni.",
-        "es": "Reconoce un contenedor Compose vacío adicional en la selección del modo de carga y mantiene todas las comprobaciones de tarjetas, selección, geometría y superposiciones.",
-        "pl": "Rozpoznaje dodatkowy pusty kontener Compose w wyborze trybu ładowania, zachowując wszystkie kontrole kart, wyboru, geometrii i nakładek.",
-        "uk": "Розпізнавання додаткової порожньої оболонки Compose у виборі режиму заряджання зі збереженням перевірок карток, вибору, геометрії та перекриттів.",
-        "zh-cn": "识别充电模式选择器中额外的空 Compose 容器，同时保留全部模式卡片、选中状态、几何边界和遮挡检查。"
+        "en": "Recognize the empty charging-picker wrapper and wait for delayed app confirmation through bounded reads without repeating commands; retain all selection and overlay guards.",
+        "de": "Leeren Wrapper der Lademodusauswahl erkennen und verzögerte App-Bestätigung begrenzt lesend abwarten, ohne Befehle zu wiederholen; Auswahl- und Überlagerungsprüfungen bleiben erhalten.",
+        "ru": "Распознавание пустой оболочки выбора режима и ожидание задержанного подтверждения приложения ограниченными чтениями без повтора команд; проверки выбора и перекрытий сохранены.",
+        "pt": "Reconhece a camada vazia da seleção de carga e aguarda a confirmação atrasada por leituras limitadas sem repetir comandos; mantém as verificações de seleção e sobreposição.",
+        "nl": "Herkent de lege laadkeuzecontainer en wacht met begrensde uitlezingen op vertraagde appbevestiging zonder opdrachten te herhalen; selectie- en overlaycontroles blijven behouden.",
+        "fr": "Reconnaît le conteneur vide du choix de recharge et attend la confirmation tardive par lectures limitées, sans répéter les commandes ; contrôles de sélection et de superposition conservés.",
+        "it": "Riconosce il contenitore vuoto della scelta di ricarica e attende conferme ritardate con letture limitate senza ripetere comandi; conserva i controlli di selezione e sovrapposizione.",
+        "es": "Reconoce el contenedor vacío del selector y espera la confirmación tardía con lecturas limitadas sin repetir comandos; mantiene las comprobaciones de selección y superposiciones.",
+        "pl": "Rozpoznaje pusty kontener wyboru trybu i czeka na opóźnione potwierdzenie przez ograniczone odczyty bez powtarzania poleceń; zachowuje kontrole wyboru i nakładek.",
+        "uk": "Розпізнає порожню оболонку вибору й очікує затримане підтвердження обмеженими читаннями без повтору команд; перевірки вибору та перекриттів збережено.",
+        "zh-cn": "识别充电模式选择器的空容器，通过有时限的只读查询等待延迟的应用确认，不重复发送命令，并保留选中状态和遮挡检查。"
       },
       "0.11.0": {
         "en": "Read and explicitly select three charging modes with a separate saved wish, snapshot time and validity; keep charging settings and departure timers independent.",
