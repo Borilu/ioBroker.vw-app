@@ -583,7 +583,7 @@ test('a wrong vehicle in the immediate header postRead cannot be hidden by a lat
 test('an already completed final Home return does not cause another Range-close gesture',async()=>{
     const f=setup({mode:'departure'});let rangeReadsAfterHeader=0;
     f.phone.beforeExtended=()=>{
-        if(f.phone.modeBackNativeCalls===1&&f.phone.page==='range'&&++rangeReadsAfterHeader===3)f.phone.page='overview';
+        if(f.phone.modeBackNativeCalls===1&&f.phone.page==='range'&&++rangeReadsAfterHeader===2)f.phone.page='overview';
     };
     const result=await f.controller.execute('applyChargingMode',{targetChargingMode:'departureClimate'});
     assert.equal(result.charging.mode,'departureClimate');assert.equal(f.phone.page,'overview');
@@ -602,6 +602,62 @@ test('unknown mode feedback includes only an allowed own cause code and never re
         assert.equal(f.phone.modeTaps,1);assert.equal(f.store.reservations,1);
     }
     assert.equal(getterCalls,0);
+});
+
+test('stable mode and battery proof survives the former unguarded post-confirmation Range read',async()=>{
+    for(const scenario of ['return-transition','return-close','return-battery','confirmation-battery']){
+        const f=setup({mode:'departureClimate'});const original=f.phone.departureView.bind(f.phone);let afterHeader=0,injected=false;
+        f.phone.departureView=async()=>{
+            const view=await original();
+            if(f.phone.modeBackNativeCalls===1&&f.phone.page==='range'&&++afterHeader===(scenario==='confirmation-battery'?1:2)){
+                injected=true;
+                const xml=scenario==='return-transition'
+                    ?chargingModeScreen({mode:f.phone.mode}).replace('content-desc="Ladeverfahren"','content-desc="Zwischenansicht"')
+                    :scenario==='return-close'?rangeModeScreen({mode:f.phone.mode}).replace('content-desc="Schließen"','content-desc="Zwischenansicht"')
+                        :rangeModeScreen({mode:f.phone.mode}).replace('text="Batterie 52 %"','text="Batterie 53 %"');
+                return {observation:nativeObservationFromXml(xml)};
+            }
+            return view;
+        };
+        const result=await f.controller.execute('applyChargingMode',{targetChargingMode:'departure'});
+        assert.equal(injected,true);assert.equal(result.charging.mode,'departure');assert.deepEqual(result.battery,{soc:52,rangeKm:205});
+        assert.equal(f.phone.modeTaps,1);assert.equal(f.phone.modeBackNativeCalls,1);assert.equal(f.store.reservations,1);
+        assert.equal(f.phone.page,'overview');assert.equal(f.phone.calls.filter(c=>c[0]==='connect').length,1);
+    }
+});
+
+test('Home-to-Range recovery after the one header return settles transient reads before any new navigation',async()=>{
+    const f=setup({mode:'departureClimate'});const read=f.phone.departureView.bind(f.phone),action=f.phone.departureAction.bind(f.phone);
+    let returnedHome=false,transitions=0;
+    f.phone.departureAction=async request=>{
+        const result=await action(request);
+        if(request.action!=='click')return result;
+        f.phone.page='overview';f.phone.lower=true;returnedHome=true;
+        return {...result,postRead:{observation:nativeObservationFromXml(await f.phone.dump())}};
+    };
+    f.phone.departureView=async()=>{
+        const view=await read();
+        if(returnedHome&&f.phone.page==='overview'&&transitions++<2){
+            return {observation:nativeObservationFromXml(chargingModeScreen().replace('content-desc="Ladeverfahren"','content-desc="Zwischenansicht"'))};
+        }
+        return view;
+    };
+    const result=await f.controller.execute('applyChargingMode',{targetChargingMode:'departure'});
+    assert.equal(result.charging.mode,'departure');assert.ok(transitions>=2);
+    assert.equal(f.phone.modeTaps,1);assert.equal(f.phone.modeBackNativeCalls,1);assert.equal(f.store.reservations,1);
+    assert.equal(f.phone.calls.filter(c=>c[0]==='tap'&&c[1]==='overview'&&c[2]===POINTS.range.x).length,2);
+    assert.equal(f.phone.page,'overview');
+});
+
+test('used mode and battery timestamps remain those of the consistent snapshot before a delayed return read',async()=>{
+    const f=setup({mode:'departureClimate'});let afterHeader=0;
+    f.phone.beforeExtended=()=>{
+        if(f.phone.modeBackNativeCalls===1&&f.phone.page==='range'&&++afterHeader===2)f.clock.value+=10000;
+    };
+    const result=await f.controller.execute('applyChargingMode',{targetChargingMode:'departure'});
+    assert.equal(result.charging.mode,'departure');assert.equal(result.modeObservedAt,result.observedAt);
+    assert.ok(f.clock.value-Date.parse(result.modeObservedAt)>=10000);
+    assert.equal(f.phone.modeTaps,1);assert.equal(f.store.reservations,1);assert.equal(f.phone.page,'overview');
 });
 
 test('advertised but invalid native navigation observation fails closed before any cached target or getter',async()=>{
