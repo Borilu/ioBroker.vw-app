@@ -1,5 +1,7 @@
 # Einrichtung im ioBroker Admin
 
+Für den Einstieg gibt es eine [einfache Anleitung mit Screenshots für Installation und Handy-Kopplung](INSTALLATION.de.md), auch [als PDF zum Herunterladen](https://github.com/Borilu/ioBroker.vw-app/releases/download/v0.9.2/VW-App-Installation-und-Kopplung.pdf). Die folgenden Abschnitte dienen als ausführliche Referenz.
+
 Der Adapter bedient die offizielle Volkswagen-App auf einem Android-Handy. Die Volkswagen-Anmeldung erfolgt auf dem Handy. Für die Einrichtung werden weder das Volkswagen-Passwort noch ein Volkswagen-Zugriffstoken in ioBroker eingetragen.
 
 Die Konfiguration verwendet die native JSON-Oberfläche von ioBroker Admin. Die Einrichtungsschaltflächen benötigen eine laufende Adapterinstanz. Dauerhafte Einstellungen zuerst speichern und die Instanz starten beziehungsweise ihren Neustart abwarten.
