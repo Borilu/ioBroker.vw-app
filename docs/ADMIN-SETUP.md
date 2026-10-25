@@ -2,7 +2,7 @@
 
 Für den Einstieg gibt es eine [einfache Anleitung mit Screenshots für Installation und Handy-Kopplung](INSTALLATION.de.md), auch [als PDF zum Herunterladen](https://github.com/Borilu/ioBroker.vw-app/releases/download/v0.9.2/VW-App-Installation-und-Kopplung.pdf). Die folgenden Abschnitte dienen als ausführliche Referenz.
 
-Die separate [Bedienungsanleitung](BEDIENUNG.de.md) führt alle Datenpunktpfade, ihren Inhalt und die erforderlichen Bedienfolgen auf. Sie ist ebenfalls [als PDF für 0.10.0 verfügbar](https://github.com/Borilu/ioBroker.vw-app/releases/download/v0.10.0/VW-App-Bedienungsanleitung.pdf). Dieses ältere PDF enthält die Lademodi noch nicht; dafür die aktualisierte Online-Anleitung für 0.11.0 verwenden.
+Die separate [Bedienungsanleitung](BEDIENUNG.de.md) führt alle Datenpunktpfade, ihren Inhalt und die erforderlichen Bedienfolgen auf. Sie ist ebenfalls [als PDF für 0.10.0 verfügbar](https://github.com/Borilu/ioBroker.vw-app/releases/download/v0.10.0/VW-App-Bedienungsanleitung.pdf). Dieses ältere PDF enthält die Lademodi noch nicht; dafür die aktualisierte Online-Anleitung für 0.11.1 verwenden.
 
 Der Adapter bedient die offizielle Volkswagen-App auf einem Android-Handy. Die Volkswagen-Anmeldung erfolgt auf dem Handy. Für die Einrichtung werden weder das Volkswagen-Passwort noch ein Volkswagen-Zugriffstoken in ioBroker eingetragen.
 
@@ -157,6 +157,8 @@ Version 0.4.0 bestand **332 automatisierte Tests auf Linux**. Die Liveprüfung l
 ### 7.1 Lademodus getrennt auswählen
 
 Ab 0.11.0 liest der vorhandene Ladebereich auch den Modus in den Reichweitendetails der App. Die neue Modusauswahl besitzt einen eigenen Wunsch, eigene Speicherung und einen eigenen ausdrücklichen Übernehmen-Befehl; die vier bisherigen Ladeeinstellungswünsche bleiben unabhängig.
+
+0.11.1 ergänzt die Erkennung einer bestätigten Ansichtsvariante mit zusätzlichem leerem, nicht interaktivem Compose-Wrapper. 0.11.0 konnte diese Variante mit `unknown_state` vor dem Modus-Auswahltipp ablehnen. Die vollständige Prüfung der drei Karten, der Auswahl, ihrer Geometrie und möglicher Überlagerungen bleibt erhalten. Ein Update löst keinen Moduswechsel aus.
 
 | Datenpunkt unter `vw-app.0` | Zugriff | Inhalt oder Bedienung |
 | --- | --- | --- |

@@ -1,10 +1,10 @@
 # VW App in ioBroker bedienen
 
-Diese Anleitung beschreibt die Bedienung von **vw-app 0.11.0**: Klimatisierung, Ladeeinstellungen und Lademodi, Abfahrtszeiten, Ladeorte, Fahrzeugdaten sowie Verriegeln und Entriegeln. Die Datenpunktreferenz nennt alle vom Adapter angelegten Zustände einschließlich der dynamisch erzeugten Ladeorte und der Aktualitätsanzeigen.
+Diese Anleitung beschreibt die Bedienung von **vw-app 0.11.1**: Klimatisierung, Ladeeinstellungen und Lademodi, Abfahrtszeiten, Ladeorte, Fahrzeugdaten sowie Verriegeln und Entriegeln. Die Datenpunktreferenz nennt alle vom Adapter angelegten Zustände einschließlich der dynamisch erzeugten Ladeorte und der Aktualitätsanzeigen.
 
 **Stand: 25. Oktober 2026.** Für Installation und WLAN-Kopplung verwende die [bebilderte Installationsanleitung](INSTALLATION.de.md). Die [Einrichtungsreferenz](ADMIN-SETUP.md) erklärt zusätzlich die Adaptereinstellungen.
 
-[Bedienungsanleitung als PDF für 0.10.0](https://github.com/Borilu/ioBroker.vw-app/releases/download/v0.10.0/VW-App-Bedienungsanleitung.pdf). Dieses ältere PDF enthält die neuen Lademodi noch nicht. Die Erklärung der Befehlsknöpfe und der Lademodus-Bedienung ist hier online für 0.11.0 aktualisiert.
+[Bedienungsanleitung als PDF für 0.10.0](https://github.com/Borilu/ioBroker.vw-app/releases/download/v0.10.0/VW-App-Bedienungsanleitung.pdf). Dieses ältere PDF enthält die neuen Lademodi noch nicht. Die Erklärung der Befehlsknöpfe und der Lademodus-Bedienung ist hier online für 0.11.1 aktualisiert.
 
 ## 1 Datenpunkte finden und bedienen
 
@@ -96,6 +96,8 @@ Der Adapter betätigt den angebotenen **Speichern**-Knopf und öffnet die Einste
 Diese vier Einstellungswünsche ändern keinen Lademodus. Dafür gibt es den folgenden eigenen Bedienablauf.
 
 ### Lademodus auswählen und ausdrücklich übernehmen
+
+0.11.1 erkennt die Modusauswahl auch mit einer zusätzlichen leeren Umhüllung der App-Ansicht. Diese Variante konnte unter 0.11.0 mit `unknown_state` bereits vor dem Modus-Auswahltipp abbrechen. Die Prüfungen aller drei Optionen, der aktuellen Auswahl und möglicher Überlagerungen bleiben bestehen. Das Update übernimmt keinen gespeicherten Moduswunsch automatisch.
 
 | Auswahl für `charging.targetMode` | Bedeutung in der App |
 | --- | --- |
