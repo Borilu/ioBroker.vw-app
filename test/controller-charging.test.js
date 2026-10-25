@@ -56,6 +56,14 @@ class ChargingApp {
         throw new Error('Unknown fake page');
     }
     async nativeView(){this.calls.push(['native']);if(this.beforeNative)await this.beforeNative();return nativeSlider({mismatch:this.nativeMismatch});}
+    async departureView(){this.homeSnapshot=Object.freeze({});return {xml:await this.dump(),observation:this.homeSnapshot};}
+    async departureAction(request){
+        assert.equal(request.snapshot,this.homeSnapshot);assert.equal(request.action,'scrollBackward');
+        assert.equal(request.header,'Ihr Fahrzeug: Testwagen. Gerade synchronisiert');
+        assert.deepEqual(request.target,{class:'android.widget.ScrollView',bounds:[20,100,980,1300]});
+        this.calls.push(['homeNativeAction','scrollBackward']);this.lower=false;
+        return {beforeMatched:true,actionAttempted:true,actionAccepted:true,success:true,errorCode:null,postRead:{xml:await this.dump()}};
+    }
     async swipe(gesture){
         this.calls.push(['swipe',this.page,clone(gesture)]);
         if(this.page==='overview'){this.lower=gesture.y2<gesture.y1;return;}

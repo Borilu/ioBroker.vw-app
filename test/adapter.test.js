@@ -8,6 +8,7 @@ const os = require('node:os');
 const path = require('node:path');
 const { createAdapterClass, DEFINITIONS } = require('../lib/adapter');
 const { BridgeError } = require('../lib/errors');
+const { withSecurityDiagnostic } = require('../lib/security-auth');
 const { PACKAGE } = require('../lib/ui');
 const ADMIN = require('../admin/jsonConfig.json');
 const { MIN_TEMPERATURE_CELSIUS, MAX_TEMPERATURE_CELSIUS, TEMPERATURE_STEP_CELSIUS } = require('../lib/temperature');
@@ -152,7 +153,10 @@ async function fixture(t, options = {}) {
 
     class FakeStore {
         constructor(directory) { this.directory = directory; this.writes = []; this.reservations = 0; records.stores.push(this); }
-        async read(name, fallback) { return clone(memory[name] ?? fallback); }
+        async read(name, fallback) {
+            if (options.storeRead) return options.storeRead(name, fallback, memory);
+            return clone(memory[name] ?? fallback);
+        }
         async write(name, value) {
             this.writes.push({ name, value: clone(value) });
             if (options.storeWrite) await options.storeWrite(name, value);
@@ -205,7 +209,7 @@ async function fixture(t, options = {}) {
         }
         async execute(action, input) {
             records.controllerCalls.push({ action, input: clone(input) });
-            if (options.controllerExecute) return options.controllerExecute(action, input);
+            if (options.controllerExecute) return options.controllerExecute(action, input, this);
             const observedAt = new Date(options.clock ? options.clock.now() : Date.now()).toISOString();
             if (['chargingStatus', 'applyChargingSettings', 'synchronize'].includes(action)) return { ...chargingResult(input.targetCharging), ...(options.clock ? { observedAt } : {}) };
             if (action === 'vehicleReportStatus') return { ...vehicleReportResult(), ...(options.clock ? { observedAt } : {}) };
@@ -297,6 +301,13 @@ function vehicleAccessResult(vehicleAccess = vehicleAccessModel()) {
     return { domain: 'vehicleAccess', source: 'volkswagen_android_app', vehicleConfirmed: false,
         appVersion: '4.8.1', observedAt: '2026-10-24T19:00:00.000Z', vehicleAccess: clone(vehicleAccess) };
 }
+function closedAccessResult(locked) {
+    return vehicleAccessResult({ doors: Object.fromEntries(['frontLeft', 'frontRight', 'rearLeft', 'rearRight'].map(key => [key, false])),
+        windows: Object.fromEntries(['frontLeft', 'frontRight', 'rearLeft', 'rearRight'].map(key => [key, false])),
+        trunkOpen: false, locked, synchronizationText: 'Gerade synchronisiert', warningText: '' });
+}
+const syntheticSecurityPin = () => String.fromCharCode(48, 55, 50, 57);
+const blockedSecurityState = reason => ({ blocked: true, reason, blockedAt: '2026-10-25T10:00:00.000Z' });
 const ACCESS_POSITIONS = ['frontLeft', 'frontRight', 'rearLeft', 'rearRight'];
 const ACCESS_BOOLEAN_IDS = [...['doors', 'windows'].flatMap(group => ACCESS_POSITIONS.map(position =>
     'vehicleAccess.' + group + '.' + position + 'Open')), 'vehicleAccess.trunkOpen', 'vehicleAccess.locked'];
@@ -2530,4 +2541,303 @@ test('a manual command takes a safe handoff from an automatic access read withou
     assert.equal(f.value('operation.lastResult'), 'succeeded');
     assert.equal(f.value('refresh.autoBusy'), false);
     assert.equal(f.value('refresh.charging.status'), 'fresh');
+});
+
+test('lock commands are manual-only buttons, with local read-only security diagnostics and no PIN data point', async t => {
+    const f = await fixture(t, { enrollment: enrolled(), fakeController: true,
+        RefreshScheduler: RecordingScheduler, config: { pollIntervalSeconds: 15 } });
+    for (const action of ['lockVehicle', 'unlockVehicle']) {
+        assert.deepEqual(DEFINITIONS['commands.' + action], ['boolean', 'button', false, true]);
+        await rejectsCode(f.adapter.command(action, { automatic: true }), 'invalid_action');
+    }
+    assert.equal(f.records.controllerCalls.length, 0);
+    assert.equal(f.value('security.blocked'), false);
+    assert.equal(f.value('security.reason'), '');
+    for (const id of ['security.blocked', 'security.reason']) {
+        assert.equal(f.adapter.objects.get(id).common.write, false);
+        assert.equal(f.adapter.objects.get(id).common.read, true);
+    }
+    assert.equal([...f.adapter.objects.keys()].some(id => /sPin|targetLocked|resetSecurityBlock/.test(id)), false);
+    assert.equal(f.adapter.scheduler.options.domains.includes('security'), false);
+    await rejectsCode(f.adapter.runAutomaticRead('lockVehicle'), 'invalid_action');
+});
+
+test('normal and automatic reads never receive or read the S-PIN provider', async t => {
+    const f = await fixture(t, { enrollment: enrolled(), fakeController: true,
+        RefreshScheduler: RecordingScheduler, config: { pollIntervalSeconds: 15 } });
+    let pinReads = 0;
+    Object.defineProperty(f.config, 'sPin', { enumerable: true, get() { pinReads++; throw new Error('SYNTHETIC SECRET ACCESS'); } });
+    await f.adapter.command('status');
+    await f.adapter.command('refreshVehicleAccess');
+    await f.adapter.scheduler.options.run('vehicleAccess');
+    assert.equal(pinReads, 0);
+    assert.ok(f.records.controllers.every(controller => !Object.hasOwn(controller, 'getSecurityPin')));
+    assert.equal(f.value('security.blocked'), false);
+});
+
+test('explicit lock and unlock use a narrow provider independently of climate permission or wishes', async t => {
+    const pin = syntheticSecurityPin(); let pinReads = 0;
+    const f = await fixture(t, { enrollment: enrolled(), fakeController: true,
+        RefreshScheduler: RecordingScheduler, config: { pollIntervalSeconds: 15, allowWrites: false, allowVehicleLocking: true, sPin: pin },
+        controllerExecute: async (action, input, controller) => {
+            assert.ok(['lockVehicle', 'unlockVehicle'].includes(action));
+            assert.deepEqual(input, {});
+            assert.equal(controller.config.allowWrites, false);
+            assert.equal(controller.config.allowVehicleLocking, true);
+            assert.equal(Object.hasOwn(controller.config, 'sPin'), false);
+            assert.equal(controller.getSecurityPin(), pin); pinReads++;
+            return { ...closedAccessResult(action === 'lockVehicle'), ignoredSecretProperty: pin };
+        } });
+    const temperature = deferred(), settings = deferred(), charging = deferred();
+    f.adapter.temperatureUpdates = temperature.promise; f.adapter.settingsUpdates = settings.promise; f.adapter.chargingUpdates = charging.promise;
+    const beforeMemory = clone(f.memory);
+    try {
+        for (const action of ['lockVehicle', 'unlockVehicle']) {
+            const result = await f.adapter.command(action);
+            assert.equal(result.vehicleAccess.locked, action === 'lockVehicle');
+            assert.equal(Object.hasOwn(result, 'ignoredSecretProperty'), false);
+            assert.equal(f.value('vehicleAccess.locked'), action === 'lockVehicle');
+            assert.equal(f.value('refresh.vehicleAccess.status'), 'fresh');
+        }
+    } finally { temperature.resolve(); settings.resolve(); charging.resolve(); }
+    assert.equal(pinReads, 2);
+    assert.deepEqual(f.memory, beforeMemory);
+    assert.deepEqual(f.records.controllerCalls, [{ action: 'lockVehicle', input: {} }, { action: 'unlockVehicle', input: {} }]);
+    assert.deepEqual(f.adapter.scheduler.requests, [
+        { domain: 'vehicleAccess', priority: true, delayMs: 2000 }, { domain: 'vehicleAccess', priority: true, delayMs: 2000 }]);
+    const publicData = { settings: f.adapter.settings, options: f.records.controllerCalls,
+        states: [...f.adapter.states], logs: f.adapter.logs, responses: f.adapter.responses, memory: f.memory };
+    assert.equal(JSON.stringify(publicData).includes(pin), false);
+});
+
+test('lock and unlock data-point writes require ack=false true and never accept a legacy prefix', async t => {
+    const f = await fixture(t, { enrollment: enrolled(), fakeController: true,
+        config: { allowVehicleLocking: true, legacyStatePrefix: '0_userdata.0.oldVw' },
+        controllerExecute: async action => closedAccessResult(action === 'lockVehicle') });
+    for (const state of [{ val: true, ack: true }, { val: false, ack: false }, { val: 'true', ack: false }]) {
+        await f.adapter.onStateChange('vw-app.0.commands.unlockVehicle', state);
+    }
+    await f.adapter.onStateChange('0_userdata.0.oldVw.unlockVehicle', { val: true, ack: false });
+    assert.equal(f.records.controllerCalls.length, 0);
+    await f.adapter.onStateChange('vw-app.0.commands.lockVehicle', { val: true, ack: false });
+    await f.adapter.onStateChange('vw-app.0.commands.unlockVehicle', { val: true, ack: false });
+    assert.deepEqual(f.records.controllerCalls.map(call => call.action), ['lockVehicle', 'unlockVehicle']);
+    assert.deepEqual(f.adapter.states.get('commands.lockVehicle'), { val: false, ack: true });
+    assert.deepEqual(f.adapter.states.get('commands.unlockVehicle'), { val: false, ack: true });
+});
+
+test('an already-desired read can succeed without a PIN provider access and cannot clear an existing block', async t => {
+    const blocked = blockedSecurityState('pin_rejected');
+    const f = await fixture(t, { enrollment: enrolled(), fakeController: true,
+        memory: { 'security-auth-state': blocked }, controllerExecute: async () => closedAccessResult(true) });
+    Object.defineProperty(f.config, 'sPin', { get() { throw new Error('No-op must not access a secret.'); } });
+    const result = await f.adapter.command('lockVehicle');
+    assert.equal(result.vehicleAccess.locked, true);
+    assert.deepEqual(f.memory['security-auth-state'], blocked);
+    assert.equal(f.value('security.blocked'), true);
+    assert.equal(f.value('security.reason'), 'pin_rejected');
+});
+
+test('credential errors are sanitized before feedback, retain the block across restart, and only schedule a read', async t => {
+    const pin = syntheticSecurityPin();
+    const f = await fixture(t, { enrollment: enrolled(), fakeController: true,
+        RefreshScheduler: RecordingScheduler, config: { pollIntervalSeconds: 15, allowVehicleLocking: true, sPin: pin },
+        controllerExecute: async (_action, _input, controller) => {
+            assert.equal(controller.getSecurityPin(), pin);
+            await controller.store.write('security-auth-state', blockedSecurityState('pin_rejected'));
+            throw new BridgeError('security_pin_rejected', 'Synthetic secret message: ' + pin);
+        } });
+    await rejectsCode(f.adapter.command('unlockVehicle'), 'security_pin_rejected');
+    assert.equal(f.value('operation.lastResult'), 'failed');
+    assert.equal(f.value('security.blocked'), true);
+    assert.equal(f.value('security.reason'), 'pin_rejected');
+    assert.equal(f.value('operation.lastErrorCode'), 'security_pin_rejected');
+    assert.equal(JSON.stringify({ states: [...f.adapter.states], logs: f.adapter.logs, memory: f.memory }).includes(pin), false);
+    assert.deepEqual(f.adapter.scheduler.requests, [{ domain: 'vehicleAccess', priority: true, delayMs: 2000 }]);
+    assert.equal(f.records.controllerCalls.length, 1);
+    const restarted = await fixture(t, { memory: f.memory });
+    assert.equal(restarted.value('security.blocked'), true);
+    assert.equal(restarted.value('security.reason'), 'pin_rejected');
+    assert.deepEqual(restarted.memory['security-auth-state'], blockedSecurityState('pin_rejected'));
+});
+
+test('missing and invalid PIN errors affect only an actuating lock flow and never echo secret data', async t => {
+    for (const [sPin, expected] of [['', 'security_pin_required'], ['SYNTHETIC INVALID SECRET', 'security_pin_invalid']]) {
+        const f = await fixture(t, { enrollment: enrolled(), fakeController: true,
+            config: { allowVehicleLocking: true, sPin }, controllerExecute: async (action, _input, controller) => {
+                if (action === 'unlockVehicle') controller.getSecurityPin();
+                return action === 'status' ? { appState: 'off', appVersion: '4.8.1', vehicleConfirmed: false,
+                    observedAt: '2026-10-25T10:00:00.000Z', temperature: null, confirmationSource: 'app_controls' }
+                    : closedAccessResult(true);
+            } });
+        await rejectsCode(f.adapter.command('unlockVehicle'), expected);
+        assert.equal(f.value('security.blocked'), false);
+        await f.adapter.command('status');
+        assert.equal(f.value('operation.lastResult'), 'succeeded');
+        assert.equal(JSON.stringify({ states: [...f.adapter.states], logs: f.adapter.logs }).includes('SYNTHETIC INVALID SECRET'), false);
+    }
+});
+
+test('malformed or unreadable auth state fails closed while other read operations remain available', async t => {
+    const malformed = await fixture(t, { enrollment: enrolled(), fakeController: true,
+        memory: { 'security-auth-state': { blocked: false, reason: 'pin_rejected', blockedAt: null } } });
+    assert.equal(malformed.value('security.blocked'), true);
+    assert.equal(malformed.value('security.reason'), 'security_auth_invalid');
+    await malformed.adapter.command('refreshVehicleAccess');
+    assert.equal(malformed.value('refresh.vehicleAccess.status'), 'fresh');
+    const unreadable = await fixture(t, { storeRead: async (name, fallback, memory) => {
+        if (name === 'security-auth-state') throw new Error('SYNTHETIC AUTH FILE SECRET');
+        return clone(memory[name] ?? fallback);
+    } });
+    assert.equal(unreadable.value('security.blocked'), true);
+    assert.equal(unreadable.value('security.reason'), 'security_auth_unavailable');
+    assert.equal(JSON.stringify(unreadable.adapter.logs).includes('SYNTHETIC AUTH FILE SECRET'), false);
+});
+
+test('only Admin can explicitly reset a block and the reset has no phone or native-config response', async t => {
+    const f = await fixture(t, { config: { sPin: syntheticSecurityPin() },
+        memory: { 'security-auth-state': blockedSecurityState('outcome_unknown') } });
+    for (const from of ['system.adapter.javascript.0', 'system.adapter.admin.0.extra', 'admin.0', 'system.adapter.cloud.0']) {
+        await f.adapter.onMessage({ from, command: 'resetSecurityBlock', message: {}, callback: { id: 2 } });
+        assert.match(f.adapter.responses.at(-1).message.error, /^invalid_action:/);
+        assert.equal(f.value('security.blocked'), true);
+    }
+    const writes = f.records.stores[0].writes.length;
+    const result = await f.message('resetSecurityBlock', { ignoredSecret: 'NEVER ECHO' });
+    assert.deepEqual(result, { result: 'security_block_reset' });
+    assert.equal(Object.hasOwn(result, 'native'), false);
+    assert.deepEqual(f.memory['security-auth-state'], { blocked: false, reason: null, blockedAt: null });
+    assert.equal(f.value('security.blocked'), false);
+    assert.equal(f.value('security.reason'), '');
+    assert.deepEqual(f.records.stores[0].writes.slice(writes), [{ name: 'security-auth-state', value: { blocked: false, reason: null, blockedAt: null } }]);
+    assert.equal(f.records.phones.length, 0);
+    assert.equal(f.records.controllerCalls.length, 0);
+    assert.equal(ADMIN.items._resetSecurityBlock.useNative, undefined);
+    assert.deepEqual(ADMIN.items._resetSecurityBlock.data, {});
+    assert.equal(JSON.stringify(f.adapter.responses).includes('NEVER ECHO'), false);
+});
+
+test('a reset requires a valid currently saved PIN and a failed reset never silently clears a block', async t => {
+    const blocked = blockedSecurityState('pin_locked');
+    const missing = await fixture(t, { memory: { 'security-auth-state': blocked } });
+    assert.match((await missing.message('resetSecurityBlock')).error, /^security_pin_required:/);
+    assert.deepEqual(missing.memory['security-auth-state'], blocked);
+    assert.equal(missing.value('security.blocked'), true);
+    const failed = await fixture(t, { config: { sPin: syntheticSecurityPin() }, memory: { 'security-auth-state': blocked },
+        storeWrite: async name => { if (name === 'security-auth-state') throw new BridgeError('synthetic', 'SYNTHETIC AUTH WRITE SECRET'); } });
+    assert.match((await failed.message('resetSecurityBlock')).error, /^security_auth_not_saved:/);
+    assert.deepEqual(failed.memory['security-auth-state'], blocked);
+    assert.equal(failed.value('security.blocked'), true);
+    assert.equal(failed.records.phones.length, 0);
+    assert.equal(JSON.stringify({ responses: failed.adapter.responses, logs: failed.adapter.logs }).includes('SYNTHETIC AUTH WRITE SECRET'), false);
+});
+
+test('a busy lock command cannot queue a second unlock or read a secret before ownership is available', async t => {
+    const entered = deferred(), release = deferred(); let pinReads = 0;
+    const f = await fixture(t, { enrollment: enrolled(), fakeController: true, config: { allowVehicleLocking: true },
+        controllerExecute: async () => { entered.resolve(); await release.promise; return closedAccessResult(true); } });
+    Object.defineProperty(f.config, 'sPin', { get() { pinReads++; return syntheticSecurityPin(); } });
+    const first = f.adapter.command('lockVehicle'); await entered.promise;
+    await rejectsCode(f.adapter.command('unlockVehicle'), 'busy');
+    assert.equal(f.records.controllerCalls.length, 1);
+    assert.equal(pinReads, 0);
+    release.resolve(); await first;
+    assert.equal(f.records.controllerCalls.length, 1);
+});
+
+test('Admin reset safely waits for a running automatic read without making another phone request', async t => {
+    const entered = deferred(), release = deferred();
+    const f = await fixture(t, { enrollment: enrolled(), fakeController: true, cooperativeHandoff: true,
+        RefreshScheduler: RecordingScheduler, config: { pollIntervalSeconds: 15, sPin: syntheticSecurityPin() },
+        memory: { 'security-auth-state': blockedSecurityState('attempt_pending') },
+        controllerExecute: async action => { assert.equal(action, 'refreshVehicleAccess'); entered.resolve(); await release.promise; return closedAccessResult(true); } });
+    const reading = f.adapter.scheduler.options.run('vehicleAccess'); await entered.promise;
+    const resetting = f.message('resetSecurityBlock');
+    assert.equal(f.records.controllers[0].handoffRequested, true);
+    assert.equal(f.value('security.blocked'), true);
+    release.resolve(); await reading;
+    assert.deepEqual(await resetting, { result: 'security_block_reset' });
+    assert.equal(f.value('security.blocked'), false);
+    assert.equal(f.records.controllerCalls.length, 1);
+    assert.equal(f.records.phones.length, 1);
+    assert.deepEqual(f.adapter.scheduler.requests, []);
+});
+
+test('an explicit unlock cooperatively takes over an automatic read and never repeats the write', async t => {
+    const entered = deferred(), release = deferred(); let pinReads = 0;
+    const f = await fixture(t, { enrollment: enrolled(), fakeController: true, cooperativeHandoff: true,
+        RefreshScheduler: RecordingScheduler, config: { pollIntervalSeconds: 15, allowVehicleLocking: true, sPin: syntheticSecurityPin() },
+        controllerExecute: async (action, _input, controller) => {
+            if (action === 'refreshVehicleAccess') { entered.resolve(); await release.promise; return closedAccessResult(true); }
+            assert.equal(action, 'unlockVehicle');
+            assert.equal(controller.getSecurityPin(), syntheticSecurityPin()); pinReads++;
+            return closedAccessResult(false);
+        } });
+    const automatic = f.adapter.scheduler.options.run('vehicleAccess'); await entered.promise;
+    const unlocking = f.adapter.command('unlockVehicle');
+    assert.equal(f.records.controllers[0].handoffRequested, true);
+    assert.equal(f.records.controllerCalls.length, 1);
+    assert.equal(pinReads, 0);
+    release.resolve(); await automatic; await unlocking;
+    assert.deepEqual(f.records.controllerCalls.map(call => call.action), ['refreshVehicleAccess', 'unlockVehicle']);
+    assert.equal(f.value('vehicleAccess.locked'), false);
+    assert.equal(f.value('refresh.autoBusy'), false);
+    assert.equal(f.value('operation.lastResult'), 'succeeded');
+    assert.equal(pinReads, 1);
+    assert.deepEqual(f.adapter.scheduler.requests, [{ domain: 'vehicleAccess', priority: true, delayMs: 2000 }]);
+});
+
+test('a secret getter throwing a foreign BridgeError is redacted before locking feedback or logs', async t => {
+    const canary = 'SYNTHETIC SECRET GETTER MESSAGE';
+    const f = await fixture(t, { enrollment: enrolled(), fakeController: true,
+        config: { allowVehicleLocking: true }, controllerExecute: async (_action, _input, controller) => {
+            controller.getSecurityPin();
+            assert.fail('A failed credential getter cannot produce a lock result.');
+        } });
+    Object.defineProperty(f.config, 'sPin', { get() { throw new BridgeError('security_pin_invalid', canary); } });
+    await rejectsCode(f.adapter.command('lockVehicle'), 'security_pin_invalid');
+    assert.equal(f.value('operation.lastResult'), 'failed');
+    assert.equal(f.value('operation.lastErrorCode'), 'security_pin_invalid');
+    assert.equal(JSON.stringify({ states: [...f.adapter.states], logs: f.adapter.logs, memory: f.memory }).includes(canary), false);
+});
+
+test('one locking warning retains only internally branded stage/cause and keeps public outcome feedback unchanged', async t => {
+    const canary = 'SYNTHETIC PRIVATE SECURITY ERROR';
+    const f = await fixture(t, { enrollment: enrolled(), fakeController: true,
+        controllerExecute: async () => {
+            throw withSecurityDiagnostic(new BridgeError('outcome_unknown', canary), 'pin_entry', 'security_entry_uncertain');
+        } });
+    const before = f.adapter.logs.length;
+    await rejectsCode(f.adapter.command('unlockVehicle'), 'outcome_unknown');
+    const warnings = f.adapter.logs.slice(before).filter(row => row.level === 'warn');
+    assert.equal(warnings.length, 1);
+    assert.match(warnings[0].message, /\[security stage=pin_entry; cause=security_entry_uncertain\]$/u);
+    assert.equal(f.value('operation.lastErrorCode'), 'outcome_unknown');
+    assert.equal(f.value('operation.lastError').includes('stage='), false);
+    assert.equal(JSON.stringify({ states: [...f.adapter.states], logs: f.adapter.logs, memory: f.memory }).includes(canary), false);
+});
+
+test('foreign BridgeError detail/secret fields cannot create diagnostic log suffixes or run accessors', async t => {
+    const canary = 'SYNTHETIC FOREIGN DETAIL SECRET'; let reads = 0;
+    const foreign = new BridgeError('outcome_unknown', canary);
+    foreign.details = { stage: canary, cause: canary, pin: canary };
+    for (const key of ['stage', 'cause', 'diagnostic']) Object.defineProperty(foreign, key, {
+        enumerable: true, get() { reads++; throw new Error(canary); },
+    });
+    const f = await fixture(t, { enrollment: enrolled(), fakeController: true, controllerExecute: async () => { throw foreign; } });
+    const before = f.adapter.logs.length;
+    await rejectsCode(f.adapter.command('unlockVehicle'), 'outcome_unknown');
+    const warnings = f.adapter.logs.slice(before).filter(row => row.level === 'warn');
+    assert.equal(warnings.length, 1); assert.equal(warnings[0].message.includes('security stage='), false);
+    assert.equal(reads, 0);
+    assert.equal(JSON.stringify({ states: [...f.adapter.states], logs: f.adapter.logs, memory: f.memory }).includes(canary), false);
+});
+
+test('reset never accepts an object that merely coerces into an Admin sender string', async t => {
+    const f = await fixture(t, { config: { sPin: syntheticSecurityPin() },
+        memory: { 'security-auth-state': blockedSecurityState('pin_rejected') } });
+    await f.adapter.onMessage({ from: { toString: () => 'system.adapter.admin.0' }, command: 'resetSecurityBlock', message: {}, callback: { id: 3 } });
+    assert.match(f.adapter.responses.at(-1).message.error, /^invalid_action:/);
+    assert.equal(f.value('security.blocked'), true);
+    assert.deepEqual(f.memory['security-auth-state'], blockedSecurityState('pin_rejected'));
 });
