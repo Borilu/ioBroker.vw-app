@@ -469,6 +469,7 @@ The tag triggers `.github/workflows/test-and-release.yml`. Package, lint and Lin
 ### 0.11.3 (2026-10-26)
 
 - Recognize the explicit active-charging range summary on the vehicle overview, so regular battery and charging reads can reach their existing detail view.
+- Support the confirmed native accessibility layout with its hidden range display while retaining the strict visible navigation card.
 - Guard the newly supported tile against additional controls, overlapping content and changed geometry; retain existing vehicle, selection and overlay checks.
 - Keep data points, permissions, saved wishes, observation validity and polling intervals unchanged.
 
