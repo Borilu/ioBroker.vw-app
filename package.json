@@ -1,6 +1,6 @@
 {
   "name": "iobroker.vw-app",
-  "version": "0.11.1",
+  "version": "0.11.2",
   "description": "Control the official Volkswagen Android app over Wi-Fi from ioBroker",
   "main": "main.js",
   "type": "commonjs",
@@ -62,7 +62,9 @@
     "@iobroker/eslint-config": "^2.3.4",
     "@iobroker/testing": "^6.3.1",
     "@alcalzone/release-script-plugin-iobroker": "^5.2.0",
-    "@alcalzone/release-script-plugin-license": "^5.2.2"
+    "@alcalzone/release-script-plugin-license": "^5.2.2",
+    "@alcalzone/release-script-plugin-manual-review": "^5.2.0",
+    "@types/node": "^22.0.0"
   },
   "os": [
     "linux"

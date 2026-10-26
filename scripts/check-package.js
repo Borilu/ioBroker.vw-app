@@ -28,8 +28,8 @@ for (const key of Object.keys(ui.items).filter(k => !k.startsWith('_'))) assert(
 assert.equal(io.native.allowWrites, false);
 assert.equal(io.native.allowVehicleLocking, false);
 assert.equal(io.native.sPin, '');
-assert.deepEqual(io.encryptedNative, ['sPin']);
-assert.deepEqual(io.protectedNative, ['sPin']);
+assert.deepEqual(io.encryptedNative, ['sPin', '_pairCode']);
+assert.deepEqual(io.protectedNative, ['sPin', '_pairCode']);
 assert.equal(ui.items.sPin.type, 'password');
 assert.equal(ui.items.sPin.visible, false);
 assert.equal(ui.items.sPin.maxLength, 4);

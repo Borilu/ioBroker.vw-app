@@ -138,8 +138,8 @@ test('missing or invalid stored PIN values do not disable unrelated configuratio
 });
 
 test('the persistent masked S-PIN is encrypted and protected by native metadata', () => {
-    assert.deepEqual(ioPackage.encryptedNative, ['sPin']);
-    assert.deepEqual(ioPackage.protectedNative, ['sPin']);
+    assert.deepEqual(ioPackage.encryptedNative, ['sPin', '_pairCode']);
+    assert.deepEqual(ioPackage.protectedNative, ['sPin', '_pairCode']);
     assert.equal(nativeDefaults.sPin, '');
     assert.equal(admin.sPin.type, 'password');
     assert.equal(admin.sPin.visible, false);
