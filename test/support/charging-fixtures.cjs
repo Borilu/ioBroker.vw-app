@@ -17,16 +17,36 @@ function node(id = '', attrs = {}, children = []) {
 }
 function hierarchy(children = []) { return '<hierarchy>' + children.join('') + '</hierarchy>'; }
 
-function overviewChargingScreen({ rangeKm = 205, lower = false, includeRange = true, charging = false } = {}) {
+function overviewChargingScreen({ rangeKm = 205, lower = false, includeRange = true, charging = false, nativeHiddenRange = false } = {}) {
     const rangeBounds = lower ? '[50,100][450,150]' : '[50,200][450,600]';
     const climateBounds = lower ? '[550,100][950,150]' : '[550,200][950,600]';
     const chargingFlags = charging ? { selected: 'false', checkable: 'false', checked: 'false' } : {};
+    const native = charging && nativeHiddenRange;
+    const nativeAttrs = (suffix, actions) => native ? { ...chargingFlags,
+        'a11y-path': '0.0.0.1' + suffix, 'a11y-actions': JSON.stringify(actions) } : chargingFlags;
+    const hiddenAttrs = (suffix, actions) => ({ ...nativeAttrs(suffix, actions),
+        'visible-to-user': suffix === '.1' ? 'false' : 'true', 'long-clickable': 'false', scrollable: 'false' });
+    const [left, top, right, bottom] = rangeBounds.match(/[0-9]+/g).map(Number);
+    const box = (x1, y1, x2, y2) => '[' + (left + Math.floor((right - left) * x1)) + ',' +
+        (top + Math.floor((bottom - top) * y1)) + '][' + (left + Math.floor((right - left) * x2)) + ',' +
+        (top + Math.floor((bottom - top) * y2)) + ']';
+    const hiddenBranch = native ? node('', { bounds: rangeBounds, clickable: 'true', ...hiddenAttrs('.1', [1, 64, 16]) }, [
+        node('', { bounds: box(.12, .12, .88, .88), ...hiddenAttrs('.1.0', [64]) }, [
+            node('', { bounds: box(.72, .12, .88, .28), ...hiddenAttrs('.1.0.0', [64]) }),
+            node('synthetic_range_km', { class: 'android.widget.TextView', text: rangeKm + ' km',
+                bounds: box(.12, .46, .68, .72), ...hiddenAttrs('.1.0.1', [256, 512, 64, 131072]) }),
+            node('electricSocText', { class: 'android.widget.TextView', text: 'Batterie 52%',
+                bounds: box(.12, .77, .68, .88), ...hiddenAttrs('.1.0.2', [256, 512, 64, 131072]) }),
+        ]),
+    ]) : null;
     return hierarchy([node('composeView', { class: 'androidx.compose.ui.platform.ComposeView' }, [
         node('', { class: 'android.widget.ScrollView', scrollable: 'true', bounds: '[20,100][980,1300]' }, [
             node('', { 'content-desc': 'Ihr Fahrzeug: Testwagen. Gerade synchronisiert', bounds: '[50,100][950,150]' }),
-            ...(includeRange ? [node('rangeTile', { bounds: rangeBounds, ...chargingFlags }, [
-                node('', { 'content-desc': `Übersicht Reichweite. ${charging ? 'Lädt gerade. ' : ''}Batteriereichweite: ${rangeKm} Kilometer. Details öffnen`, bounds: rangeBounds, ...chargingFlags }),
-                node('', { class: 'android.widget.Button', bounds: rangeBounds, ...chargingFlags }),
+            ...(includeRange ? [node('rangeTile', { bounds: rangeBounds, ...nativeAttrs('', [256, 512, 64, 131072]) }, [
+                node('', { 'content-desc': `Übersicht Reichweite. ${charging ? 'Lädt gerade. ' : ''}Batteriereichweite: ${rangeKm} Kilometer. Details öffnen`, bounds: rangeBounds,
+                    ...nativeAttrs('.0', [256, 512, 64, 131072]) }),
+                ...(hiddenBranch ? [hiddenBranch] : []),
+                node('', { class: 'android.widget.Button', bounds: rangeBounds, ...nativeAttrs(native ? '.2' : '.1', [64]) }),
             ])] : []),
             node('climateTile', { bounds: climateBounds }, [
                 node('', { 'content-desc': 'Vorklimatisierung. Aus. Details öffnen', bounds: climateBounds }),
