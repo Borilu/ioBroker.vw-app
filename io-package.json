@@ -4,17 +4,17 @@
     "version": "0.11.3",
     "news": {
       "0.11.3": {
-        "en": "Recognize the active-charging range tile and retain guarded navigation for regular battery and charging reads.",
-        "de": "Die Reichweiten-Kachel bei laufendem Laden erkennen und die geprüfte Navigation für regelmäßige Batterie- und Ladeabfragen beibehalten.",
-        "ru": "Распознаёт плитку запаса хода во время зарядки и сохраняет защищённую навигацию для регулярного чтения батареи и зарядки.",
-        "pt": "Reconhece o bloco de autonomia durante a carga e mantém a navegação protegida nas leituras regulares da bateria e da carga.",
-        "nl": "Herkent de actieradiustegel tijdens het laden en behoudt gecontroleerde navigatie voor regelmatige accu- en laadmetingen.",
-        "fr": "Reconnaît la tuile d’autonomie pendant la recharge et conserve la navigation contrôlée pour les lectures régulières de batterie et de recharge.",
-        "it": "Riconosce il riquadro dell’autonomia durante la ricarica e mantiene la navigazione controllata per le letture periodiche di batteria e ricarica.",
-        "es": "Reconoce la tarjeta de autonomía durante la carga y mantiene la navegación verificada para las lecturas periódicas de batería y carga.",
-        "pl": "Rozpoznaje kafelek zasięgu podczas ładowania i zachowuje kontrolowaną nawigację przy regularnych odczytach baterii i ładowania.",
-        "uk": "Розпізнає плитку запасу ходу під час заряджання та зберігає перевірену навігацію для регулярного читання батареї й заряджання.",
-        "zh-cn": "识别充电中的续航卡片，并在定期读取电池和充电信息时保留经过检查的导航。"
+        "en": "Improve battery and range reads during charging, including the range tile and SOC display; retain navigation checks.",
+        "de": "Auslesen während des Ladens verbessern: Reichweiten-Kachel und SOC-Anzeige unterstützen, Navigationsprüfungen beibehalten.",
+        "ru": "Улучшено чтение батареи и запаса хода во время зарядки, включая плитку запаса хода и отображение SOC; проверки навигации сохранены.",
+        "pt": "Melhora a leitura da bateria e autonomia durante a carga, incluindo o bloco de autonomia e a indicação SOC; mantém as verificações de navegação.",
+        "nl": "Verbetert het uitlezen van accu en bereik tijdens het laden, inclusief de actieradiustegel en SOC-weergave; behoudt navigatiecontroles.",
+        "fr": "Améliore la lecture de la batterie et de l’autonomie pendant la recharge, y compris la tuile d’autonomie et le SOC ; conserve les contrôles de navigation.",
+        "it": "Migliora la lettura di batteria e autonomia durante la ricarica, inclusi il riquadro autonomia e il SOC; mantiene i controlli di navigazione.",
+        "es": "Mejora la lectura de batería y autonomía durante la carga, incluida la tarjeta de autonomía y el SOC; conserva los controles de navegación.",
+        "pl": "Ulepsza odczyt baterii i zasięgu podczas ładowania, w tym kafelek zasięgu i wskaźnik SOC; zachowuje kontrole nawigacji.",
+        "uk": "Поліпшено читання батареї та запасу ходу під час заряджання, включно з плиткою запасу ходу й відображенням SOC; перевірки навігації збережено.",
+        "zh-cn": "改进充电期间的电池和续航读取，支持续航卡片和 SOC 显示，并保留导航检查。"
       },
       "0.11.2": {
         "en": "Improve Admin translations, pairing-code protection declarations and repository-review metadata; retain vehicle controls and automatic reads.",

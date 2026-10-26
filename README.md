@@ -460,6 +460,8 @@ Repository-checker findings and supported-platform decisions are documented in [
 
 ### Publishing a version
 
+UI regression fixtures must cover the accessibility transport used by the production read. Native observations can contain hidden rendering nodes that a standard Android UI dump omits. Keep navigation checks for unknown controls and contradictory observations when adding a confirmed layout.
+
 Keep the version in `package.json`, `io-package.json` and `package-lock.json` synchronized, add a dated changelog entry and update the translated adapter news. Merge the release commit into `main` after its checks pass, then create a matching GitHub tag such as `v0.11.3` on that commit.
 
 The tag triggers `.github/workflows/test-and-release.yml`. Package, lint and Linux integration checks must pass before deployment. The deployment job checks that the tag matches the package version and that the commit belongs to `main`; an existing npm version is retained without another publication attempt. For a new version, the job is configured to publish to npm using GitHub OIDC trusted publishing with provenance. npm's trusted-publisher binding must match this public repository and workflow file. No npm access token is stored in the repository.
@@ -470,6 +472,7 @@ The tag triggers `.github/workflows/test-and-release.yml`. Package, lint and Lin
 
 - Recognize the explicit active-charging range summary on the vehicle overview, so regular battery and charging reads can reach their existing detail view.
 - Support the confirmed native accessibility layout with its hidden range display while retaining the strict visible navigation card.
+- Accept the alternative SOC text only with the exact active-charging accessibility description and a matching valid percentage.
 - Guard the newly supported tile against additional controls, overlapping content and changed geometry; retain existing vehicle, selection and overlay checks.
 - Keep data points, permissions, saved wishes, observation validity and polling intervals unchanged.
 
