@@ -28,6 +28,108 @@ test('battery overview reads range only and never invents SOC', () => {
     assert.equal(new Screen(openedDetail).batteryValues(), null);
 });
 
+test('the exact charging overview sentence reads range without inventing SOC and navigates its inert three-node card', () => {
+    for (const rangeKm of [0, 205, 999]) {
+        const screen = new Screen(overviewChargingScreen({ charging: true, rangeKm }));
+        assert.equal(screen.kind(), 'overview');
+        assert.deepEqual(screen.batteryValues(), { soc: null, rangeKm });
+        assert.deepEqual(screen.chargingNavigationTarget('range'), POINTS.range);
+        assert.throws(() => screen.chargingNavigationTarget('startCharging'), rejects('target_unavailable'));
+        assert.throws(() => screen.chargingNavigationTarget('stopCharging'), rejects('target_unavailable'));
+    }
+});
+
+test('charging overview accepts only the exact known status sentence, integer and kilometer unit', () => {
+    const xml = overviewChargingScreen({ charging: true });
+    for (const replacement of ['Lädt aktuell.', 'Lädt gerade..', 'Lädt gerade. Zusatz.', 'Lädt gerade.\n']) {
+        const screen = new Screen(xml.replace('Lädt gerade.', replacement));
+        assert.equal(screen.batteryValues().rangeKm, null);
+        assert.throws(() => screen.chargingNavigationTarget('range'), rejects('target_unavailable'));
+    }
+    for (const value of ['0205 Kilometer', '205.5 Kilometer', '205 Meilen', '-1 Kilometer', '205 Kilometer Extra']) {
+        const screen = new Screen(xml.replace('205 Kilometer', value));
+        assert.equal(screen.batteryValues().rangeKm, null);
+        assert.throws(() => screen.chargingNavigationTarget('range'), rejects('target_unavailable'));
+    }
+    const incomplete = new Screen(xml.replace('. Details öffnen', ''));
+    assert.equal(incomplete.batteryValues().rangeKm, null);
+    assert.throws(() => incomplete.chargingNavigationTarget('range'), rejects('target_unavailable'));
+    const duplicate = xml.replace(/<node [^>]*content-desc="Übersicht Reichweite\.[^"]*"[^>]*><\/node>/, '$&$&');
+    assert.throws(() => new Screen(duplicate).chargingNavigationTarget('range'), rejects('unknown_state'));
+});
+
+test('the charging status prefix does not expand the accepted range-detail format', () => {
+    const screen = new Screen(rangeScreen().replace('Übersicht Reichweite. Batteriereichweite:',
+        'Übersicht Reichweite. Lädt gerade. Batteriereichweite:'));
+    assert.equal(screen.kind(), 'range');
+    assert.deepEqual(screen.batteryValues(), { soc: 52, rangeKm: null });
+    assert.deepEqual(screen.chargingNavigationTarget('back'), POINTS.back);
+});
+
+test('charging card navigation rejects active flags, changed classes, IDs, labels or geometry', () => {
+    const xml = overviewChargingScreen({ charging: true });
+    for (const [marker, changes] of [
+        ['resource-id="rangeTile"', { enabled: 'false' }],
+        ['resource-id="rangeTile"', { clickable: 'true' }],
+        ['resource-id="rangeTile"', { text: 'Laden stoppen' }],
+        ['class="android.widget.Button"', { clickable: 'true' }],
+        ['class="android.widget.Button"', { checkable: 'true' }],
+        ['class="android.widget.Button"', { checked: 'true' }],
+        ['class="android.widget.Button"', { selected: 'true' }],
+        ['class="android.widget.Button"', { selected: 'unknown' }],
+        ['class="android.widget.Button"', { 'long-clickable': 'true' }],
+        ['class="android.widget.Button"', { scrollable: 'true' }],
+        ['class="android.widget.Button"', { enabled: 'false' }],
+        ['class="android.widget.Button"', { 'visible-to-user': 'false' }],
+        ['class="android.widget.Button"', { 'resource-id': 'chargingStop' }],
+        ['class="android.widget.Button"', { 'content-desc': 'Laden stoppen' }],
+        ['class="android.widget.Button"', { bounds: '[51,201][449,599]' }],
+        ['class="android.widget.Button"', { class: 'android.view.View' }],
+        ['content-desc="Übersicht Reichweite.', { class: 'android.widget.TextView' }],
+        ['content-desc="Übersicht Reichweite.', { text: 'Laden stoppen' }],
+        ['scrollable="true"', { enabled: 'false' }],
+        ['scrollable="true"', { clickable: 'true' }],
+    ]) {
+        assert.throws(() => new Screen(editNode(xml, marker, changes)).chargingNavigationTarget('range'),
+            rejects('target_unavailable'), JSON.stringify([marker, changes]));
+    }
+});
+
+test('charging card navigation rejects additional children, nested controls and out-of-scope labels', () => {
+    const xml = overviewChargingScreen({ charging: true });
+    for (const extra of [
+        node('', { bounds: '[50,200][450,600]' }),
+        node('', { text: 'Laden stoppen', clickable: 'true', bounds: '[80,300][420,500]' }),
+        node('', { 'visible-to-user': 'false', bounds: '[50,200][450,600]' }),
+    ]) {
+        const modified = xml.replace(/(<node [^>]*resource-id="rangeTile"[^>]*>)/, '$1' + extra);
+        assert.throws(() => new Screen(modified).chargingNavigationTarget('range'), rejects('target_unavailable'));
+    }
+    const outside = editNode(xml, 'content-desc="Übersicht Reichweite.', { bounds: '[0,0][49,199]' });
+    assert.throws(() => new Screen(outside).chargingNavigationTarget('range'), rejects('target_unavailable'));
+});
+
+test('charging card navigation never taps through overlapping controls or text, including disabled charging CTAs', () => {
+    const xml = overviewChargingScreen({ charging: true });
+    for (const attrs of [
+        { clickable: 'true' },
+        { text: 'Laden stoppen', enabled: 'false' },
+        { 'content-desc': 'Ladevorgang stoppen', enabled: 'false' },
+        { class: 'android.widget.Button' },
+        { text: 'Unbekannte Beschriftung' },
+    ]) {
+        const overlay = node('', { bounds: '[80,300][420,500]', ...attrs });
+        assert.throws(() => new Screen(xml.replace('</hierarchy>', overlay + '</hierarchy>')).chargingNavigationTarget('range'),
+            rejects('target_unavailable'));
+    }
+    const hidden = node('', { text: 'Laden stoppen', clickable: 'true', 'visible-to-user': 'false', bounds: '[80,300][420,500]' });
+    assert.deepEqual(new Screen(xml.replace('</hierarchy>', hidden + '</hierarchy>')).chargingNavigationTarget('range'), POINTS.range);
+    const foreign = node('', { package: 'foreign.app', clickable: 'true', bounds: '[80,300][420,500]' });
+    assert.throws(() => new Screen(xml.replace('</hierarchy>', foreign + '</hierarchy>')).chargingNavigationTarget('range'), rejects('blocked_ui'));
+    const dialog = node('', { class: 'android.app.Dialog', enabled: 'false', bounds: '[80,300][420,500]' });
+    assert.throws(() => new Screen(xml.replace('</hierarchy>', dialog + '</hierarchy>')).chargingNavigationTarget('range'), rejects('blocked_ui'));
+});
+
 test('range details read matching SOC and range, with a separate close target', () => {
     const screen = new Screen(rangeScreen());
     assert.equal(screen.kind(), 'range');
