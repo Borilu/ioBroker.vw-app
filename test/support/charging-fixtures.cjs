@@ -17,15 +17,16 @@ function node(id = '', attrs = {}, children = []) {
 }
 function hierarchy(children = []) { return '<hierarchy>' + children.join('') + '</hierarchy>'; }
 
-function overviewChargingScreen({ rangeKm = 205, lower = false, includeRange = true } = {}) {
+function overviewChargingScreen({ rangeKm = 205, lower = false, includeRange = true, charging = false } = {}) {
     const rangeBounds = lower ? '[50,100][450,150]' : '[50,200][450,600]';
     const climateBounds = lower ? '[550,100][950,150]' : '[550,200][950,600]';
+    const chargingFlags = charging ? { selected: 'false', checkable: 'false', checked: 'false' } : {};
     return hierarchy([node('composeView', { class: 'androidx.compose.ui.platform.ComposeView' }, [
         node('', { class: 'android.widget.ScrollView', scrollable: 'true', bounds: '[20,100][980,1300]' }, [
             node('', { 'content-desc': 'Ihr Fahrzeug: Testwagen. Gerade synchronisiert', bounds: '[50,100][950,150]' }),
-            ...(includeRange ? [node('rangeTile', { bounds: rangeBounds }, [
-                node('', { 'content-desc': `Übersicht Reichweite. Batteriereichweite: ${rangeKm} Kilometer. Details öffnen`, bounds: rangeBounds }),
-                node('', { class: 'android.widget.Button', bounds: rangeBounds }),
+            ...(includeRange ? [node('rangeTile', { bounds: rangeBounds, ...chargingFlags }, [
+                node('', { 'content-desc': `Übersicht Reichweite. ${charging ? 'Lädt gerade. ' : ''}Batteriereichweite: ${rangeKm} Kilometer. Details öffnen`, bounds: rangeBounds, ...chargingFlags }),
+                node('', { class: 'android.widget.Button', bounds: rangeBounds, ...chargingFlags }),
             ])] : []),
             node('climateTile', { bounds: climateBounds }, [
                 node('', { 'content-desc': 'Vorklimatisierung. Aus. Details öffnen', bounds: climateBounds }),
