@@ -1,6 +1,6 @@
 {
   "name": "iobroker.vw-app",
-  "version": "0.11.2",
+  "version": "0.11.3",
   "description": "Control the official Volkswagen Android app over Wi-Fi from ioBroker",
   "main": "main.js",
   "type": "commonjs",

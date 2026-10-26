@@ -1,8 +1,21 @@
 {
   "common": {
     "name": "vw-app",
-    "version": "0.11.2",
+    "version": "0.11.3",
     "news": {
+      "0.11.3": {
+        "en": "Improve battery and range reads during charging, including the range tile and SOC display; retain navigation checks.",
+        "de": "Auslesen während des Ladens verbessern: Reichweiten-Kachel und SOC-Anzeige unterstützen, Navigationsprüfungen beibehalten.",
+        "ru": "Улучшено чтение батареи и запаса хода во время зарядки, включая плитку запаса хода и отображение SOC; проверки навигации сохранены.",
+        "pt": "Melhora a leitura da bateria e autonomia durante a carga, incluindo o bloco de autonomia e a indicação SOC; mantém as verificações de navegação.",
+        "nl": "Verbetert het uitlezen van accu en bereik tijdens het laden, inclusief de actieradiustegel en SOC-weergave; behoudt navigatiecontroles.",
+        "fr": "Améliore la lecture de la batterie et de l’autonomie pendant la recharge, y compris la tuile d’autonomie et le SOC ; conserve les contrôles de navigation.",
+        "it": "Migliora la lettura di batteria e autonomia durante la ricarica, inclusi il riquadro autonomia e il SOC; mantiene i controlli di navigazione.",
+        "es": "Mejora la lectura de batería y autonomía durante la carga, incluida la tarjeta de autonomía y el SOC; conserva los controles de navegación.",
+        "pl": "Ulepsza odczyt baterii i zasięgu podczas ładowania, w tym kafelek zasięgu i wskaźnik SOC; zachowuje kontrole nawigacji.",
+        "uk": "Поліпшено читання батареї та запасу ходу під час заряджання, включно з плиткою запасу ходу й відображенням SOC; перевірки навігації збережено.",
+        "zh-cn": "改进充电期间的电池和续航读取，支持续航卡片和 SOC 显示，并保留导航检查。"
+      },
       "0.11.2": {
         "en": "Improve Admin translations, pairing-code protection declarations and repository-review metadata; retain vehicle controls and automatic reads.",
         "de": "Admin-Übersetzungen, Schutzdeklarationen für den Kopplungscode und Metadaten für die Verzeichnisprüfung verbessern; Fahrzeugbedienung und automatische Abfragen bleiben erhalten.",
@@ -80,19 +93,6 @@
         "pl": "Przygotowanie publikacji npm bez tokenu i z potwierdzeniem pochodzenia przez sprawdzany proces wydań GitHub; funkcje pojazdu pozostają bez zmian.",
         "uk": "Підготовлено публікацію в npm без токенів із підтвердженням походження через процес випуску GitHub із перевірками; функції автомобіля не змінено.",
         "zh-cn": "准备通过经检查的 GitHub 发布工作流进行无令牌 npm 发布并提供来源证明；车辆功能保持不变。"
-      },
-      "0.9.1": {
-        "en": "Update package metadata and Admin layout for npm distribution and ioBroker repository review.",
-        "de": "Paket-Metadaten und Admin-Darstellung für die npm-Veröffentlichung und Prüfung zur Aufnahme ins ioBroker-Verzeichnis aktualisieren.",
-        "ru": "Обновлены метаданные пакета и интерфейс Admin для публикации в npm и проверки для каталога ioBroker.",
-        "pt": "Atualiza os metadados do pacote e o layout do Admin para publicação no npm e análise no catálogo ioBroker.",
-        "nl": "Pakketmetadata en Admin-indeling bijgewerkt voor publicatie op npm en beoordeling voor het ioBroker-register.",
-        "fr": "Mise à jour des métadonnées du paquet et de la présentation Admin pour la publication npm et la revue du catalogue ioBroker.",
-        "it": "Aggiornati i metadati del pacchetto e il layout Admin per la pubblicazione npm e la revisione del catalogo ioBroker.",
-        "es": "Actualiza los metadatos del paquete y el diseño de Admin para la publicación en npm y la revisión del catálogo ioBroker.",
-        "pl": "Aktualizacja metadanych pakietu i układu Admin na potrzeby publikacji npm oraz przeglądu do katalogu ioBroker.",
-        "uk": "Оновлено метадані пакета та інтерфейс Admin для публікації в npm і перевірки для каталогу ioBroker.",
-        "zh-cn": "更新软件包元数据和 Admin 布局，为 npm 发布及 ioBroker 目录审核做准备。"
       }
     },
     "titleLang": {

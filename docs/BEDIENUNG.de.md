@@ -1,10 +1,10 @@
 # VW App in ioBroker bedienen
 
-Diese Anleitung beschreibt die Bedienung von **vw-app 0.11.1**: Klimatisierung, Ladeeinstellungen und Lademodi, Abfahrtszeiten, Ladeorte, Fahrzeugdaten sowie Verriegeln und Entriegeln. Die Datenpunktreferenz nennt alle vom Adapter angelegten Zustände einschließlich der dynamisch erzeugten Ladeorte und der Aktualitätsanzeigen.
+Diese Anleitung beschreibt die Bedienung von **vw-app 0.11.3**: Klimatisierung, Ladeeinstellungen und Lademodi, Abfahrtszeiten, Ladeorte, Fahrzeugdaten sowie Verriegeln und Entriegeln. Die Datenpunktreferenz nennt alle vom Adapter angelegten Zustände einschließlich der dynamisch erzeugten Ladeorte und der Aktualitätsanzeigen.
 
-**Stand: 25. Oktober 2026.** Für Installation und WLAN-Kopplung verwende die [bebilderte Installationsanleitung](INSTALLATION.de.md). Die [Einrichtungsreferenz](ADMIN-SETUP.md) erklärt zusätzlich die Adaptereinstellungen.
+**Stand: 26. Oktober 2026.** Für Installation und WLAN-Kopplung verwende die [bebilderte Installationsanleitung](INSTALLATION.de.md). Die [Einrichtungsreferenz](ADMIN-SETUP.md) erklärt zusätzlich die Adaptereinstellungen.
 
-[Bedienungsanleitung als PDF für 0.10.0](https://github.com/Borilu/ioBroker.vw-app/releases/download/v0.10.0/VW-App-Bedienungsanleitung.pdf). Dieses ältere PDF enthält die neuen Lademodi noch nicht. Die Erklärung der Befehlsknöpfe und der Lademodus-Bedienung ist hier online für 0.11.1 aktualisiert.
+[Bedienungsanleitung als PDF für 0.10.0](https://github.com/Borilu/ioBroker.vw-app/releases/download/v0.10.0/VW-App-Bedienungsanleitung.pdf). Dieses ältere PDF enthält die neuen Lademodi noch nicht. Die Erklärung der Befehlsknöpfe und der Lademodus-Bedienung ist hier online für 0.11.3 aktualisiert.
 
 ## 1 Datenpunkte finden und bedienen
 
@@ -94,6 +94,8 @@ Dieser Auftrag startet oder stoppt keine Klimatisierung. Die Zonen bestimmen zus
 Der Adapter betätigt den angebotenen **Speichern**-Knopf und öffnet die Einstellungen zur Kontrolle erneut. Die globale Ladegrenze unterstützt **50, 60, 70, 80, 90 und 100 %**. Zwischenwerte werden abgewiesen. Laut App gilt diese globale Grenze nicht an vordefinierten Ladeorten. Die Funktion **Optimierte Batterienutzung** erlaubt der App die Nutzung der Hochvoltbatterie für Fernbedienungsfunktionen; sie ist keine automatische 80-%-Ladebegrenzung.
 
 Diese vier Einstellungswünsche ändern keinen Lademodus. Dafür gibt es den folgenden eigenen Bedienablauf.
+
+Auch während eines laufenden Ladevorgangs werden Batterie, Reichweite und Ladeeinstellungen regelmäßig ausgelesen. Seit 0.11.3 erkennt der Adapter dafür die blaue Reichweiten-Kachel mit dem zusätzlichen Ladehinweis und das geänderte SOC-Textformat in der Lade-Detailansicht. Widersprüchliche Prozentwerte bleiben ungültig. Die Auslesung lässt den Ladevorgang unverändert. Unbekannte oder verdeckte Ansichten werden weiterhin abgewiesen; prüfe die Aktualitätsanzeigen und die Qualität der einzelnen Werte.
 
 ### Lademodus auswählen und ausdrücklich übernehmen
 
