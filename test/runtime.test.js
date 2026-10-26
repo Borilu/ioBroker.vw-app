@@ -120,6 +120,7 @@ test('server and clients use an owned loopback port, private HOME, and no shell'
             else process.env[name] = value;
         }
     });
+    const originalEnvironment = { ...process.env };
     const { runtime, calls, dataDir, binary, plans } = await fixture(t);
     await runtime.start();
     assert.deepEqual(runtime.readyInfo, { started: true, version: null });
@@ -129,7 +130,7 @@ test('server and clients use an owned loopback port, private HOME, and no shell'
     assert.deepEqual(server.args.slice(2), ['server', 'nodaemon']);
     assert.equal(server.settings.env.HOME, path.join(dataDir, 'adb-home'));
     assert.equal(server.settings.env.ANDROID_ADB_LOG_PATH, path.join(dataDir, 'adb-home', 'adb.log'));
-    for (const name of ['ADB_VENDOR_KEYS', 'ADB_SERVER_SOCKET', 'ANDROID_ADB_SERVER_PORT', 'ANDROID_SERIAL', 'ADB_TRACE', 'ANDROID_USER_HOME', 'ANDROID_SDK_HOME']) {
+    for (const name of ['ADB_VENDOR_KEYS', 'ADB_SERVER_SOCKET', 'ANDROID_ADB_SERVER_ADDRESS', 'ANDROID_ADB_SERVER_PORT', 'ANDROID_SERIAL', 'ADB_TRACE', 'ANDROID_USER_HOME', 'ANDROID_SDK_HOME']) {
         assert.equal(Object.hasOwn(server.settings.env, name), false);
     }
     plans.push({ stdout: 'device-result\n', stderr: 'ignored diagnostic' });
@@ -142,6 +143,10 @@ test('server and clients use an owned loopback port, private HOME, and no shell'
     assert.equal(process.env.HOME, beforeHome);
     assert.equal(process.env.ADB_VENDOR_KEYS, beforeVendorKeys);
     for (const [name] of inheritedHomes) assert.equal(process.env[name], '/unrelated-inherited-android-home');
+    assert.notEqual(server.settings.env, process.env);
+    assert.equal(Object.keys(process.env).length === Object.keys(originalEnvironment).length
+        && Object.entries(originalEnvironment).every(([name, value]) => process.env[name] === value), true,
+    'The runtime must not mutate the adapter environment.');
     await assert.rejects(runtime.install({ acceptLicense: true }), { code: 'runtime_busy' });
     await runtime.stop();
     assert.equal(server.child.signals[0], 'SIGTERM');
