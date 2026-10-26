@@ -59,7 +59,7 @@ function overviewChargingScreen({ rangeKm = 205, lower = false, includeRange = t
     ])]);
 }
 
-function rangeScreen({ soc = 52, rangeKm = 205 } = {}) {
+function rangeScreen({ soc = 52, rangeKm = 205, activeCharging = false } = {}) {
     return hierarchy([node('', {}, [
         node('', { bounds: '[0,600][1000,1400]' }, [
             node('', { clickable: 'true', bounds: '[30,630][130,730]' }, [
@@ -73,8 +73,10 @@ function rangeScreen({ soc = 52, rangeKm = 205 } = {}) {
                         node('rangeArcRangeAndUnit', { bounds: '[350,850][650,1000]' }),
                     ]),
                     node('', { bounds: '[100,1100][900,1230]' }, [
-                        node('rangeArcBatterySoc', { class: 'android.widget.TextView', text: `Batterie ${soc} %\u00a0•\u00a0Ladekabel verbinden`,
-                            'content-desc': `Ladestatus. Batterieladung: ${soc} Prozent. Ladekabel verbinden`, bounds: '[150,1120][850,1200]' }),
+                        node('rangeArcBatterySoc', { class: 'android.widget.TextView',
+                            text: activeCharging ? `${soc} %\u00a0•\u00a0Probe` : `Batterie ${soc} %\u00a0•\u00a0Ladekabel verbinden`,
+                            'content-desc': `Ladestatus. Batterieladung: ${soc} Prozent. ${activeCharging ? 'Lädt gerade' : 'Ladekabel verbinden'}`,
+                            bounds: '[150,1120][850,1200]' }),
                     ]),
                 ]),
             ]),
