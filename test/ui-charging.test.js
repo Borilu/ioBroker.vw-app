@@ -3,7 +3,9 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { Screen } = require('../lib/ui');
+const { extendedViewToXml } = require('../lib/accessibility-view');
 const { overviewChargingScreen, rangeScreen, chargingSettingsScreen, chargingFooterScreen, POINTS, node, hierarchy } = require('./support/charging-fixtures.cjs');
+const { nativeObservationFromXml } = require('./support/charging-mode-fixtures.cjs');
 const { completeDemoClimate } = require('./support/settings-fixtures.cjs');
 
 function rejects(code) { return error => error.code === code; }
@@ -16,6 +18,11 @@ function editNode(xml, marker, changes) {
         }
         return tag;
     });
+}
+
+function nativeChargingOverview() {
+    return extendedViewToXml(JSON.stringify(nativeObservationFromXml(
+        overviewChargingScreen({ charging: true, nativeHiddenRange: true }))));
 }
 
 test('battery overview reads range only and never invents SOC', () => {
@@ -37,6 +44,125 @@ test('the exact charging overview sentence reads range without inventing SOC and
         assert.throws(() => screen.chargingNavigationTarget('startCharging'), rejects('target_unavailable'));
         assert.throws(() => screen.chargingNavigationTarget('stopCharging'), rejects('target_unavailable'));
     }
+});
+
+test('native charging overview preserves the strict three visible nodes while accepting its bounded hidden branch', () => {
+    const screen = new Screen(nativeChargingOverview());
+    const tile = screen._unique('rangeTile');
+    assert.equal([...screen._descendants(tile)].length, 8);
+    assert.equal(screen._scopeNodes(tile).length, 3);
+    assert.equal(tile.children.length, 3);
+    assert.equal(tile.children[1].attrs['visible-to-user'], 'false');
+    assert.equal(tile.children[1].attrs.clickable, 'true');
+    assert.equal(tile.children[1].children[0].attrs['visible-to-user'], 'true');
+    assert.deepEqual(screen.batteryValues(), { soc: null, rangeKm: 205 });
+    assert.deepEqual(screen.chargingNavigationTarget('range'), POINTS.range);
+    const reordered = editNode(nativeChargingOverview(), 'a11y-path="0.0.0.1.1"', { 'a11y-actions': '[16,64,1]' });
+    assert.deepEqual(new Screen(reordered).chargingNavigationTarget('range'), POINTS.range);
+});
+
+test('native charging overview requires exact native paths and only the hidden root may expose CLICK', () => {
+    const xml = nativeChargingOverview();
+    for (const [marker, changes] of [
+        ['resource-id="rangeTile"', { 'a11y-path': '' }],
+        ['a11y-path="0.0.0.1.1"', { 'a11y-path': '0.0.0.1.2' }],
+        ['resource-id="synthetic_range_km"', { 'a11y-path': '' }],
+        ['a11y-path="0.0.0.1.1"', { 'a11y-actions': '[1,64]' }],
+        ['a11y-path="0.0.0.1.1"', { 'a11y-actions': '[16,16,64]' }],
+        ['a11y-path="0.0.0.1.1"', { 'a11y-actions': '[16,64,999]' }],
+        ['a11y-path="0.0.0.1.1"', { 'a11y-actions': 'invalid-json' }],
+        ['a11y-path="0.0.0.1.0"', { 'a11y-actions': '[16,64]' }],
+        ['resource-id="synthetic_range_km"', { 'a11y-actions': '[16,64]' }],
+        ['resource-id="synthetic_range_km"', { 'a11y-actions': '[32,64]' }],
+        ['resource-id="synthetic_range_km"', { 'a11y-actions': '[64,2097152]' }],
+        ['resource-id="synthetic_range_km"', { 'a11y-actions': '[64,256,512]' }],
+        ['resource-id="synthetic_range_km"', { 'a11y-actions': '[64,256,512,16908342]' }],
+    ]) {
+        assert.throws(() => new Screen(editNode(xml, marker, changes)).chargingNavigationTarget('range'),
+            rejects('target_unavailable'), JSON.stringify([marker, changes]));
+    }
+});
+
+test('native hidden charging branch rejects visibility, interaction, bounds and structural changes', () => {
+    const xml = nativeChargingOverview();
+    for (const [marker, changes] of [
+        ['a11y-path="0.0.0.1.1"', { 'visible-to-user': 'true' }],
+        ['a11y-path="0.0.0.1.1"', { 'visible-to-user': 'unknown' }],
+        ['a11y-path="0.0.0.1.1"', { clickable: 'false' }],
+        ['a11y-path="0.0.0.1.1"', { bounds: '[51,201][449,599]' }],
+        ['a11y-path="0.0.0.1.1.0"', { clickable: 'true' }],
+        ['a11y-path="0.0.0.1.1.0"', { 'visible-to-user': 'false' }],
+        ['a11y-path="0.0.0.1.1.0"', { class: 'android.widget.Button' }],
+        ['a11y-path="0.0.0.1.1.0"', { bounds: '[0,0][1000,1400]' }],
+        ['resource-id="synthetic_range_km"', { enabled: 'false' }],
+        ['resource-id="synthetic_range_km"', { checkable: 'true' }],
+        ['resource-id="synthetic_range_km"', { checked: 'true' }],
+        ['resource-id="synthetic_range_km"', { selected: 'true' }],
+        ['resource-id="synthetic_range_km"', { 'long-clickable': 'true' }],
+        ['resource-id="synthetic_range_km"', { scrollable: 'true' }],
+        ['resource-id="synthetic_range_km"', { class: 'android.widget.Button' }],
+        ['resource-id="synthetic_range_km"', { text: '' }],
+        ['resource-id="synthetic_range_km"', { 'resource-id': '' }],
+    ]) {
+        assert.throws(() => new Screen(editNode(xml, marker, changes)).chargingNavigationTarget('range'),
+            rejects('target_unavailable'), JSON.stringify([marker, changes]));
+    }
+    const extra = node('', { 'visible-to-user': 'false', bounds: '[100,250][200,300]' });
+    const added = xml.replace(/(<node [^>]*a11y-path="0\.0\.0\.1\.1\.0"[^>]*>)/, '$1' + extra);
+    assert.throws(() => new Screen(added).chargingNavigationTarget('range'), rejects('target_unavailable'));
+});
+
+test('native hidden leaves require matching kilometer text and the exact battery percentage identity and format', () => {
+    const xml = nativeChargingOverview();
+    for (const socText of ['Batterie 0%', 'Batterie 100%', 'Batterie 52 %', 'Batterie52 %', 'Batterie\u00a052\u00a0%']) {
+        const modified = editNode(xml, 'resource-id="electricSocText"', { text: socText });
+        const screen = new Screen(modified);
+        assert.deepEqual(screen.chargingNavigationTarget('range'), POINTS.range);
+        assert.deepEqual(screen.batteryValues(), { soc: null, rangeKm: 205 });
+    }
+    const validStaticName = editNode(xml, 'resource-id="synthetic_range_km"', { 'resource-id': 'metricLeafName123' });
+    assert.deepEqual(new Screen(validStaticName).chargingNavigationTarget('range'), POINTS.range);
+    const qualifiedSoc = editNode(xml, 'resource-id="electricSocText"', { 'resource-id': 'com.volkswagen.weconnect:id/electricSocText' });
+    assert.deepEqual(new Screen(qualifiedSoc).chargingNavigationTarget('range'), POINTS.range);
+    for (const [marker, changes] of [
+        ['resource-id="synthetic_range_km"', { class: 'unknown.TextView' }],
+        ['resource-id="synthetic_range_km"', { 'resource-id': 'foreign.app:id/range' }],
+        ['resource-id="synthetic_range_km"', { 'resource-id': 'not/a/static/id' }],
+        ['resource-id="synthetic_range_km"', { 'resource-id': 'electricSocText' }],
+        ['resource-id="synthetic_range_km"', { text: '206 km' }],
+        ['resource-id="synthetic_range_km"', { text: '205.5 km' }],
+        ['resource-id="synthetic_range_km"', { text: '0205 km' }],
+        ['resource-id="synthetic_range_km"', { text: '205 mi' }],
+        ['resource-id="synthetic_range_km"', { text: '205 km\n' }],
+        ['resource-id="electricSocText"', { class: 'unknown.TextView' }],
+        ['resource-id="electricSocText"', { 'resource-id': 'anotherSocText' }],
+        ['resource-id="electricSocText"', { text: 'Batterie 101%' }],
+        ['resource-id="electricSocText"', { text: 'Batterie -1%' }],
+        ['resource-id="electricSocText"', { text: 'Batterie 052%' }],
+        ['resource-id="electricSocText"', { text: '52%' }],
+        ['resource-id="electricSocText"', { text: 'Batterie 52% Stoppen' }],
+        ['resource-id="electricSocText"', { text: 'Batterie 52%\n' }],
+    ]) {
+        assert.throws(() => new Screen(editNode(xml, marker, changes)).chargingNavigationTarget('range'),
+            rejects('target_unavailable'), JSON.stringify([marker, changes]));
+    }
+});
+
+test('native hidden charging branch never permits CTA text or new descriptions despite its invisibility', () => {
+    const xml = nativeChargingOverview();
+    for (const text of ['Stop', 'Stoppen', 'Laden stoppen', 'Ladevorgang beenden', 'Jetzt laden',
+        'Laden starten', 'Pausieren', 'Fortsetzen', 'Abbrechen', 'Speichern', 'Jetzt synchronisieren']) {
+        assert.throws(() => new Screen(editNode(xml, 'resource-id="synthetic_range_km"', { text })).chargingNavigationTarget('range'),
+            rejects('target_unavailable'), text);
+    }
+    for (const marker of ['a11y-path="0.0.0.1.1"', 'a11y-path="0.0.0.1.1.0"', 'resource-id="synthetic_range_km"']) {
+        for (const attribute of ['content-desc', 'state-description']) {
+            assert.throws(() => new Screen(editNode(xml, marker, { [attribute]: 'Unknown hidden meaning' })).chargingNavigationTarget('range'),
+                rejects('target_unavailable'), marker + ':' + attribute);
+        }
+    }
+    const overlay = node('', { text: 'Laden stoppen', clickable: 'true', bounds: '[80,300][420,500]' });
+    assert.throws(() => new Screen(xml.replace('</hierarchy>', overlay + '</hierarchy>')).chargingNavigationTarget('range'), rejects('target_unavailable'));
 });
 
 test('charging overview accepts only the exact known status sentence, integer and kilometer unit', () => {
