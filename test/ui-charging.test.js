@@ -276,6 +276,50 @@ test('SOC text and accessibility description must agree', () => {
     assert.equal(new Screen(rangeScreen().replace('Ladestatus. Batterieladung:', 'Unbekannter Ladestatus:')).batteryValues().soc, null);
 });
 
+test('active range details read the unprefixed percentage only with the complete active charging description', () => {
+    for (const soc of [0, 52, 100]) {
+        const xml = rangeScreen({ soc, activeCharging: true });
+        for (const view of [xml, extendedViewToXml(JSON.stringify(nativeObservationFromXml(xml)))]) {
+            const screen = new Screen(view);
+            assert.equal(screen.kind(), 'range');
+            assert.deepEqual(screen.batteryValues(), { soc, rangeKm: 205 });
+            assert.deepEqual(screen.chargingNavigationTarget('back'), POINTS.back);
+        }
+    }
+    const xml = rangeScreen({ activeCharging: true });
+    for (const text of ['52 %', '52\u00a0%\u00a0•\u00a0Opaque status', '52 % • Arbitrary app status']) {
+        assert.equal(new Screen(editNode(xml, 'resource-id="rangeArcBatterySoc"', { text })).batteryValues().soc, 52);
+    }
+    const legacyText = 'Batterie 52 %\u00a0•\u00a0Ladekabel verbinden';
+    assert.equal(new Screen(editNode(xml, 'resource-id="rangeArcBatterySoc"', { text: legacyText })).batteryValues().soc, 52);
+});
+
+test('active range details reject disagreeing, out-of-bounds, partial and unanchored percentages', () => {
+    const xml = rangeScreen({ activeCharging: true });
+    for (const text of ['53 % • Probe', '101 % • Probe', '-1 % • Probe', '052 % • Probe',
+        '52.5 % • Probe', 'prefix 52 % • Probe', 'SOC 52 % • Probe', 'Probe • 52 %',
+        '52 % extra', '52 % • Probe\n', '52 %\n• Probe']) {
+        assert.throws(() => new Screen(editNode(xml, 'resource-id="rangeArcBatterySoc"', { text })).batteryValues(),
+            rejects('unknown_state'), text);
+    }
+    assert.throws(() => new Screen(rangeScreen({ soc: 101, activeCharging: true })).batteryValues(), rejects('unknown_state'));
+});
+
+test('unprefixed range percentages remain invalid without the exact active description', () => {
+    const xml = rangeScreen({ activeCharging: true });
+    for (const description of [
+        'Ladestatus. Batterieladung: 52 Prozent. Ladekabel verbinden',
+        'Ladestatus. Batterieladung: 52 Prozent. Lädt gerade.',
+        'Ladestatus. Batterieladung: 52 Prozent. Lädt gerade Extra',
+        'Ladestatus. Batterieladung: 52 Prozent. lädt gerade',
+    ]) {
+        assert.throws(() => new Screen(editNode(xml, 'resource-id="rangeArcBatterySoc"', { 'content-desc': description })).batteryValues(),
+            rejects('unknown_state'), description);
+    }
+    const unrelated = editNode(xml, 'resource-id="rangeArcBatterySoc"', { 'content-desc': 'Unbekannter Ladestatus' });
+    assert.equal(new Screen(unrelated).batteryValues().soc, null);
+});
+
 test('range values are scoped, unit-specific whole values', () => {
     const unrelated = node('', { 'content-desc': 'Übersicht Reichweite. Batteriereichweite: 999 Kilometer', bounds: '[0,0][50,50]' });
     assert.equal(new Screen(rangeScreen().replace('</hierarchy>', unrelated + '</hierarchy>')).batteryValues().rangeKm, 205);
