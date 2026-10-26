@@ -1,8 +1,21 @@
 {
   "common": {
     "name": "vw-app",
-    "version": "0.11.1",
+    "version": "0.11.2",
     "news": {
+      "0.11.2": {
+        "en": "Improve Admin translations, pairing-code protection declarations and repository-review metadata; retain vehicle controls and automatic reads.",
+        "de": "Admin-Übersetzungen, Schutzdeklarationen für den Kopplungscode und Metadaten für die Verzeichnisprüfung verbessern; Fahrzeugbedienung und automatische Abfragen bleiben erhalten.",
+        "ru": "Улучшены переводы Admin, объявления защиты кода сопряжения и метаданные проверки каталога; управление автомобилем и автоматическое чтение сохранены.",
+        "pt": "Melhora traduções do Admin, declarações de proteção do código de emparelhamento e metadados da revisão do catálogo; mantém os controles e leituras automáticas.",
+        "nl": "Verbetert Admin-vertalingen, beschermingsdeclaraties voor de koppelcode en metadata voor de registercontrole; voertuigbediening en automatisch uitlezen blijven behouden.",
+        "fr": "Améliore les traductions Admin, les déclarations de protection du code d’association et les métadonnées de revue du catalogue ; conserve les commandes et lectures automatiques.",
+        "it": "Migliora le traduzioni Admin, le dichiarazioni di protezione del codice di associazione e i metadati di revisione del catalogo; mantiene comandi e letture automatiche.",
+        "es": "Mejora las traducciones de Admin, las declaraciones de protección del código de emparejamiento y los metadatos de revisión del catálogo; conserva controles y lecturas automáticas.",
+        "pl": "Ulepsza tłumaczenia Admin, deklaracje ochrony kodu parowania i metadane przeglądu katalogu; zachowuje sterowanie pojazdem i automatyczne odczyty.",
+        "uk": "Поліпшено переклади Admin, декларації захисту коду сполучення й метадані перевірки каталогу; керування автомобілем та автоматичне читання збережено.",
+        "zh-cn": "改进 Admin 翻译、配对码保护声明和目录审核元数据；保留车辆控制和自动读取。"
+      },
       "0.11.1": {
         "en": "Recognize the empty charging-picker wrapper and wait for delayed app confirmation through bounded reads without repeating commands; retain all selection and overlay guards.",
         "de": "Leeren Wrapper der Lademodusauswahl erkennen und verzögerte App-Bestätigung begrenzt lesend abwarten, ohne Befehle zu wiederholen; Auswahl- und Überlagerungsprüfungen bleiben erhalten.",
@@ -80,19 +93,6 @@
         "pl": "Aktualizacja metadanych pakietu i układu Admin na potrzeby publikacji npm oraz przeglądu do katalogu ioBroker.",
         "uk": "Оновлено метадані пакета та інтерфейс Admin для публікації в npm і перевірки для каталогу ioBroker.",
         "zh-cn": "更新软件包元数据和 Admin 布局，为 npm 发布及 ioBroker 目录审核做准备。"
-      },
-      "0.9.0": {
-        "en": "Explicitly lock and unlock the selected vehicle through the app with a separate permission, encrypted S-PIN configuration, one-attempt authentication and observed lock-state confirmation.",
-        "de": "Das ausgewählte Fahrzeug ausdrücklich über die App ver- und entriegeln, mit eigener Freigabe, verschlüsselter S-PIN-Konfiguration, einmaliger Authentifizierung und Prüfung des App-Verriegelungszustands.",
-        "ru": "Явные команды запирания и отпирания выбранного автомобиля через приложение: отдельное разрешение, зашифрованный S-PIN, одна попытка аутентификации и проверка состояния замков в приложении.",
-        "pt": "Trave e destrave explicitamente o veículo selecionado pelo aplicativo, com permissão separada, S-PIN criptografado, uma única tentativa de autenticação e confirmação do estado exibido.",
-        "nl": "Vergrendel en ontgrendel het gekozen voertuig expliciet via de app, met aparte toestemming, versleutelde S-PIN, één authenticatiepoging en controle van de getoonde vergrendeling.",
-        "fr": "Verrouillage et déverrouillage explicites du véhicule sélectionné via l’application, avec autorisation distincte, S-PIN chiffré, une seule tentative d’authentification et vérification de l’état affiché.",
-        "it": "Blocca e sblocca esplicitamente il veicolo selezionato tramite l’app, con autorizzazione separata, S-PIN cifrato, un solo tentativo di autenticazione e verifica dello stato mostrato.",
-        "es": "Bloquea y desbloquea expresamente el vehículo seleccionado mediante la aplicación, con permiso independiente, S-PIN cifrado, un solo intento de autenticación y comprobación del estado mostrado.",
-        "pl": "Jawne polecenia zamykania i otwierania wybranego pojazdu w aplikacji: osobne zezwolenie, zaszyfrowany S-PIN, jedna próba uwierzytelnienia i kontrola stanu zamków w aplikacji.",
-        "uk": "Явні команди замикання та відмикання вибраного автомобіля через застосунок: окремий дозвіл, зашифрований S-PIN, одна спроба автентифікації та перевірка стану замків у застосунку.",
-        "zh-cn": "通过应用明确锁定和解锁选定车辆，使用独立授权、加密的 S-PIN 配置、单次身份验证及应用锁定状态确认。"
       }
     },
     "titleLang": {
@@ -167,10 +167,12 @@
     }
   },
   "encryptedNative": [
-    "sPin"
+    "sPin",
+    "_pairCode"
   ],
   "protectedNative": [
-    "sPin"
+    "sPin",
+    "_pairCode"
   ],
   "native": {
     "hostIp": "",
