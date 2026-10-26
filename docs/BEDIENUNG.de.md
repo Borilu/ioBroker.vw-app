@@ -95,7 +95,7 @@ Der Adapter betätigt den angebotenen **Speichern**-Knopf und öffnet die Einste
 
 Diese vier Einstellungswünsche ändern keinen Lademodus. Dafür gibt es den folgenden eigenen Bedienablauf.
 
-Auch während eines laufenden Ladevorgangs werden Batterie, Reichweite und Ladeeinstellungen regelmäßig ausgelesen. Seit 0.11.3 erkennt der Adapter dafür die blaue Reichweiten-Kachel mit dem zusätzlichen Ladehinweis. Die Auslesung lässt den Ladevorgang unverändert. Unbekannte oder verdeckte Ansichten werden weiterhin abgewiesen; prüfe die Aktualitätsanzeigen und die Qualität der einzelnen Werte.
+Auch während eines laufenden Ladevorgangs werden Batterie, Reichweite und Ladeeinstellungen regelmäßig ausgelesen. Seit 0.11.3 erkennt der Adapter dafür die blaue Reichweiten-Kachel mit dem zusätzlichen Ladehinweis und das geänderte SOC-Textformat in der Lade-Detailansicht. Widersprüchliche Prozentwerte bleiben ungültig. Die Auslesung lässt den Ladevorgang unverändert. Unbekannte oder verdeckte Ansichten werden weiterhin abgewiesen; prüfe die Aktualitätsanzeigen und die Qualität der einzelnen Werte.
 
 ### Lademodus auswählen und ausdrücklich übernehmen
 
