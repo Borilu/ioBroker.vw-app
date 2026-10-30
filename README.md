@@ -468,6 +468,10 @@ The tag triggers `.github/workflows/test-and-release.yml`. Package, lint and Lin
 
 ## Changelog
 
+### 0.11.4 (2026-10-26)
+
+- Support the additional native battery-status wrapper in the active-charging overview while preserving the visible navigation card and action guards.
+
 ### 0.11.3 (2026-10-26)
 
 - Recognize the explicit active-charging range summary on the vehicle overview, so regular battery and charging reads can reach their existing detail view.
