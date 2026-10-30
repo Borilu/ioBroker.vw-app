@@ -327,6 +327,51 @@ test('active range details reject disagreeing, out-of-bounds, partial and unanch
     assert.throws(() => new Screen(rangeScreen({ soc: 101, activeCharging: true })).batteryValues(), rejects('unknown_state'));
 });
 
+test('maintenance charging reads a matching percentage from the confirmed status layout', () => {
+    for (const soc of [0, 42, 100]) {
+        const xml = editNode(rangeScreen({ soc, activeCharging: true }), 'resource-id="rangeArcBatterySoc"', {
+            text: `${soc} %\u00a0•\u00a0Erhaltungsladen`,
+            'content-desc': `Ladestatus. Batterieladung: ${soc} Prozent. Erhaltungsladen`,
+        });
+        for (const view of [xml, extendedViewToXml(JSON.stringify(nativeObservationFromXml(xml)))]) {
+            const screen = new Screen(view);
+            assert.equal(screen.kind(), 'range');
+            assert.deepEqual(screen.batteryValues(), { soc, rangeKm: 205 });
+            assert.deepEqual(screen.chargingNavigationTarget('back'), POINTS.back);
+        }
+    }
+});
+
+test('maintenance charging rejects inconsistent or unsupported status text and percentages', () => {
+    const marker = 'resource-id="rangeArcBatterySoc"';
+    const xml = editNode(rangeScreen({ activeCharging: true }), marker, {
+        text: '52 % • Erhaltungsladen',
+        'content-desc': 'Ladestatus. Batterieladung: 52 Prozent. Erhaltungsladen',
+    });
+    for (const text of ['Batterie 52 %', 'Batterie 52 % • Erhaltungsladen']) {
+        assert.equal(new Screen(editNode(xml, marker, { text })).batteryValues().soc, 52);
+    }
+    for (const text of ['53 % • Erhaltungsladen', '101 % • Erhaltungsladen', '-1 % • Erhaltungsladen',
+        '052 % • Erhaltungsladen', '52.5 % • Erhaltungsladen', '52 %', '52 % • Erhaltungsladen Extra',
+        '52 % • erhaltungsladen', '52 % • Erhaltungsladen\n', '52 %\n• Erhaltungsladen',
+        'Batterie 52 % • Lädt gerade', 'Batterie 52 % • Erhaltungsladen Extra']) {
+        const edited = editNode(xml, marker, { text });
+        for (const view of [edited, extendedViewToXml(JSON.stringify(nativeObservationFromXml(edited)))]) {
+            assert.throws(() => new Screen(view).batteryValues(), rejects('unknown_state'), text);
+        }
+    }
+    for (const description of ['Ladestatus. Batterieladung: 53 Prozent. Erhaltungsladen',
+        'Ladestatus. Batterieladung: 101 Prozent. Erhaltungsladen',
+        'Ladestatus. Batterieladung: 52 Prozent. Erhaltungsladen Extra',
+        'Ladestatus. Batterieladung: 52 Prozent. erhaltungsladen',
+        'Ladestatus. Batterieladung: 52 Prozent. Erhaltungsladen.']) {
+        assert.throws(() => new Screen(editNode(xml, marker, { 'content-desc': description })).batteryValues(),
+            rejects('unknown_state'), description);
+    }
+    const duplicate = node('rangeArcBatterySoc', { class: 'android.widget.TextView', bounds: '[0,0][50,50]' });
+    assert.throws(() => new Screen(xml.replace('</hierarchy>', duplicate + '</hierarchy>')).batteryValues(), rejects('unknown_state'));
+});
+
 test('unprefixed range percentages remain invalid without the exact active description', () => {
     const xml = rangeScreen({ activeCharging: true });
     for (const description of [
