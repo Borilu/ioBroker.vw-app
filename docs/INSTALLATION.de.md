@@ -2,7 +2,7 @@
 
 Mit `vw-app` bedient ioBroker die offizielle Volkswagen-App auf einem Android-Handy. Das Handy bleibt zu Hause im WLAN und am Ladegerät. Die Anmeldung bei Volkswagen erfolgt auf dem Handy.
 
-**Stand: 25. Oktober 2026, Adapter 0.11.1.** Die Installation aus GitHub ist bereits möglich. Die Aufnahme in die normale ioBroker-Adapterliste ist beantragt und noch nicht freigegeben.
+**Stand der Einrichtungsschritte: Adapter 0.11.1.** Die Installation aus GitHub ist bereits möglich. Die Aufnahme in die normale ioBroker-Adapterliste ist beantragt und noch nicht freigegeben. Hinweise zur automatischen Porterkennung unten beziehen sich auf den aktuellen Quellstand; die fest verlinkte ältere Version 0.11.1 enthält sie noch nicht.
 
 [Einrichtungsanleitung als PDF herunterladen](https://github.com/Borilu/ioBroker.vw-app/releases/download/v0.9.2/VW-App-Installation-und-Kopplung.pdf) (PDF für 0.9.2, gleicher Kopplungsablauf) · [Projekt auf GitHub](https://github.com/Borilu/ioBroker.vw-app)
 
@@ -110,7 +110,7 @@ Der Kopplungscode wird nicht dauerhaft als Adaptereinstellung gespeichert. Leere
 2. Klicke in den Adaptereinstellungen auf **Beim Laden wachhalten jetzt aktivieren**.
 3. Aktiviere zusätzlich **Handy bei Verbindung am Ladekabel wachhalten** und speichere.
 
-Das Display bleibt damit beim Laden eingeschaltet. Nach einem Neustart oder einer manuell aktivierten Bildschirmsperre musst du das Handy weiterhin selbst entsperren.
+Das Display bleibt damit beim Laden eingeschaltet. Nach einem Neustart oder einer manuell aktivierten Bildschirmsperre musst du das Handy weiterhin selbst entsperren. Das Wachhalten garantiert nicht, dass drahtloses Debugging dauerhaft eingeschaltet bleibt.
 
 ## 6 Die Volkswagen-App und das Fahrzeug übernehmen
 
@@ -149,14 +149,16 @@ Eine unklare Befehlsrückmeldung ist kein Anlass, den Befehl wiederholt zu drüc
 
 **Volkswagen-App aktualisiert:** Öffne die Fahrzeugübersicht und führe **App und Fahrzeug übernehmen** erneut aus. Geänderte Ansichten können eine Anpassung des Adapters erfordern.
 
+**Verbindungsport geändert:** Im aktuellen Quellstand kann der Adapter bei Verbindungsausfall den neuen Port für das bereits identifizierte Handy an der eingestellten IP-Adresse automatisch suchen. Falls die übliche Netzwerkerkennung keinen Port findet, kann er das Handy zusätzlich direkt abfragen, wenn dies unterstützt wird und die Antwort die nötigen Dienst- und Adressinformationen enthält. Er durchsucht keine anderen Geräte im Heimnetz. Er prüft die Gerätekennung und speichert den gefundenen Port nur vorübergehend im laufenden Adapter. Falls die Suche im eigenen Netz nicht funktioniert, den Port wie bei der Einrichtung auf der Hauptseite von **Drahtloses Debugging** ablesen, im Adapter eintragen und speichern. Das Handy muss weiterhin gekoppelt, entsperrt und im WLAN erreichbar sein. Android kann das drahtlose Debugging selbst ausschalten; dann musst du es am Handy wieder einschalten.
+
 | Problem | Was du prüfen solltest |
 | --- | --- |
 | vw-app fehlt in der Adapterliste | Bis zur Verzeichnisfreigabe den GitHub-Weg aus Schritt 1 verwenden. |
 | Einrichtungsschaltflächen antworten nicht | Läuft die Instanz? Dauerhafte Einstellungen speichern und den Neustart abwarten. |
 | Kopplung schlägt fehl | Kopplungscode-Dialog offen halten; aktuellen Code und dessen Kopplungsport verwenden. |
 | Gekoppelt, aber keine Verbindung | Den anderen Port von der Hauptseite übernehmen, speichern und die Verbindung prüfen. |
-| Nach Handyneustart keine Verbindung | Handy entsperren und aktuellen Verbindungsport prüfen. Er kann sich ändern. Nur bei verlorener Kopplung erneut koppeln. |
-| Handy ist im WLAN, aber unerreichbar | Gast-WLAN, Geräteisolation, VM-Netz und Firewall prüfen. Keine Portfreigabe ins Internet einrichten. |
+| Nach Handyneustart keine Verbindung | Handy entsperren, drahtloses Debugging einschalten und den aktuellen Verbindungsport prüfen. Bei fehlgeschlagener automatischer Suche den Port in den Adaptereinstellungen aktualisieren. Nur bei verlorener Kopplung erneut koppeln. |
+| Handy ist im WLAN, aber unerreichbar | Gast-WLAN, Geräteisolation, VM-Netz und Firewall prüfen. mDNS oder die direkte Abfrage können durch Netzfilter ausfallen, beispielsweise in VM- oder Container-Netzen. Keine Portfreigabe ins Internet einrichten. |
 | App lässt sich nicht auslesen | Handy entsperren, Fahrzeugübersicht öffnen, offene Dialoge schließen und App/Fahrzeug erneut übernehmen. |
 | Display wird dunkel | Ladegerät angeschlossen? Wachhalten aus Schritt 5 aktiviert? Eine Bildschirmsperre selbst entsperren. |
 | Werte ändern sich verzögert | Die App kann ältere Fahrzeugdaten anzeigen; zusätzlich benötigt der vollständige Adapter-Rundlauf Zeit. |
