@@ -25,6 +25,28 @@ function nativeChargingOverview() {
         overviewChargingScreen({ charging: true, nativeHiddenRange: true }))));
 }
 
+test('the second observed native layout permits only its bounded SOC wrapper and one display percentage', () => {
+    const xml = extendedViewToXml(JSON.stringify(nativeObservationFromXml(
+        overviewChargingScreen({ charging: true, nativeHiddenRange: true, wrappedSoc: true }))));
+    const screen = new Screen(xml);
+    assert.deepEqual(screen.chargingNavigationTarget('range'), POINTS.range);
+    assert.deepEqual(screen.batteryValues(), { soc: null, rangeKm: 205 });
+    for (const text of ['Ladestand 101 %', 'Ladestand -1 %', 'Ladestand 052 %', 'Ladestand 52.5 %',
+        '52 % 53 %', 'Ohne Prozent', '52 % Stoppen', '52 %\nProbe', '52 % <Probe>']) {
+        assert.throws(() => new Screen(editNode(xml, 'a11y-path="0.0.0.1.1.0.1.0"', { text })).chargingNavigationTarget('range'),
+            rejects('target_unavailable'), text);
+    }
+    for (const [marker, changes] of [
+        ['resource-id="electricSocText"', { 'a11y-actions': '[16,64]' }],
+        ['resource-id="electricSocText"', { 'resource-id': 'anotherWrapper' }],
+        ['a11y-path="0.0.0.1.1.0.1.0"', { 'a11y-actions': '[16,64,256,512,131072]' }],
+        ['a11y-path="0.0.0.1.1.0.1.0"', { 'content-desc': 'Laden stoppen' }],
+        ['a11y-path="0.0.0.1.1"', { 'visible-to-user': 'true' }],
+    ]) assert.throws(() => new Screen(editNode(xml, marker, changes)).chargingNavigationTarget('range'), rejects('target_unavailable'));
+    const overlay = node('', { text: 'Laden stoppen', clickable: 'true', bounds: '[80,300][420,500]' });
+    assert.throws(() => new Screen(xml.replace('</hierarchy>', overlay + '</hierarchy>')).chargingNavigationTarget('range'), rejects('target_unavailable'));
+});
+
 test('battery overview reads range only and never invents SOC', () => {
     const screen = new Screen(overviewChargingScreen());
     assert.equal(screen.kind(), 'overview');
