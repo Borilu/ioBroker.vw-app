@@ -4,17 +4,17 @@
     "version": "0.11.4",
     "news": {
       "0.11.4": {
-        "en": "Support the additional charging overview layout and read the battery percentage during maintenance charging; retain navigation checks.",
-        "de": "Zusätzliche Ladeübersicht unterstützen und den Batterieprozentsatz bei Erhaltungsladen lesen; Navigationsprüfungen beibehalten.",
-        "ru": "Поддержка дополнительного вида обзора зарядки и чтение процента батареи при поддерживающей зарядке; проверки навигации сохранены.",
-        "pt": "Suporta o layout adicional da visão de carga e lê a percentagem da bateria na carga de manutenção; mantém as verificações de navegação.",
-        "nl": "Ondersteunt de extra laadweergave en leest het accupercentage bij onderhoudsladen; navigatiecontroles blijven behouden.",
-        "fr": "Prend en charge la vue de recharge supplémentaire et lit le pourcentage de batterie pendant la charge de maintien ; conserve les contrôles de navigation.",
-        "it": "Supporta la vista di ricarica aggiuntiva e legge la percentuale della batteria durante la carica di mantenimento; mantiene i controlli di navigazione.",
-        "es": "Admite la vista adicional de carga y lee el porcentaje de batería durante la carga de mantenimiento; conserva los controles de navegación.",
-        "pl": "Obsługuje dodatkowy widok ładowania i odczytuje procent baterii podczas ładowania podtrzymującego; zachowuje kontrole nawigacji.",
-        "uk": "Підтримка додаткового вигляду огляду заряджання та читання відсотка батареї під час підтримувального заряджання; перевірки навігації збережено.",
-        "zh-cn": "支持额外的充电概览布局，并在维护充电时读取电池百分比；保留导航检查。"
+        "en": "Support the additional charging overview and maintenance-charging percentage; read the visible mode when its control is disabled.",
+        "de": "Zusätzliche Ladeübersicht und Batterieprozentsatz bei Erhaltungsladen unterstützen; sichtbaren Modus auch bei deaktivierter Auswahl lesen.",
+        "ru": "Поддержка дополнительного обзора и процента батареи при поддерживающей зарядке; чтение видимого режима при отключённом элементе выбора.",
+        "pt": "Suporta a visão adicional de carga e a percentagem na carga de manutenção; lê o modo visível quando a seleção está desativada.",
+        "nl": "Ondersteunt de extra laadweergave en het accupercentage bij onderhoudsladen; leest de zichtbare modus bij uitgeschakelde selectie.",
+        "fr": "Prend en charge la vue supplémentaire et le pourcentage pendant la charge de maintien ; lit le mode visible quand la sélection est désactivée.",
+        "it": "Supporta la vista aggiuntiva e la percentuale durante la carica di mantenimento; legge il modo visibile quando la selezione è disabilitata.",
+        "es": "Admite la vista adicional y el porcentaje durante la carga de mantenimiento; lee el modo visible cuando la selección está desactivada.",
+        "pl": "Obsługuje dodatkowy widok i procent baterii podczas ładowania podtrzymującego; odczytuje widoczny tryb przy wyłączonym wyborze.",
+        "uk": "Підтримка додаткового огляду й відсотка батареї під час підтримувального заряджання; читання видимого режиму при вимкненому виборі.",
+        "zh-cn": "支持额外充电概览和维护充电时的电池百分比；选择控件禁用时仍读取可见模式。"
       },
       "0.11.3": {
         "en": "Improve battery and range reads during charging, including the range tile and SOC display; retain navigation checks.",
