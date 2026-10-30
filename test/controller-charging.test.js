@@ -43,7 +43,7 @@ class ChargingApp {
         if(this.beforeDump)await this.beforeDump();
         if(this.page==='overview')return overviewChargingScreen({rangeKm:this.rangeKm,lower:this.lower}).replace('Ihr Fahrzeug: Testwagen.',this.wrongVehicle?'Ihr Fahrzeug: Anderes Auto.':'Ihr Fahrzeug: Testwagen.');
         if(this.page==='range') {
-            if(this.mode !== undefined)return rangeModeScreen({mode:this.mode,...(this.unreadableMode?{description:'Ladeverfahren. Unbekannt. Ladeverfahren ändern'}:{})});
+            if(this.mode !== undefined)return rangeModeScreen({mode:this.mode,enabled:!this.disabledMode,...(this.unreadableMode?{description:'Ladeverfahren. Unbekannt. Ladeverfahren ändern'}:{})});
             const view=rangeScreen({soc:this.soc,rangeKm:this.rangeKm});
             return this.missingDetailRange ? view.replace('Übersicht Reichweite. Batteriereichweite: '+this.rangeKm+' Kilometer','Unbekannte Reichweitenanzeige') : view;
         }
@@ -372,6 +372,25 @@ test('an unreadable mode still permits battery observations but blocks mode appl
     const write=setup({mode:'departure',unreadableMode:true});
     await rejects(write.controller.execute('applyChargingMode',{targetChargingMode:'immediate'}),'charging_mode_unavailable');
     assert.equal(write.phone.modeTaps||0,0);assert.equal(write.store.reservations,0);
+});
+
+test('a disabled mode remains a timestamped observation but cannot open the selector',async()=>{
+    const read=setup({mode:'departure',disabledMode:true});
+    const result=await read.controller.execute('chargingStatus');
+    assert.equal(result.charging.mode,'departure');assert.equal(result.modeObservedAt,result.observedAt);
+    assert.equal(result.changed,false);assert.equal(read.phone.modeTaps||0,0);noCtas(read.phone,read.store);
+    const same=setup({mode:'departure',disabledMode:true});
+    const unchanged=await same.controller.execute('applyChargingMode',{targetChargingMode:'departure'});
+    assert.equal(unchanged.charging.mode,'departure');assert.equal(unchanged.changed,false);
+    assert.ok(!same.phone.calls.some(c=>c[0]==='tap'&&c[1]==='range'&&c[2]===MODE_POINTS.open.x&&c[3]===MODE_POINTS.open.y));
+    assert.equal(same.phone.modeTaps||0,0);noCtas(same.phone,same.store);
+    for(const dryRun of [false,true]){
+        const write=setup({mode:'departure',disabledMode:true});
+        await rejects(write.controller.execute('applyChargingMode',{targetChargingMode:'immediate',dryRun}),'target_unavailable');
+        assert.equal(write.phone.modeTaps||0,0);assert.equal(write.store.reservations,0);
+        assert.ok(!write.phone.calls.some(c=>c[0]==='tap'&&c[1]==='range'&&c[2]===MODE_POINTS.open.x&&c[3]===MODE_POINTS.open.y));
+        noCtas(write.phone,write.store);
+    }
 });
 
 test('vehicle or approved-version mismatches prevent a mode selection and reservation',async()=>{

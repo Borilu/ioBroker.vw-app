@@ -3,7 +3,8 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { Screen } = require('../lib/ui');
-const { rangeModeScreen, chargingModeScreen, MODE_LABELS, MODE_POINTS } = require('./support/charging-mode-fixtures.cjs');
+const { extendedViewToXml } = require('../lib/accessibility-view');
+const { rangeModeScreen, chargingModeScreen, nativeObservationFromXml, MODE_LABELS, MODE_POINTS } = require('./support/charging-mode-fixtures.cjs');
 const { rangeScreen, overviewChargingScreen, node } = require('./support/charging-fixtures.cjs');
 
 const rejectedTarget = error => error.code === 'target_unavailable';
@@ -51,8 +52,7 @@ test('mode summary is scoped to range and rejects ambiguous labels even if they 
 
 test('mode navigation uses the fresh enabled clickable summary parent, never the charging start CTA', () => {
     const xml = rangeModeScreen();
-    for (const changed of [rangeModeScreen({ enabled: false }),
-        editNode(xml, 'bounds="[50,1120][950,1220]"', 'clickable', 'false'),
+    for (const changed of [editNode(xml, 'bounds="[50,1120][950,1220]"', 'clickable', 'false'),
         editNode(xml, 'content-desc="Ladeverfahren.', 'visible-to-user', 'false'),
         editNode(xml, 'content-desc="Ladeverfahren.', 'package', 'foreign.app'),
         editNode(xml, 'content-desc="Ladeverfahren.', 'class', 'android.widget.TextView')]) {
@@ -61,6 +61,36 @@ test('mode navigation uses the fresh enabled clickable summary parent, never the
         assert.throws(() => screen.chargingModeNavigationTarget(), error => ['target_unavailable', 'blocked_ui'].includes(error.code));
     }
     assert.throws(() => new Screen(xml).chargingNavigationTarget('start'), rejectedTarget);
+});
+
+test('disabled mode descriptions remain readable but never provide a navigation target', () => {
+    for (const mode of Object.keys(MODE_LABELS)) {
+        const xml = rangeModeScreen({ mode, enabled: false });
+        for (const view of [xml, extendedViewToXml(JSON.stringify(nativeObservationFromXml(xml)))]) {
+            const screen = new Screen(view);
+            assert.equal(screen.chargingModeValue(), mode);
+            assert.deepEqual(screen.batteryValues(), { soc: 52, rangeKm: 205 });
+            assert.throws(() => screen.chargingModeNavigationTarget(), rejectedTarget);
+        }
+    }
+    const disabledLabel = editNode(rangeModeScreen(), 'content-desc="Ladeverfahren.', 'enabled', 'false');
+    const screen = new Screen(disabledLabel);
+    assert.equal(screen.chargingModeValue(), 'departureClimate');
+    assert.throws(() => screen.chargingModeNavigationTarget(), rejectedTarget);
+});
+
+test('missing or malformed enabled metadata never becomes a known mode', () => {
+    for (const enabled of ['', 'unknown', 'True']) {
+        const xml = editNode(rangeModeScreen(), 'content-desc="Ladeverfahren.', 'enabled', enabled);
+        const screen = new Screen(xml);
+        assert.equal(screen.chargingModeValue(), null);
+        assert.throws(() => screen.chargingModeNavigationTarget(), rejectedTarget);
+    }
+    const missing = rangeModeScreen().replace(/<node [^>]*>/g, tag => tag.includes('content-desc="Ladeverfahren.')
+        ? tag.replace(' enabled="true"', '') : tag);
+    const screen = new Screen(missing);
+    assert.equal(screen.chargingModeValue(), null);
+    assert.throws(() => screen.chargingModeNavigationTarget(), rejectedTarget);
 });
 
 test('mode navigation refuses a foreign overlay', () => {
