@@ -1,8 +1,21 @@
 {
   "common": {
     "name": "vw-app",
-    "version": "0.11.4",
+    "version": "0.11.5",
     "news": {
+      "0.11.5": {
+        "en": "Find a changed Android connection port using mDNS or a direct query to the configured phone, with identity verification before use.",
+        "de": "Geänderten Android-Verbindungsport per mDNS oder direkter Abfrage des eingestellten Handys finden und Gerätekennung vor der Verwendung prüfen.",
+        "ru": "Поиск изменённого порта Android через mDNS или прямой запрос к настроенному телефону с проверкой устройства перед использованием.",
+        "pt": "Localiza a porta Android alterada por mDNS ou consulta direta ao telefone configurado, verificando a identidade antes do uso.",
+        "nl": "Zoekt een gewijzigde Android-verbindingspoort via mDNS of een directe aanvraag aan de ingestelde telefoon en controleert de identiteit voor gebruik.",
+        "fr": "Recherche le port Android modifié par mDNS ou par requête directe au téléphone configuré, avec vérification de son identité avant utilisation.",
+        "it": "Trova la porta Android modificata tramite mDNS o richiesta diretta al telefono configurato e ne verifica l’identità prima dell’uso.",
+        "es": "Busca el puerto Android cambiado mediante mDNS o una consulta directa al teléfono configurado y verifica su identidad antes de usarlo.",
+        "pl": "Wyszukuje zmieniony port Android przez mDNS lub bezpośrednie zapytanie do skonfigurowanego telefonu i sprawdza jego tożsamość przed użyciem.",
+        "uk": "Пошук зміненого порту Android через mDNS або прямий запит до налаштованого телефона з перевіркою пристрою перед використанням.",
+        "zh-cn": "通过 mDNS 或直接查询已配置的手机查找更改后的 Android 连接端口，并在使用前验证设备身份。"
+      },
       "0.11.4": {
         "en": "Support the additional charging overview and maintenance-charging percentage; read the visible mode when its control is disabled.",
         "de": "Zusätzliche Ladeübersicht und Batterieprozentsatz bei Erhaltungsladen unterstützen; sichtbaren Modus auch bei deaktivierter Auswahl lesen.",
