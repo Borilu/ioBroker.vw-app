@@ -17,7 +17,7 @@ function node(id = '', attrs = {}, children = []) {
 }
 function hierarchy(children = []) { return '<hierarchy>' + children.join('') + '</hierarchy>'; }
 
-function overviewChargingScreen({ rangeKm = 205, lower = false, includeRange = true, charging = false, nativeHiddenRange = false } = {}) {
+function overviewChargingScreen({ rangeKm = 205, lower = false, includeRange = true, charging = false, nativeHiddenRange = false, wrappedSoc = false } = {}) {
     const rangeBounds = lower ? '[50,100][450,150]' : '[50,200][450,600]';
     const climateBounds = lower ? '[550,100][950,150]' : '[550,200][950,600]';
     const chargingFlags = charging ? { selected: 'false', checkable: 'false', checked: 'false' } : {};
@@ -32,10 +32,13 @@ function overviewChargingScreen({ rangeKm = 205, lower = false, includeRange = t
         (top + Math.floor((bottom - top) * y2)) + ']';
     const hiddenBranch = native ? node('', { bounds: rangeBounds, clickable: 'true', ...hiddenAttrs('.1', [1, 64, 16]) }, [
         node('', { bounds: box(.12, .12, .88, .88), ...hiddenAttrs('.1.0', [64]) }, [
-            node('', { bounds: box(.72, .12, .88, .28), ...hiddenAttrs('.1.0.0', [64]) }),
+            ...(!wrappedSoc ? [node('', { bounds: box(.72, .12, .88, .28), ...hiddenAttrs('.1.0.0', [64]) })] : []),
             node('synthetic_range_km', { class: 'android.widget.TextView', text: rangeKm + ' km',
-                bounds: box(.12, .46, .68, .72), ...hiddenAttrs('.1.0.1', [256, 512, 64, 131072]) }),
-            node('electricSocText', { class: 'android.widget.TextView', text: 'Batterie 52%',
+                bounds: box(.12, .46, .68, .72), ...hiddenAttrs(wrappedSoc ? '.1.0.0' : '.1.0.1', [256, 512, 64, 131072]) }),
+            wrappedSoc ? node('electricSocText', { bounds: box(.12, .77, .68, .88), ...hiddenAttrs('.1.0.1', [64]) }, [
+                node('', { class: 'android.widget.TextView', text: 'Ladestand 100 % • Probe', bounds: box(.12, .77, .68, .88),
+                    ...hiddenAttrs('.1.0.1.0', [256, 512, 64, 131072]) }),
+            ]) : node('electricSocText', { class: 'android.widget.TextView', text: 'Batterie 52%',
                 bounds: box(.12, .77, .68, .88), ...hiddenAttrs('.1.0.2', [256, 512, 64, 131072]) }),
         ]),
     ]) : null;

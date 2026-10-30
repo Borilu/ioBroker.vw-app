@@ -262,7 +262,7 @@ With write permission disabled, this mode command can only confirm an already fu
 
 The mode wish persists separately from the four charge-limit/charging-option wishes. `commands.applyChargingSettings` never applies a mode wish; its clear command never clears one. A mode selection or save error blocks only mode apply until a valid reselect or mode clear. Later changes cannot alter an accepted command's snapshot. Startup, reconnect and automatic reads never apply the wish or repeat the mode change.
 
-`commands.refreshCharging` and the existing automatic `charging` read domain also read the mode. An unreadable mode or missing valid snapshot time preserves the previous mode/time as history and marks the mode invalid (`q=0x82`); battery readings and the domain may still be fresh. The mode also expires according to its own snapshot time. Its timestamp remains the last successful observation after an error, expiry or restart.
+`commands.refreshCharging` and the existing automatic `charging` read domain also read the mode. A recognized visible mode can be read while its app control is disabled, including the observed maintenance-charging state. A disabled control cannot be opened to change the mode. An unreadable mode or missing valid snapshot time preserves the previous mode/time as history and marks the mode invalid (`q=0x82`); battery readings and the domain may still be fresh. The mode also expires according to its own snapshot time. Its timestamp remains the last successful observation after an error, expiry or restart.
 
 **Planned charging at a charging location requires `departure` or `departureClimate`.** Configure and enable the desired location timer first, then explicitly choose and apply the appropriate charging mode and verify its fresh observed value. A timer can be edited while `immediate` is selected. Timer apply never changes the charging mode, and `enabled=true` alone does not prove that planned charging will execute.
 
@@ -467,6 +467,12 @@ Keep the version in `package.json`, `io-package.json` and `package-lock.json` sy
 The tag triggers `.github/workflows/test-and-release.yml`. Package, lint and Linux integration checks must pass before deployment. The deployment job checks that the tag matches the package version and that the commit belongs to `main`; an existing npm version is retained without another publication attempt. For a new version, the job is configured to publish to npm using GitHub OIDC trusted publishing with provenance. npm's trusted-publisher binding must match this public repository and workflow file. No npm access token is stored in the repository.
 
 ## Changelog
+
+### 0.11.4 (2026-10-26)
+
+- Support the additional native battery-status wrapper in the active-charging overview while preserving the visible navigation card and action guards.
+- Read the matching battery percentage in the confirmed maintenance-charging display when the vehicle remains connected after charging.
+- Read the confirmed visible charging mode when its control is disabled, without enabling or operating the control.
 
 ### 0.11.3 (2026-10-26)
 
