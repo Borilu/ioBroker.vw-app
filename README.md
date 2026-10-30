@@ -471,6 +471,7 @@ The tag triggers `.github/workflows/test-and-release.yml`. Package, lint and Lin
 ### 0.11.4 (2026-10-26)
 
 - Support the additional native battery-status wrapper in the active-charging overview while preserving the visible navigation card and action guards.
+- Read the matching battery percentage in the confirmed maintenance-charging display when the vehicle remains connected after charging.
 
 ### 0.11.3 (2026-10-26)
 

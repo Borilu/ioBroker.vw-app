@@ -4,17 +4,17 @@
     "version": "0.11.4",
     "news": {
       "0.11.4": {
-        "en": "Support the additional native battery-status layout during charging while retaining navigation checks.",
-        "de": "Zusätzliche native Batteriestatus-Darstellung beim Laden unterstützen; Navigationsprüfungen beibehalten.",
-        "ru": "Поддержка дополнительного отображения состояния батареи при зарядке с сохранением проверок навигации.",
-        "pt": "Suporta a apresentação adicional do estado da bateria durante a carga e mantém as verificações de navegação.",
-        "nl": "Ondersteunt de aanvullende accustatusweergave tijdens het laden en behoudt navigatiecontroles.",
-        "fr": "Prend en charge l’affichage supplémentaire de l’état de batterie pendant la recharge et conserve les contrôles de navigation.",
-        "it": "Supporta la vista aggiuntiva dello stato batteria durante la ricarica e mantiene i controlli di navigazione.",
-        "es": "Admite la vista adicional del estado de batería durante la carga y conserva los controles de navegación.",
-        "pl": "Obsługuje dodatkowy widok stanu baterii podczas ładowania i zachowuje kontrole nawigacji.",
-        "uk": "Підтримка додаткового відображення стану батареї під час заряджання зі збереженням перевірок навігації.",
-        "zh-cn": "支持充电期间的额外电池状态布局，并保留导航检查。"
+        "en": "Support the additional charging overview layout and read the battery percentage during maintenance charging; retain navigation checks.",
+        "de": "Zusätzliche Ladeübersicht unterstützen und den Batterieprozentsatz bei Erhaltungsladen lesen; Navigationsprüfungen beibehalten.",
+        "ru": "Поддержка дополнительного вида обзора зарядки и чтение процента батареи при поддерживающей зарядке; проверки навигации сохранены.",
+        "pt": "Suporta o layout adicional da visão de carga e lê a percentagem da bateria na carga de manutenção; mantém as verificações de navegação.",
+        "nl": "Ondersteunt de extra laadweergave en leest het accupercentage bij onderhoudsladen; navigatiecontroles blijven behouden.",
+        "fr": "Prend en charge la vue de recharge supplémentaire et lit le pourcentage de batterie pendant la charge de maintien ; conserve les contrôles de navigation.",
+        "it": "Supporta la vista di ricarica aggiuntiva e legge la percentuale della batteria durante la carica di mantenimento; mantiene i controlli di navigazione.",
+        "es": "Admite la vista adicional de carga y lee el porcentaje de batería durante la carga de mantenimiento; conserva los controles de navegación.",
+        "pl": "Obsługuje dodatkowy widok ładowania i odczytuje procent baterii podczas ładowania podtrzymującego; zachowuje kontrole nawigacji.",
+        "uk": "Підтримка додаткового вигляду огляду заряджання та читання відсотка батареї під час підтримувального заряджання; перевірки навігації збережено.",
+        "zh-cn": "支持额外的充电概览布局，并在维护充电时读取电池百分比；保留导航检查。"
       },
       "0.11.3": {
         "en": "Improve battery and range reads during charging, including the range tile and SOC display; retain navigation checks.",
