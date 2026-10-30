@@ -112,7 +112,7 @@ test('manual executable requires an absolute path and Linux', async t => {
 test('server and clients use an owned loopback port, private HOME, and no shell', async t => {
     const beforeHome = process.env.HOME;
     const beforeVendorKeys = process.env.ADB_VENDOR_KEYS;
-    const inheritedHomes = ['ANDROID_USER_HOME', 'ANDROID_SDK_HOME'].map(name => [name, process.env[name]]);
+    const inheritedHomes = ['ANDROID_USER_HOME', 'ANDROID_SDK_HOME', 'ADB_MDNS', 'ADB_MDNS_AUTO_CONNECT'].map(name => [name, process.env[name]]);
     for (const [name] of inheritedHomes) process.env[name] = '/unrelated-inherited-android-home';
     t.after(() => {
         for (const [name, value] of inheritedHomes) {
@@ -130,6 +130,8 @@ test('server and clients use an owned loopback port, private HOME, and no shell'
     assert.deepEqual(server.args.slice(2), ['server', 'nodaemon']);
     assert.equal(server.settings.env.HOME, path.join(dataDir, 'adb-home'));
     assert.equal(server.settings.env.ANDROID_ADB_LOG_PATH, path.join(dataDir, 'adb-home', 'adb.log'));
+    assert.equal(server.settings.env.ADB_MDNS, '1');
+    assert.equal(server.settings.env.ADB_MDNS_AUTO_CONNECT, '0');
     for (const name of ['ADB_VENDOR_KEYS', 'ADB_SERVER_SOCKET', 'ANDROID_ADB_SERVER_ADDRESS', 'ANDROID_ADB_SERVER_PORT', 'ANDROID_SERIAL', 'ADB_TRACE', 'ANDROID_USER_HOME', 'ANDROID_SDK_HOME']) {
         assert.equal(Object.hasOwn(server.settings.env, name), false);
     }

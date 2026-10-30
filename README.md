@@ -61,7 +61,9 @@ Detailed instructions are also available in the [German setup guide](docs/ADMIN-
 
 Pairing code and pairing port are temporary setup inputs and are not saved in the native instance configuration. The adapter never logs the code or puts it in a state. Clear the input or close the configuration page after pairing.
 
-An Android 12 connection port may change after restarting the phone or toggling Wireless debugging. Update that port in the adapter settings and save. Automatic discovery of a new port is not promised, particularly in VM/NAT networks. A saved device identity prevents silently switching to another paired phone at a reused address.
+An Android 12 connection port may change after restarting the phone or toggling Wireless debugging. In this source version, if the configured port cannot be reached, the adapter can look for the previously identified phone at its configured IP address using Android ADB service discovery (mDNS). If that does not find a port, it can also query that phone address directly using DNS unicast, where supported; it does not scan the subnet. The direct query requires the phone's response to contain the necessary service and address information; otherwise, enter the port manually. It verifies the saved phone identity before using a discovered port and keeps that port only in the running adapter; it does not overwrite the configured port. Discovery is not guaranteed: network filters, VM or container networking, guest networks and device isolation can prevent mDNS or the direct query from working. Initial setup still requires the connection port shown on the phone.
+
+Wireless debugging itself may be turned off by Android, for example after a restart or network change. The adapter cannot re-enable it once the phone is unreachable. Unlock the phone, enable wireless debugging and check the address and connection port on its main page; if discovery does not work, enter the current connection port in the adapter settings and save. Pair again only if the existing pairing is no longer valid. Keeping the display awake while charging does not unlock the phone or guarantee that wireless debugging remains enabled. A reconnect does not replay a vehicle command or apply a stored wish.
 
 ## States
 
@@ -467,6 +469,12 @@ Keep the version in `package.json`, `io-package.json` and `package-lock.json` sy
 The tag triggers `.github/workflows/test-and-release.yml`. Package, lint and Linux integration checks must pass before deployment. The deployment job checks that the tag matches the package version and that the commit belongs to `main`; an existing npm version is retained without another publication attempt. For a new version, the job is configured to publish to npm using GitHub OIDC trusted publishing with provenance. npm's trusted-publisher binding must match this public repository and workflow file. No npm access token is stored in the repository.
 
 ## Changelog
+
+### 0.11.5 (2026-10-30)
+
+- Find a changed wireless-debugging connection port for the previously identified phone at its configured IP address via ADB mDNS, or a bounded direct DNS query where supported; do not scan the subnet.
+- Verify the saved phone identity before using a discovered endpoint, retain the port only in the running adapter and do not overwrite configuration. Reconnection never applies saved wishes or repeats vehicle commands.
+- Keep manual port entry as a fallback when discovery is blocked or unsupported. Wireless debugging must remain enabled; the adapter cannot re-enable it over a lost connection.
 
 ### 0.11.4 (2026-10-26)
 

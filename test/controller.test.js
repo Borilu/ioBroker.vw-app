@@ -107,6 +107,21 @@ async function rejectsCode(promise, expected) {
     await assert.rejects(promise, error => error instanceof BridgeError && error.code === expected && !error.message.includes('SECRET'));
 }
 
+test('an automatic status connection offers the controller handoff checkpoint to the transport', async () => {
+    const { controller, phone, store } = setup();
+    phone.connect = async ({ checkpoint }) => {
+        assert.equal(typeof checkpoint, 'function');
+        checkpoint();
+        assert.equal(controller.requestReadHandoff(), true);
+        checkpoint();
+        assert.fail('The handoff must interrupt connection before any further work.');
+    };
+    await rejectsCode(controller.execute('status'), 'cancelled');
+    assert.equal(store.reservations, 0);
+    assert.deepEqual(phone.calls, []);
+    assert.equal(controller.busy, false);
+});
+
 test('status connects once and reports only app observation without a CTA or reservation', async () => {
     const { controller, phone, store, log, clock } = setup();
     const result = await controller.execute('status');

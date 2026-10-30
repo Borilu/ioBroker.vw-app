@@ -444,6 +444,29 @@ test('probe binds identity privately and returns safe network values without app
     assert.equal(f.ctas().length, 0);
 });
 
+test('a verified changed phone port is reused only for the same configured endpoint and enrolled identity', async t => {
+    const f = await fixture(t, { enrollment: enrolled() });
+    const configured = `${HOST}:${PORT}`;
+    const changed = `${HOST}:49876`;
+    const first = await f.adapter.phone();
+    assert.equal(first.settings.endpoint, configured);
+    assert.equal(first.settings.discoverPort, true);
+    await first.settings.onVerified(DEVICE, changed);
+    const second = await f.adapter.phone();
+    assert.equal(second.settings.endpoint, changed);
+    assert.equal(second.settings.fallbackEndpoint, configured);
+    assert.equal(f.adapter.settings.connectPort, PORT);
+    assert.equal(f.memory.enrollment.deviceId, DEVICE);
+    const setup = await f.adapter.phone({}, { allowUnpinned: true });
+    assert.equal(setup.settings.endpoint, configured);
+    assert.equal(setup.settings.discoverPort, false);
+    const override = await f.adapter.phone({ hostIp: '203.0.113.81', connectPort: 40000 });
+    assert.equal(override.settings.endpoint, '203.0.113.81:40000');
+    f.memory.enrollment.deviceId = 'serial:DIFFERENT-TEST';
+    const different = await f.adapter.phone();
+    assert.equal(different.settings.endpoint, configured);
+});
+
 test('calibration recognizes Gerade synchronisiert and checks mode and clickable CTA without switching', async t => {
     const f = await fixture(t, { enrollment: { deviceId: DEVICE }, appState: 'on' });
     const response = await f.message('calibrate', { hostIp: HOST, connectPort: String(PORT) });
