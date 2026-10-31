@@ -268,6 +268,15 @@
       "text": "An interrupted or unclear permission attempt remains blocked, even when permission is now present. Do not repeat it or delete local journal files. Check the phone and contact an administrator for investigation.",
       "sm": 12, "xs": 12, "md": 12, "lg": 12, "xl": 12
     },
+    "_guardianRecoveryStatus": {
+      "type": "sendTo", "label": "Check whether offline recovery may be considered",
+      "command": "guardianRecoveryStatus", "data": {}, "useNative": true, "showProcess": true, "timeout": 10000,
+      "result": {
+        "recovery_legacy_candidate": "A legacy setup may be a candidate for a future offline recovery. This check does not prove safety and did not unblock any phone action.",
+        "recovery_manual_review": "Recovery requires manual security review. The adapter did not unblock any phone action."
+      },
+      "sm": 12, "xs": 12, "md": 12, "lg": 12, "xl": 12
+    },
     "_guardianBinderTestHint": {
       "type": "staticText",
       "text": "0. On the phone open the pairing path test and allow it once. Leave Guardian visible, then start this test within 60 seconds. No key or port setting is saved.",

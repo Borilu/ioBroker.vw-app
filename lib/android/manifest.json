@@ -1,8 +1,8 @@
 {
   "format": "vw-app-android-ui-v1",
   "jar": "vw-ui.jar",
-  "bytes": 24553,
-  "sha256": "a97dba7aca6b185aace1ac40ac3f56d97e2f964e7de2b2612b0fecff591b4900",
+  "bytes": 26078,
+  "sha256": "60009ec6146655aca44fc7c0a82ec58e536597be7c08a5cb488638d5b7f043e0",
   "minAndroidApi": 30,
   "javaRelease": 8,
   "d8Version": "9.5.28",
@@ -18,7 +18,7 @@
     },
     {
       "path": "src/vw/app/bridge/AccessibilityActionRunner.java",
-      "sha256": "cbe7642b2361741144a2d80d651dac2db16e84abf0948f0124c0892101c385b3"
+      "sha256": "a92e0a1f77bdaf7deab206c3eb57e26ffdc965ec07288892306eafc5309ea838"
     },
     {
       "path": "src/vw/app/bridge/ExtendedUiDumpRunner.java",

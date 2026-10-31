@@ -2,6 +2,10 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const crypto = require('node:crypto');
+const fs = require('node:fs/promises');
+const os = require('node:os');
+const path = require('node:path');
+const { StateStore } = require('../lib/store');
 const { prepareHost, transferAndVerify, approveRecovery, testTransport, pairingStatus } = require('../lib/guardian-binder-pair');
 
 const secret = '42'.repeat(32); // synthetic only
@@ -11,6 +15,7 @@ const apkHash = 'a'.repeat(64);
 const apk = '/data/app/~~ABC==/de.borilu.wirelessguardian-ABC==/base.apk';
 function fixture(options = {}) {
     let journal = Object.hasOwn(options, 'journal') ? options.journal : options.empty ? null : journalFor('host_prepared');
+    let testJournal = Object.hasOwn(options, 'testJournal') ? options.testJournal : null;
     let queries = 0;
     const calls = [], writes = [];
     const adapter = {
@@ -20,7 +25,8 @@ function fixture(options = {}) {
         guardianProtectionReady: async () => !options.unprotected,
         encrypt: value => 'encrypted:' + value,
         extendForeignObjectAsync: async (...args) => { if (options.writeFailure) throw Error('private'); writes.push(args); },
-        store: { read: async () => journal, write: async (_, value) => { journal = value; } },
+        store: { read: async name => name === 'guardian-test-state' ? testJournal : journal,
+            write: async (name, value) => { if (name === 'guardian-test-state') testJournal = value; else journal = value; } },
     };
     const phone = { connect: async () => { if (options.badPhone) throw Error('private'); },
         run: async args => { calls.push(args); const command = args.join(' ');
@@ -39,18 +45,71 @@ function fixture(options = {}) {
             assert.deepEqual(input, Buffer.alloc(32, 0x42)); return ''; }
             assert.equal(input.subarray(0,8).toString(), 'VWGPREP2');
             assert.equal(input.subarray(-32).toString('hex'), secret); if (options.transferError) throw Error('private'); return ''; } };
-    return { adapter, calls, writes, getJournal: () => journal,
+    return { adapter, calls, writes, getJournal: () => journal, getTestJournal: () => testJournal,
         args: { adapter, phone, vmIp: '192.168.100.33', approvedApkHash: apkHash,
             randomBytes: size => Buffer.alloc(size, 0x41),
             guardianQuery: async () => options.badQuery ? null : 43000,
             verifyEndpoint: async () => { if (options.badEndpoint) throw Error('private'); } } };
 }
-test('synthetic Binder test saves no secret, pairing journal, or configuration', async () => {
+test('synthetic Binder test persists only its non-secret completion marker', async () => {
     const f = fixture({ empty: true });
     assert.deepEqual(await testTransport({ adapter: f.adapter, phone: f.args.phone, approvedApkHash: apkHash }), { result: 'guardian_binder_test_ok' });
     assert.equal(f.writes.length, 0); assert.equal(f.getJournal(), null);
+    assert.deepEqual(f.getTestJournal(), { version: 1, status: 'confirmed' });
     assert.equal(f.calls.filter(a => a.includes('write')).length, 1);
     assert.equal(f.calls.some(a => a.includes('pair_commit')), false);
+});
+test('an unclear asynchronous synthetic test blocks repeat, preparation and transfer after restart', async () => {
+    const f = fixture({empty: true, badStatus: true});
+    await assert.rejects(testTransport({ adapter: f.adapter, phone: f.args.phone, approvedApkHash: apkHash }));
+    assert.deepEqual(f.getTestJournal(), { version: 1, status: 'attempting' });
+    const calls = f.calls.length;
+    await assert.rejects(testTransport({ adapter: f.adapter, phone: f.args.phone, approvedApkHash: apkHash }));
+    await assert.rejects(prepareHost({adapter: f.adapter}));
+    await assert.rejects(transferAndVerify(f.args));
+    assert.equal(await pairingStatus(f.adapter), 'guardian_status_uncertain');
+    assert.equal(f.calls.length, calls);
+    const successor = fixture({ empty: true, testJournal: f.getTestJournal() });
+    await assert.rejects(testTransport({ adapter: successor.adapter, phone: successor.args.phone, approvedApkHash: apkHash }));
+    assert.equal(successor.calls.length, 0);
+});
+test('synthetic fence persistence failure happens before Android receives the test', async () => {
+    const f = fixture({empty: true});
+    const write = f.adapter.store.write;
+    f.adapter.store.write = async (name, value) => { if (name === 'guardian-test-state') throw Error('disk failure'); return write(name, value); };
+    await assert.rejects(testTransport({ adapter: f.adapter, phone: f.args.phone, approvedApkHash: apkHash }));
+    assert.equal(f.calls.some(a => a.includes('write')), false);
+});
+test('synthetic completion storage failure retains the pending marker and blocks subsequent access', async () => {
+    const f = fixture({empty: true});
+    const write = f.adapter.store.write;
+    f.adapter.store.write = async (name, value) => {
+        if (name === 'guardian-test-state' && value.status === 'confirmed') throw Error('disk failure');
+        return write(name, value);
+    };
+    await assert.rejects(testTransport({ adapter: f.adapter, phone: f.args.phone, approvedApkHash: apkHash }));
+    assert.deepEqual(f.getTestJournal(), {version: 1, status: 'attempting'});
+    const calls = f.calls.length;
+    await assert.rejects(testTransport({ adapter: f.adapter, phone: f.args.phone, approvedApkHash: apkHash }));
+    await assert.rejects(prepareHost({adapter: f.adapter}));
+    assert.equal(f.calls.length, calls);
+});
+test('pending real pairing prevents even a synthetic test', async () => {
+    const f = fixture({journal: journalFor('attempting')});
+    await assert.rejects(testTransport({ adapter: f.adapter, phone: f.args.phone, approvedApkHash: apkHash }));
+    assert.equal(f.calls.length, 0);
+});
+test('synthetic pending marker survives a new StateStore instance', { skip: process.platform === 'win32' }, async t => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'guardian-synthetic-test-'));
+    t.after(() => fs.rm(dir, { recursive: true, force: true }));
+    const first = new StateStore(dir);
+    await first.write('guardian-test-state', {version: 1, status: 'attempting'});
+    const next = new StateStore(dir);
+    assert.deepEqual(await next.read('guardian-test-state', null), {version: 1, status: 'attempting'});
+    const f = fixture({empty: true});
+    f.adapter.store = next;
+    await assert.rejects(testTransport({ adapter: f.adapter, phone: f.args.phone, approvedApkHash: apkHash }));
+    assert.equal(f.calls.length, 0);
 });
 test('host preparation saves only a protected encrypted key and waits for separate action', async () => {
     const f = fixture({ empty: true });

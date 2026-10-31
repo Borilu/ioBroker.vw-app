@@ -116,5 +116,8 @@
   "The Android permission is present, but an older journal cannot confirm that a previous attempt ended safely. The journal remains unchanged; a later grant remains blocked.": "Android 权限已存在，但旧日志无法确认之前的尝试已安全结束。日志保持不变，之后重新授予权限仍被阻止。",
   "The previous attempt is uncertain. Do not repeat the transfer or delete journal files; investigate with an administrator.": "上一次尝试的结果不确定。请勿重复传输或删除日志文件；请联系管理员调查。",
   "The phone was verified, but enabling in ioBroker is not confirmed. Do not repeat the transfer; investigate with an administrator.": "手机已验证，但尚未确认在 ioBroker 中启用。请勿重复传输；请联系管理员调查。",
-  "If an earlier pairing attempt is uncertain, do not open a new pairing window, repeat the transfer or delete journal files. A delayed earlier operation could use the new window. Ask an administrator to investigate.": "如果之前的配对尝试结果不确定，请勿打开新的配对窗口、重复传输或删除日志文件。之前延迟的操作可能会使用新窗口。请联系管理员调查。"
+  "If an earlier pairing attempt is uncertain, do not open a new pairing window, repeat the transfer or delete journal files. A delayed earlier operation could use the new window. Ask an administrator to investigate.": "如果之前的配对尝试结果不确定，请勿打开新的配对窗口、重复传输或删除日志文件。之前延迟的操作可能会使用新窗口。请联系管理员调查。",
+  "Check whether offline recovery may be considered": "Check whether offline recovery may be considered",
+  "A legacy setup may be a candidate for a future offline recovery. This check does not prove safety and did not unblock any phone action.": "A legacy setup may be a candidate for a future offline recovery. This check does not prove safety and did not unblock any phone action.",
+  "Recovery requires manual security review. The adapter did not unblock any phone action.": "Recovery requires manual security review. The adapter did not unblock any phone action."
 }

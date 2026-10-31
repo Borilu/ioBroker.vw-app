@@ -42,7 +42,7 @@ class FakeRuntime {
         if (command.join(' ') === 'shell dumpsys package ' + PACKAGE) return 'versionName=4.8.1\n';
         if (command.join(' ') === 'shell dumpsys window') return FOCUS;
         if (command.includes('resolve-activity')) return 'priority=0\n' + PACKAGE + '/.MainActivity\n';
-        if (command.join(' ') === 'exec-out uiautomator dump /proc/self/fd/1') return 'Warning\n<hierarchy/>\nUI hierarchy dumped to: /proc/self/fd/1\n';
+        if (command.join(' ') === 'shell -T sh -c set -o pipefail; uiautomator dump /proc/self/fd/1 | cat') return 'Warning\n<hierarchy/>\nUI hierarchy dumped to: /proc/self/fd/1\n';
         return '';
     }
 }
@@ -332,14 +332,14 @@ test('UI dump checks focus around a stdout-only read and never creates, cats or 
     assert.equal(await phone.dump(), '<hierarchy/>\n');
     const commands = deviceCommands(runtime);
     assert.deepEqual(commands[0], ['shell', 'dumpsys', 'window']);
-    assert.deepEqual(commands[1], ['exec-out', 'uiautomator', 'dump', '/proc/self/fd/1']);
+    assert.deepEqual(commands[1], ['shell', '-T', 'sh', '-c', 'set -o pipefail; uiautomator dump /proc/self/fd/1 | cat']);
     assert.deepEqual(commands[2], ['shell', 'dumpsys', 'window']);
     assert.equal(commands.length, 3);
 });
 
 test('dump failures preserve fixed runtime errors without any temporary file or cleanup call', async () => {
     const { phone, runtime } = makePhone({ handler: args => {
-        if (args[2] === 'exec-out') throw new BridgeError('phone_timeout', 'Controlled timeout');
+        if (args[2] === 'shell' && args[4] === 'sh') throw new BridgeError('phone_timeout', 'Controlled timeout');
     } });
     await rejectsCode('phone_timeout', phone.dump());
     assert.equal(deviceCommands(runtime).length, 2);
@@ -350,14 +350,14 @@ test('cancellation during a stdout dump sends no more UI or diagnostic calls', a
     for (const stage of ['dump', 'inflight-failure']) {
         const { phone, runtime, abort } = makePhone();
         runtime.handler = args => {
-            if (args[2] === 'exec-out') {
+            if (args[2] === 'shell' && args[4] === 'sh') {
                 abort.abort();
                 if (stage === 'inflight-failure') throw new BridgeError('phone_unavailable', 'Controlled interruption');
             }
         };
         await rejectsCode(stage === 'inflight-failure' ? 'phone_unavailable' : 'cancelled', phone.dump());
         const commands = deviceCommands(runtime);
-        assert.deepEqual(commands.at(-1), ['exec-out', 'uiautomator', 'dump', '/proc/self/fd/1']);
+        assert.deepEqual(commands.at(-1), ['shell', '-T', 'sh', '-c', 'set -o pipefail; uiautomator dump /proc/self/fd/1 | cat']);
         assert.ok(!commands.some(args => args[1] === 'input' || args[1] === 'am'));
         assert.equal(commands.filter(args => args[1] === 'dumpsys').length, 1);
         assert.equal(commands.some(args => args[1] === 'cat' || args[1] === 'rm'), false);
@@ -371,12 +371,12 @@ test('ordinary XML reads reject decoded S-PIN headers, password fields and malfo
         '<hierarchy><node password="true" text="SECRET"/></hierarchy>',
     ];
     for (const output of sensitive) {
-        const { phone, runtime } = makePhone({ handler: args => args[2] === 'exec-out' ? output : undefined });
+        const { phone, runtime } = makePhone({ handler: args => args[2] === 'shell' && args[4] === 'sh' ? output : undefined });
         await rejectsCode('security_ui_active', phone.dump());
         assert.equal(runtime.calls.length, 2);
     }
     for (const output of ['SECRET', '<hierarchy/><hierarchy/>', '<hierarchy><node></hierarchy>', '<hierarchy/><hierarchy>']) {
-        const { phone } = makePhone({ handler: args => args[2] === 'exec-out' ? output : undefined });
+        const { phone } = makePhone({ handler: args => args[2] === 'shell' && args[4] === 'sh' ? output : undefined });
         await rejectsCode('invalid_ui', phone.dump());
     }
 });

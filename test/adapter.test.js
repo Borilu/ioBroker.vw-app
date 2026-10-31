@@ -3,6 +3,8 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
 const { EventEmitter } = require('node:events');
+const { PassThrough } = require('node:stream');
+const { AdbRuntime } = require('../lib/runtime');
 const fs = require('node:fs/promises');
 const os = require('node:os');
 const path = require('node:path');
@@ -118,7 +120,13 @@ async function fixture(t, options = {}) {
             this.states = new Map(Object.entries(clone(options.initialStates || {})));
             this.objects = new Map(Object.entries(clone(options.initialObjects || {}))); this.writes = [];
             this.objectPatches = []; this.objectLists = 0;
-            this.foreignObjects = new Map(); this.foreignWrites = []; this.subscriptions = [];
+            this.foreignObjects = new Map([
+                ['system.adapter.admin.0', { _id:'system.adapter.admin.0', type:'instance', ts:100,
+                    common:{enabled:true}, native:{auth:true} }],
+                ['system.user.admin', { _id:'system.user.admin', type:'user', common:{enabled:true} }],
+                ['system.group.administrator', { _id:'system.group.administrator', type:'group',
+                    common:{enabled:true, members:['system.user.admin']} }],
+            ]); this.foreignWrites = []; this.subscriptions = [];
             this.logs = []; this.responses = []; this.intervals = []; this.clearedIntervals = [];
             this.log = Object.fromEntries(['info', 'warn', 'error', 'debug'].map(level => [level, message => this.logs.push({ level, message })]));
         }
@@ -146,6 +154,7 @@ async function fixture(t, options = {}) {
         async subscribeStatesAsync(pattern) { this.subscriptions.push(['own', pattern]); }
         async subscribeForeignStatesAsync(pattern) { this.subscriptions.push(['foreign', pattern]); }
         async getForeignObjectAsync(id) { return this.foreignObjects.get(id) || null; }
+        async getForeignStateAsync(id) { return id === 'system.adapter.admin.0.alive' ? {val:true, lc:200} : null; }
         async setForeignStateAsync(id, value) { this.foreignWrites.push({ id, value: clone(value) }); }
         sendTo(from, command, message, callback) { this.responses.push({ from, command, message: clone(message), callback }); }
         setInterval(callback, milliseconds) { const timer = { callback, milliseconds }; this.intervals.push(timer); return timer; }
@@ -156,6 +165,9 @@ async function fixture(t, options = {}) {
 
     class FakeRuntime {
         constructor(settings) { this.settings = settings; this.ready = !options.runtimeMissing; this.calls = []; records.runtime.push(this); }
+        async beginJob() {}
+        async endJob() {}
+        async assertJobClear() {}
         async start() {
             this.calls.push(['start']);
             if (!this.ready) throw new BridgeError('runtime_missing', 'Install Android tools in adapter settings.');
@@ -270,7 +282,7 @@ async function fixture(t, options = {}) {
         adapter, config, records, memory, environment,
         value: id => adapter.states.get(id)?.val,
         async message(command, message = {}) {
-            await adapter.onMessage({ from: 'system.adapter.admin.0', command, message, callback: { id: 1 } });
+            await adapter.onMessage({ from: 'system.adapter.admin.0', user:'system.user.admin', command, message, callback: { id: 1 } });
             return adapter.responses.at(-1)?.message;
         },
         ctas: () => records.phones.flatMap(phone => phone.calls).filter(call => call[0] === 'tap' && call[2] === 330),
@@ -278,6 +290,49 @@ async function fixture(t, options = {}) {
 }
 
 function enrolled() { return { deviceId: DEVICE, profile: { appVersion: '4.8.1', vehicleMarker: VEHICLE } }; }
+
+test('all sensitive Admin messages fail before any operation without authenticated user context', async t => {
+    const commands = ['guardianRecoveryStatus', 'maintenanceStart', 'maintenanceStatus', 'maintenanceResume',
+        'guardianProtectionCheck', 'installRuntime', 'pair', 'probe', 'calibrate', 'keepAwake', 'resetSecurityBlock',
+        'guardianBinderTest', 'guardianBinderPrepare', 'guardianBinderTransfer', 'guardianBinderStatus',
+        'guardianBinderRecover', 'guardianPairVerify', 'guardianPermissionGrant'];
+    const f = await fixture(t, { enrollment: enrolled() });
+    const before = { runtime:f.records.runtime[0].calls.length, phones:f.records.phones.length,
+        writes:f.records.stores[0].writes.length, memory:clone(f.memory) };
+    for (const reason of ['disabled', 'missing-user', 'nonmember']) {
+        f.adapter.foreignObjects.get('system.adapter.admin.0').native.auth = reason !== 'disabled';
+        const user = reason === 'missing-user' ? undefined : reason === 'nonmember' ? 'system.user.guest' : 'system.user.admin';
+        for (const command of commands) {
+            await f.adapter.onMessage({from:'system.adapter.admin.0',user,command,message:{confirm:true},callback:{id:1}});
+            assert.match(f.adapter.responses.at(-1).message.error, /^invalid_action:/, `${reason}:${command}`);
+        }
+    }
+    assert.equal(f.records.runtime[0].calls.length,before.runtime);
+    assert.equal(f.records.phones.length,before.phones);
+    assert.equal(f.records.stores[0].writes.length,before.writes);
+    assert.deepEqual(f.memory,before.memory);
+});
+
+test('recovery precheck is local, Admin-only and requires actual secret protection without changing any journal', async t => {
+    const syntheticKey = 'b'.repeat(64);
+    const digest = require('node:crypto').createHash('sha256').update(Buffer.from(syntheticKey, 'hex')).digest('hex');
+    const f = await fixture(t, { enrollment: enrolled(), config: { guardianSecret: syntheticKey }, memory: {
+        'guardian-permission-state': { status: 'confirmed' },
+        'guardian-pair-state': { status: 'android_verified_host_not_enabled', keyDigest: digest },
+    } });
+    const original = clone(f.memory), calls = f.records.runtime[0].calls.length, phoneCount = f.records.phones.length;
+    await f.adapter.onMessage({ from: 'system.adapter.example.0', command: 'guardianRecoveryStatus', message: {}, callback: { id: 6 } });
+    assert.match(f.adapter.responses.at(-1).message.error, /^invalid_action:/);
+    assert.deepEqual(await f.message('guardianRecoveryStatus'), {result: 'recovery_manual_review', native: {}});
+    f.adapter.foreignObjects.set('system.adapter.' + f.adapter.namespace,
+        { encryptedNative: ['guardianSecret'], protectedNative: ['guardianSecret'] });
+    const result = await f.message('guardianRecoveryStatus');
+    assert.deepEqual(result, { result: 'recovery_legacy_candidate', native: {} });
+    assert.equal(JSON.stringify(result).includes(syntheticKey), false);
+    assert.deepEqual(f.memory, original);
+    assert.equal(f.records.runtime[0].calls.length, calls);
+    assert.equal(f.records.phones.length, phoneCount);
+});
 
 test('maintenance drains the current read without cancelling and blocks new phone jobs', async t => {
     const entered = deferred(), release = deferred();
@@ -317,6 +372,24 @@ test('maintenance fails closed after an error or without a known completed phone
     assert.equal(f.adapter.scheduler.paused, true);
     assert.equal((await f.message('maintenanceResume')).result, 'maintenance_idle');
     assert.equal((await f.message('maintenanceStart')).result, 'maintenance_blocked');
+});
+
+test('startup exposes Guardian safety fencing and blocks every refresh area without phone calls', async t => {
+    for (const [name, marker] of [
+        ['guardian-test-state', {version: 1, status: 'attempting'}],
+        ['guardian-permission-state', {version: 2, status: 'attempting'}],
+        ['guardian-pair-state', {status: 'attempting', keyDigest: 'a'.repeat(64)}],
+    ]) {
+        const f = await fixture(t, {enrollment: enrolled(), fakeController: true, RefreshScheduler: RecordingScheduler,
+            config: {pollIntervalSeconds: 15}, memory: {[name]: marker}});
+        assert.equal(f.value('info.status'), 'guardian_phone_fenced');
+        assert.equal(f.value('operation.lastErrorCode'), 'guardian_phone_fenced');
+        assert.equal(f.adapter.scheduler.paused, true);
+        for (const action of ['status', 'chargingStatus', 'vehicleReportStatus', 'refreshVehicleAccess', 'refreshVehicleInfo']) {
+            await rejectsCode(f.adapter.command(action), 'guardian_phone_fenced');
+        }
+        assert.equal(f.records.phones.length, 0);
+    }
 });
 
 test('maintenance commands reject non-Admin senders and do not overtake reserved manual work', async t => {
@@ -360,8 +433,8 @@ test('Guardian protected-settings grant is Admin-only, consented, serialized and
     const entered = deferred(), release = deferred();
     const f = await fixture(t, { enrollment: enrolled(), GuardianPermissionGrant: async ({ phone, userConfirmed, journal, signal }) => {
         calls++; assert.equal(userConfirmed, true); assert.ok(phone); assert.equal(signal.aborted, false);
-        assert.equal(await journal.read(), null); await journal.write({ status: 'attempting' });
-        entered.resolve(); await release.promise; await journal.write({ status: 'confirmed' });
+        assert.equal(await journal.read(), null); await journal.write({ status: 'attempting', version: 2 });
+        entered.resolve(); await release.promise; await journal.write({ status: 'confirmed', version: 2 });
         return { result: 'guardian_permission_granted' };
     } });
     t.after(() => release.resolve());
@@ -370,11 +443,11 @@ test('Guardian protected-settings grant is Admin-only, consented, serialized and
     assert.match((await f.message('guardianPermissionGrant')).error, /^guardian_permission_consent_required:/);
     assert.equal(calls, 0);
     const granting = f.message('guardianPermissionGrant', { confirm: true }); await entered.promise;
-    assert.deepEqual(f.memory['guardian-permission-state'], { status: 'attempting' });
+    assert.deepEqual(f.memory['guardian-permission-state'], { status: 'attempting', version: 2 });
     await rejectsCode(f.adapter.command('chargingStatus'), 'busy');
     release.resolve();
     assert.deepEqual(await granting, { result: 'guardian_permission_granted', native: {} });
-    assert.deepEqual(f.memory['guardian-permission-state'], { status: 'confirmed' });
+    assert.deepEqual(f.memory['guardian-permission-state'], { status: 'confirmed', version: 2 });
 });
 
 test('Guardian recovery is fail-closed until both actual instance protections are present', async t => {
@@ -417,9 +490,9 @@ test('Guardian Admin setup gates secret entry on a fresh per-instance protection
     assert.equal(JSON.stringify(f.adapter.responses).includes(secret), false);
     assert.equal(JSON.stringify(f.adapter.logs).includes(secret), false);
     await f.adapter.onMessage({ from: 'system.adapter.example.0', command: 'guardianProtectionCheck', message: {}, callback: { id: 2 } });
-    assert.deepEqual(f.adapter.responses.at(-1).message, { native: { _guardianProtectionVerified: false } });
+    assert.match(f.adapter.responses.at(-1).message.error, /^invalid_action:/);
     f.adapter.getForeignObjectAsync = async () => { throw new Error('synthetic object read failure'); };
-    assert.deepEqual(await message(), { native: { _guardianProtectionVerified: false } });
+    assert.match((await message()).error, /^invalid_action:/);
     assert.equal(ADMIN.items._guardianProtectionCheck.onLoaded, true);
     assert.equal(ADMIN.items._guardianProtectionCheck.disabled, true);
     assert.equal(ADMIN.items._guardianProtectionVerified.doNotSave, true);
@@ -445,7 +518,7 @@ test('Guardian verification requires its signed result and the exact pinned phon
     const secret = 'ab'.repeat(32); let calls = 0;
     const GuardianQuery = async (_host, options) => { calls++; assert.equal(options.getSecret(), secret); return 45678; };
     const f = await fixture(t, { config: { guardianPortDiscovery: true, guardianSecret: secret }, enrollment: enrolled(), GuardianQuery,
-        memory: { 'guardian-pair-state': { status: 'android_verified_host_not_enabled' } } });
+        memory: { 'guardian-pair-state': { status: 'android_verified_host_not_enabled', keyDigest: 'a'.repeat(64) } } });
     f.adapter.foreignObjects.set('system.adapter.' + f.adapter.namespace,
         { encryptedNative: ['guardianSecret'], protectedNative: ['guardianSecret'] });
     assert.deepEqual(await f.message('guardianPairVerify'), { result: 'guardian_pair_verified', native: {} });
@@ -2005,6 +2078,110 @@ test('manual priority prefers cooperative read handoff and still waits for the a
     assert.equal(f.value('refresh.charging.status'), 'fresh');
 });
 
+function attachControlledRealRuntime(f) {
+    let held = false;
+    const calls = [];
+    const executionFence = {
+        async assertClear() { if (held) throw new BridgeError('adb_execution_fenced', 'held'); },
+        async acquire() { if (held) throw new BridgeError('adb_execution_fenced', 'held'); held = true; return 'a'.repeat(32); },
+        async release() { assert.equal(held, true); held = false; },
+    };
+    const makeChild = () => {
+        const child = new EventEmitter();
+        child.stdin = new PassThrough(); child.stdout = new PassThrough(); child.stderr = new PassThrough();
+        child.exitCode = null; child.signalCode = null;
+        child.kill = signal => { child.signalCode = signal; queueMicrotask(() => child.emit('close', null, signal)); return true; };
+        return child;
+    };
+    const runtime = new AdbRuntime({dataDir: f.adapter.dataDir, executionFence, spawnImpl: (_file, args) => {
+        const child = makeChild(); child.args = args; calls.push(child); return child;
+    }});
+    runtime._ready = true; runtime._server = makeChild(); runtime._binary = 'synthetic'; runtime._port = 12345; runtime._env = {};
+    f.adapter.runtime = runtime;
+    return {runtime, calls, executionFence, held: () => held};
+}
+
+test('real runtime handoff waits for Android response and releases the job before a manual read', async t => {
+    const entered = deferred(); let runtimeControl;
+    const f = await fixture(t, {enrollment: enrolled(), fakeController: true, cooperativeHandoff: true,
+        RefreshScheduler: RecordingScheduler, config: {pollIntervalSeconds: 15}, controllerExecute: async action => {
+            if (action === 'status') {
+                const running = runtimeControl.runtime.run(['shell', 'input', 'tap', '1', '1'], {timeoutMs: 3000});
+                entered.resolve(); await running;
+                throw new BridgeError('cancelled', 'cooperative handoff');
+            }
+            return chargingResult();
+        }});
+    runtimeControl = attachControlledRealRuntime(f);
+    const automatic = f.adapter.scheduler.options.run('climate'); await entered.promise;
+    const manual = f.adapter.command('chargingStatus');
+    assert.equal(runtimeControl.held(), true);
+    assert.equal(f.records.controllers[0].handoffRequested, true);
+    const marker = runtimeControl.calls[0].args.at(-1).match(/__VW_ANDROID_DONE_[a-f0-9]{32}__:/)[0];
+    runtimeControl.calls[0].stdout.write('\n' + marker + '0\n');
+    runtimeControl.calls[0].exitCode = 0; runtimeControl.calls[0].emit('close', 0);
+    await automatic; await manual;
+    assert.equal(runtimeControl.held(), false);
+    assert.equal(f.value('refresh.charging.status'), 'fresh');
+});
+
+test('real runtime timeout during handoff invalidates a previously fresh domain and blocks manual work', async t => {
+    const entered = deferred(); let runtimeControl; let first = true;
+    const f = await fixture(t, {enrollment: enrolled(), fakeController: true, cooperativeHandoff: true,
+        RefreshScheduler: RecordingScheduler, config: {pollIntervalSeconds: 15}, controllerExecute: async action => {
+            if (action === 'status' && first) { first = false; return {appState: 'off', appVersion: '4.8.1',
+                vehicleConfirmed: false, observedAt: new Date().toISOString(), temperature: null}; }
+            if (action === 'status') {
+                const running = runtimeControl.runtime.run(['shell', 'input', 'tap', '1', '1'], {timeoutMs: 30});
+                entered.resolve(); return running;
+            }
+            return chargingResult();
+        }});
+    await f.adapter.command('status');
+    assert.equal(f.value('refresh.climate.status'), 'fresh');
+    runtimeControl = attachControlledRealRuntime(f);
+    const automatic = f.adapter.scheduler.options.run('climate'); await entered.promise;
+    const manual = f.adapter.command('chargingStatus');
+    const rejected = rejectsCode(manual, 'guardian_phone_fenced');
+    await automatic; await rejected;
+    assert.equal(runtimeControl.held(), true);
+    assert.equal(f.value('refresh.climate.status'), 'error');
+    assert.equal(f.value('refresh.climate.lastErrorCode'), 'adb_execution_fenced');
+    assert.ok(['adb_execution_fenced', 'guardian_phone_fenced'].includes(f.value('info.status')));
+    assert.ok(['adb_execution_fenced', 'guardian_phone_fenced'].includes(f.value('operation.lastErrorCode')));
+    assert.equal(f.adapter.scheduler.paused, true);
+    assert.equal(f.adapter.states.get('climate.active').q & 0x82, 0x82);
+});
+test('shutdown during a real runtime Android command retains the durable job fence', async t => {
+    const entered = deferred(); let runtimeControl;
+    const f = await fixture(t, {enrollment: enrolled(), fakeController: true, controllerExecute: async () => {
+        const running = runtimeControl.runtime.run(['shell', 'input', 'tap', '1', '1'], {timeoutMs: 5000});
+        entered.resolve(); return running;
+    }});
+    runtimeControl = attachControlledRealRuntime(f);
+    const running = f.adapter.command('status');
+    const rejection = rejectsCode(running, 'adb_execution_fenced');
+    await entered.promise;
+    let callbacks = 0;
+    await f.adapter.onUnload(() => { callbacks++; });
+    await rejection;
+    assert.equal(callbacks, 1);
+    assert.equal(runtimeControl.held(), true);
+    assert.equal(runtimeControl.calls.length, 1);
+});
+test('a surviving runtime marker also blocks local setup after a simulated restart', async t => {
+    const f = await fixture(t, {enrollment: enrolled(), fakeController: true});
+    const previous = attachControlledRealRuntime(f);
+    await previous.runtime.beginJob();
+    const successor = new AdbRuntime({dataDir: f.adapter.dataDir, executionFence: previous.executionFence});
+    f.adapter.runtime = successor;
+    const result = await f.message('guardianBinderPrepare');
+    assert.match(result.error, /^adb_execution_fenced:/);
+    assert.equal(previous.held(), true);
+    assert.equal(f.records.phones.length, 0);
+    assert.equal(f.adapter.foreignWrites.length, 0);
+});
+
 test('a competing command never cancels a manual write and unload keeps hard cancellation even with cooperative handoff support', async t => {
     const entered = deferred(); const release = deferred();
     const f = await fixture(t, { cooperativeHandoff: true, enrollment: enrolled(), fakeController: true,
@@ -3325,6 +3502,7 @@ test('Admin reset safely waits for a running automatic read without making anoth
         controllerExecute: async action => { assert.equal(action, 'refreshVehicleAccess'); entered.resolve(); await release.promise; return closedAccessResult(true); } });
     const reading = f.adapter.scheduler.options.run('vehicleAccess'); await entered.promise;
     const resetting = f.message('resetSecurityBlock');
+    for (let n = 0; n < 20 && !f.records.controllers[0].handoffRequested; n++) await Promise.resolve();
     assert.equal(f.records.controllers[0].handoffRequested, true);
     assert.equal(f.value('security.blocked'), true);
     release.resolve(); await reading;
@@ -3333,6 +3511,27 @@ test('Admin reset safely waits for a running automatic read without making anoth
     assert.equal(f.records.controllerCalls.length, 1);
     assert.equal(f.records.phones.length, 1);
     assert.deepEqual(f.adapter.scheduler.requests, []);
+});
+
+test('sensitive action cannot proceed if Admin authentication or group membership is revoked during handoff', async t => {
+    for (const mode of ['auth-disabled', 'group-removed']) {
+        const entered = deferred(), release = deferred();
+        const f = await fixture(t, { enrollment: enrolled(), fakeController: true, cooperativeHandoff: true,
+            RefreshScheduler: RecordingScheduler, config: { pollIntervalSeconds: 15, sPin: syntheticSecurityPin() },
+            memory: { 'security-auth-state': blockedSecurityState('attempt_pending') },
+            controllerExecute: async () => { entered.resolve(); await release.promise; return closedAccessResult(true); } });
+        const reading = f.adapter.scheduler.options.run('vehicleAccess'); await entered.promise;
+        const resetting = f.message('resetSecurityBlock');
+        for (let n = 0; n < 20 && !f.records.controllers[0].handoffRequested; n++) await Promise.resolve();
+        assert.equal(f.records.controllers[0].handoffRequested, true);
+        if (mode === 'auth-disabled') f.adapter.foreignObjects.get('system.adapter.admin.0').native.auth = false;
+        else f.adapter.foreignObjects.get('system.group.administrator').common.members = [];
+        release.resolve(); await reading;
+        assert.match((await resetting).error, /^invalid_action:/);
+        assert.equal(f.value('security.blocked'), true);
+        assert.deepEqual(f.memory['security-auth-state'], blockedSecurityState('attempt_pending'));
+        assert.equal(f.records.controllerCalls.length, 1);
+    }
 });
 
 test('an explicit unlock cooperatively takes over an automatic read and never repeats the write', async t => {
