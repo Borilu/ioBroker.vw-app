@@ -156,6 +156,9 @@ async function fixture(t, options = {}) {
 
     class FakeRuntime {
         constructor(settings) { this.settings = settings; this.ready = !options.runtimeMissing; this.calls = []; records.runtime.push(this); }
+        async assertJobClear() { if (this.fenced) throw new BridgeError('adb_execution_fenced', 'fenced'); }
+        async beginJob() { await this.assertJobClear(); if (this.job) throw new Error('overlap'); this.job = true; }
+        async endJob() { if (this.fenced) throw new BridgeError('adb_execution_fenced', 'fenced'); this.job = false; }
         async start() {
             this.calls.push(['start']);
             if (!this.ready) throw new BridgeError('runtime_missing', 'Install Android tools in adapter settings.');
@@ -278,6 +281,44 @@ async function fixture(t, options = {}) {
 }
 
 function enrolled() { return { deviceId: DEVICE, profile: { appVersion: '4.8.1', vehicleMarker: VEHICLE } }; }
+
+test('a persistent runtime fence stops automatic and manual phone work and invalidates the failing read', async t => {
+    const f = await fixture(t, { enrollment: enrolled(), fakeController: true,
+        RefreshScheduler: RecordingScheduler, config: { pollIntervalSeconds: 15 } });
+    f.records.runtime[0].fenced = true;
+    await rejectsCode(f.adapter.scheduler.options.run('climate'), 'adb_execution_fenced');
+    assert.equal(f.adapter.scheduler.paused, true);
+    assert.equal(f.value('refresh.climate.status'), 'error');
+    assert.equal(f.value('refresh.climate.lastErrorCode'), 'adb_execution_fenced');
+    assert.equal(f.value('info.status'), 'adb_execution_fenced');
+    assert.equal(f.records.phones.length, 0);
+    await rejectsCode(f.adapter.command('chargingStatus'), 'adb_execution_fenced');
+    assert.equal(f.records.phones.length, 0);
+    assert.equal(f.adapter.scheduler.options.canRun(), false);
+});
+
+test('a fence raised during automatic handover pauses the scheduler and remains visible', async t => {
+    const entered = deferred(), finish = deferred();
+    const f = await fixture(t, { enrollment: enrolled(), fakeController: true, cooperativeHandoff: true,
+        RefreshScheduler: RecordingScheduler, config: { pollIntervalSeconds: 15 }, controllerExecute: async () => {
+            entered.resolve(); await finish.promise;
+            f.records.runtime[0].fenced = true;
+            throw new BridgeError('adb_timeout', 'synthetic timeout');
+        } });
+    t.after(() => finish.resolve());
+    const auto = f.adapter.scheduler.options.run('climate');
+    const autoRejected = rejectsCode(auto, 'adb_execution_fenced');
+    await entered.promise;
+    const manual = f.adapter.command('chargingStatus');
+    const manualRejected = rejectsCode(manual, 'adb_execution_fenced');
+    finish.resolve();
+    await autoRejected; await manualRejected;
+    assert.equal(f.adapter.scheduler.paused, true);
+    assert.equal(f.value('refresh.climate.status'), 'error');
+    assert.equal(f.value('refresh.climate.lastErrorCode'), 'adb_execution_fenced');
+    assert.equal(f.value('info.status'), 'adb_execution_fenced');
+    assert.equal(f.adapter.scheduler.options.canRun(), false);
+});
 
 test('maintenance drains the current read without cancelling and blocks new phone jobs', async t => {
     const entered = deferred(), release = deferred();

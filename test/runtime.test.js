@@ -61,13 +61,21 @@ async function fixture(t, { serverFails = false, ...options } = {}) {
                 if (plan.hold) return;
                 if (plan.error) { child.emit('error', new Error(plan.error)); child.close(1); return; }
                 if (plan.stdout) child.stdout.write(plan.stdout);
+                const marker = args.at(-1)?.match(/__VW_ANDROID_DONE_[a-f0-9]{32}__:/)?.[0];
+                if (marker && !plan.omitMarker) child.stdout.write('\n' + marker + (plan.remoteStatus ?? 0) + '\n');
                 if (plan.stderr) child.stderr.write(plan.stderr);
                 child.close(plan.code ?? 0);
             });
         }
         return child;
     };
-    const runtime = new AdbRuntime({ dataDir, adbPath: binary, useBundledAdb: false, platform: 'linux', arch: 'x64', spawnImpl, ...options });
+    let held = false;
+    const executionFence = {
+        async assertClear() { if (held) throw Object.assign(new Error('held'), {code:'adb_execution_fenced'}); },
+        async acquire() { if (held) throw Error('held'); held = true; return 'a'.repeat(32); },
+        async release() { if (!held) throw Error('not held'); held = false; },
+    };
+    const runtime = new AdbRuntime({ dataDir, adbPath: binary, useBundledAdb: false, platform: 'linux', arch: 'x64', spawnImpl, executionFence, ...options });
     t.after(async () => { await runtime.stop(); await fs.rm(dataDir, { recursive: true, force: true }); });
     return { runtime, dataDir, binary, calls, plans };
 }
@@ -123,6 +131,7 @@ test('server and clients use an owned loopback port, private HOME, and no shell'
     const originalEnvironment = { ...process.env };
     const { runtime, calls, dataDir, binary, plans } = await fixture(t);
     await runtime.start();
+    await runtime.beginJob();
     assert.deepEqual(runtime.readyInfo, { started: true, version: null });
     const server = calls[0];
     assert.equal(server.file, binary);
@@ -150,6 +159,7 @@ test('server and clients use an owned loopback port, private HOME, and no shell'
         && Object.entries(originalEnvironment).every(([name, value]) => process.env[name] === value), true,
     'The runtime must not mutate the adapter environment.');
     await assert.rejects(runtime.install({ acceptLicense: true }), { code: 'runtime_busy' });
+    await runtime.endJob();
     await runtime.stop();
     assert.equal(server.child.signals[0], 'SIGTERM');
     assert.equal(calls.some(call => call.args.includes('kill-server')), false);
@@ -164,6 +174,7 @@ test('startup errors are fixed and do not reveal child process details', async t
 test('commands cannot replace the owned server or control its lifecycle', async t => {
     const { runtime, calls } = await fixture(t);
     await runtime.start();
+    await runtime.beginJob();
     for (const args of [['-H', 'elsewhere', 'devices'], ['-L', 'tcp:5037', 'devices'], ['kill-server'], ['start-server'], ['-s']]) {
         await assert.rejects(runtime.run(args), { code: 'invalid_adb_command' });
     }
@@ -173,6 +184,7 @@ test('commands cannot replace the owned server or control its lifecycle', async 
 test('client failures, timeouts, and combined stdout/stderr size are bounded', async t => {
     const { runtime, plans, calls } = await fixture(t);
     await runtime.start();
+    await runtime.beginJob();
     plans.push({ stdout: 'secret detail', code: 1 });
     await assert.rejects(runtime.run(['devices']), err => err.code === 'adb_command_failed' && !err.message.includes('secret'));
     plans.push({ error: 'secret executable path' });
@@ -189,21 +201,26 @@ test('client failures, timeouts, and combined stdout/stderr size are bounded', a
 test('stop aborts pending clients and permits a fresh owned server afterwards', async t => {
     const { runtime, plans, calls } = await fixture(t);
     await runtime.start();
+    await runtime.beginJob();
     plans.push({ hold: true });
     const pending = runtime.run(['devices']);
     const rejected = assert.rejects(pending, { code: 'runtime_stopped' });
     await runtime.stop();
     await rejected;
+    await runtime.endJob();
     assert.equal(runtime._clients.size, 0);
     assert.equal(calls[1].child.signals[0], 'SIGTERM');
     await assert.rejects(runtime.run(['devices']), { code: 'runtime_not_started' });
     await runtime.start();
+    await runtime.beginJob();
     assert.equal(await runtime.run(['devices']), 'ok\n');
+    await runtime.endJob();
 });
 
 test('pair validates numeric endpoints and ASCII digits and sends the code only through stdin', async t => {
     const { runtime, plans, calls } = await fixture(t);
     await runtime.start();
+    await runtime.beginJob();
     for (const address of ['phone.example:1234', '192.168.1.1:0', '192.168.1.1:65536', '999.1.1.1:12', '192.168.1.1:12\n']) {
         await assert.rejects(runtime.pair(address, '123456'), { code: 'invalid_wifi_endpoint' });
     }
@@ -222,7 +239,36 @@ test('pair validates numeric endpoints and ASCII digits and sends the code only 
     assert.equal(call.input, '123456\n');
     plans.push({ stdout: 'failed to pair to phone\n', code: 0 });
     await assert.rejects(runtime.pair('[2001:db8::1]:1234', '123456'), { code: 'adb_pair_failed' });
+    await assert.rejects(runtime.endJob(), { code: 'adb_execution_fenced' });
+    const successor = new AdbRuntime({ dataDir: runtime.dataDir, adbPath: runtime.adbPath, useBundledAdb: false,
+        platform: 'linux', arch: 'x64', executionFence: runtime._executionFence });
+    await assert.rejects(successor.start(), { code: 'adb_execution_fenced' });
 });
+test('an absent or wrong-device pairing acknowledgement stays fenced across a new runtime', async t => {
+    for (const output of ['', 'Successfully paired to 192.0.2.2:4000 [guid=synthetic]\n']) {
+        const {runtime, plans} = await fixture(t);
+        await runtime.start(); await runtime.beginJob();
+        plans.push({stdout: output, code: 0});
+        await assert.rejects(runtime.pair('192.0.2.1:4000', '123456'), {code:'adb_pair_failed'});
+        await assert.rejects(runtime.endJob(), {code:'adb_execution_fenced'});
+        const successor = new AdbRuntime({dataDir:runtime.dataDir, adbPath:runtime.adbPath, useBundledAdb:false,
+            platform:'linux', arch:'x64', executionFence:runtime._executionFence});
+        await assert.rejects(successor.start(), {code:'adb_execution_fenced'});
+    }
+});
+
+test('an unconfirmed guarded UI action leaves its real durable fence across a new runtime',
+    { skip: process.platform !== 'linux' }, async t => {
+        const dataDir = await fs.mkdtemp(path.join(os.tmpdir(), 'vw-action-fence-'));
+        t.after(async () => { await fs.rm(dataDir, { recursive: true, force: true }); });
+        const first = new AdbRuntime({ dataDir });
+        await first.beginJob();
+        first.fenceUncertainAction();
+        await assert.rejects(first.endJob(), { code: 'adb_execution_fenced' });
+        const second = new AdbRuntime({ dataDir });
+        await assert.rejects(second.assertJobClear(), { code: 'adb_execution_fenced' });
+        await assert.rejects(second.beginJob(), { code: 'adb_execution_fenced' });
+    });
 
 function crc32(bytes) {
     let crc = 0xffffffff;
