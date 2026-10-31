@@ -83,8 +83,8 @@ async function main() {
         serviceUid:uid,serviceGid:gid,trustMode:'leaf'};
     fs.writeFileSync(config,JSON.stringify({journalDir:dir,pilot:p}),{mode:0o600});
     const pilot=path.join(__dirname,'..','pilot.cjs');
-    function command(name) {
-        const output=fixedCommand(process.execPath,[pilot,name,config,'--execute']);
+    function command(name,configFile=config) {
+        const output=fixedCommand(process.execPath,[pilot,name,configFile,'--execute']);
         const allowed=['prepared','loopback_tls_verified_auth_unproven','stop_observed_entries_retained'];
         if(!allowed.includes(output.trim())) throw new Error('unexpected_pilot_result');
         console.log(name+': '+output.trim());
@@ -147,5 +147,29 @@ async function main() {
     assert.equal(await runCiShared({p:shared,scope:sharedScope,dir:sharedDir,certPem,WebSocket}),
         'ci_shared_pilot_observed');
     console.log('shared-alias loopback pilot completed without certificate-map writes');
+
+    // Exercise the same scope-driven runner intended for later review, using
+    // only newly generated synthetic scope/config and a distinct test instance.
+    requireIsolated();
+    const dir4=fs.mkdtempSync(path.join(os.tmpdir(),'vw-admin-https-ci-'));fs.chmodSync(dir4,0o700);
+    const id4=crypto.randomBytes(16).toString('hex'),port4=await freePort();
+    const p4={...p,id:id4,certificateOwnerId:id,instance:20,port:port4};
+    const config4=path.join(dir4,'config.json');
+    fs.writeFileSync(config4,JSON.stringify({journalDir:dir4,pilot:p4}),{mode:0o600});
+    const syntheticScope={id:id4,owner:id,instance:20,previousInstance:17,port:port4,expectedIp:p.expectedIp,
+        serverCertSha256:p.serverCertSha256,ownerUid:uid,serviceUid:uid,serviceGid:gid,
+        base:dir4,dir:dir4,ownerBase:dir,publicPath:cert,privatePath:key};
+    const scopeBytes=Buffer.from(JSON.stringify(syntheticScope)),scopeFile=path.join(dir4,'pilot-scope.json');
+    fs.writeFileSync(scopeFile,scopeBytes,{mode:0o600});
+    const scopeHash=crypto.createHash('sha256').update(scopeBytes).digest('hex');
+    const runner=path.join(__dirname,'..','scoped-shared-runner.cjs');
+    const callScoped=action=>fixedCommand(process.execPath,[runner,action,'--scope',scopeFile,'--scope-hash',scopeHash,'--execute']).trim();
+    if(callScoped('--stage')!=='shared_pilot_prepared')throw Error('scoped_shared_stage_unconfirmed');
+    if(callScoped('--start')!=='shared_pilot_loopback_observed')throw Error('scoped_shared_start_unconfirmed');
+    const final4=JSON.parse(fs.readFileSync(path.join(dir4,'pilot-journal.json'),'utf8'));
+    if(final4.p?.id!==id4||final4.sharedCertVerification!=='verified'
+        ||final4.phase!=='loopback_tls_verified_auth_unproven')throw Error('scoped_shared_journal_unconfirmed');
+    command('stop',config4);
+    console.log('hash-scoped shared-alias runner completed against real disposable controller');
 }
 main().catch(e=>{console.error('Synthetic controller integration stopped: '+(e.message||'unknown'));process.exitCode=1;});

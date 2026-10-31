@@ -67,7 +67,7 @@ jobs:
           set -euo pipefail
           docker inspect "$CONTAINER" | node -e "let s='';process.stdin.on('data',x=>s+=x);process.stdin.on('end',()=>{const c=JSON.parse(s)[0];if(c.HostConfig.Privileged||c.HostConfig.NetworkMode==='host'||c.Mounts.some(m=>m.Type!=='volume'||m.Destination!=='/opt/iobroker')||Object.keys(c.NetworkSettings.Ports||{}).some(k=>c.NetworkSettings.Ports[k]))process.exit(1);});"
           docker exec "$CONTAINER" mkdir -p /tmp/vw-pilot-code/ci
-          for file in provision.cjs cli-driver.cjs pilot.cjs stop-evidence.cjs shared-pilot.cjs shared-pilot.test.cjs http1-migration.cjs http1-migration.test.cjs provision.test.cjs tls-probe.test.cjs stop-evidence.test.cjs; do
+          for file in provision.cjs cli-driver.cjs pilot.cjs stop-evidence.cjs shared-pilot.cjs shared-pilot.test.cjs shared-scope-policy.cjs scoped-shared-runner.cjs scoped-shared-runner.test.cjs http1-migration.cjs http1-migration.test.cjs provision.test.cjs tls-probe.test.cjs stop-evidence.test.cjs; do
             docker cp "$file" "$CONTAINER:/tmp/vw-pilot-code/$file"
           done
           for file in auth-socket-probe.cjs auth-socket-probe.test.cjs control-socket.cjs isolation-check.cjs isolation-check.test.cjs alpn-probe.cjs alpn-probe.test.cjs ci-migration-driver.cjs ci-migration-driver.test.cjs shared-pilot-driver.cjs shared-pilot-driver.test.cjs run-controller-pilot.cjs; do
@@ -82,7 +82,7 @@ jobs:
           set -euo pipefail
           ws_path=$(docker exec -u iobroker "$CONTAINER" node -p "require.resolve('ws',{paths:[require('path').dirname(require.resolve('@iobroker/ws-server/package.json',{paths:['/opt/iobroker/node_modules/iobroker.admin']}))]})")
           docker exec -u iobroker -e OPENSSL_BIN=/usr/bin/openssl -e WS_FIXTURE_PATH="$ws_path" "$CONTAINER" \
-            node --test /tmp/vw-pilot-code/provision.test.cjs /tmp/vw-pilot-code/tls-probe.test.cjs /tmp/vw-pilot-code/http1-migration.test.cjs /tmp/vw-pilot-code/shared-pilot.test.cjs \
+            node --test /tmp/vw-pilot-code/provision.test.cjs /tmp/vw-pilot-code/tls-probe.test.cjs /tmp/vw-pilot-code/http1-migration.test.cjs /tmp/vw-pilot-code/shared-pilot.test.cjs /tmp/vw-pilot-code/scoped-shared-runner.test.cjs \
               /tmp/vw-pilot-code/stop-evidence.test.cjs /tmp/vw-pilot-code/ci/auth-socket-probe.test.cjs \
               /tmp/vw-pilot-code/ci/isolation-check.test.cjs /tmp/vw-pilot-code/ci/alpn-probe.test.cjs \
               /tmp/vw-pilot-code/ci/ci-migration-driver.test.cjs /tmp/vw-pilot-code/ci/shared-pilot-driver.test.cjs
