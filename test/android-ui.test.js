@@ -52,7 +52,7 @@ async function setup(t, overrides = {}) {
                 if (args[1].endsWith('.json')) request = JSON.parse(await fs.readFile(args[1], 'utf8'));
                 return '';
             }
-            if (args[1] === 'sha256sum') return manifest.sha256 + '  helper.jar\n';
+            if (args[3]?.startsWith('if [ -f ')) return manifest.sha256 + '  /data/local/tmp/vw-app-ui-' + manifest.sha256 + '.jar\n';
             if (args[1] === 'uiautomator') {
                 const out = args[args.indexOf('out') + 1];
                 if (args.includes(RUNNERS.read)) { files.set(out, JSON.stringify(currentFrame)); return 'Warning\nVW_UI_DUMP_OK\n'; }
@@ -76,6 +76,27 @@ async function readAndAct(subject, changes = {}) {
     const { observation } = await subject.bridge.read();
     return subject.bridge.action({ snapshot: observation, header: 'Zeit einstellen', target, action: 'setProgress', value: 115008, ...changes });
 }
+test('first installation uploads a genuinely absent Android helper and checks its hash', async t => {
+    let present = false;
+    const subject = await setup(t, {run: async args => {
+        if (args[0] === 'push') { present = true; return ''; }
+        if (args[3]?.startsWith('if [ -f ')) return present
+            ? manifest.sha256 + '  /data/local/tmp/vw-app-ui-' + manifest.sha256 + '.jar\n' : 'absent\n';
+    }});
+    await subject.bridge.payload();
+    assert.equal(subject.calls.filter(call => call[0] === 'push').length, 1);
+    assert.equal(subject.calls.filter(call => call[3]?.startsWith('if [ -f ')).length, 2);
+});
+test('bad helper response or connection failure never triggers an upload', async t => {
+    for (const bad of ['not-an-allowed-response', '']) {
+        const subject = await setup(t, {run: async args => args[3]?.startsWith('if [ -f ') ? bad : undefined});
+        await assert.rejects(subject.bridge.payload());
+        assert.equal(subject.calls.filter(call => call[0] === 'push').length, 0);
+    }
+    const subject = await setup(t, {run: async args => { if (args[3]?.startsWith('if [ -f ')) throw Error('connection lost'); }});
+    await assert.rejects(subject.bridge.payload());
+    assert.equal(subject.calls.filter(call => call[0] === 'push').length, 0);
+});
 function invocations(calls) { return calls.filter(call => call.includes(RUNNERS.action)); }
 
 async function setupSecurity(t, options = {}) {
@@ -230,7 +251,7 @@ test('own read helper verifies the payload, returns immutable observations and c
     assert.equal(subject.calls.filter(call => call.includes(RUNNERS.read)).length, 1);
     assert.equal(invocations(subject.calls).length, 0);
     assert.equal(subject.calls.filter(call => call.includes('rm')).length, 1);
-    assert.ok(subject.calls.some(call => call[1] === 'sha256sum'));
+    assert.ok(subject.calls.some(call => call[3]?.startsWith('if [ -f ')));
 });
 
 test('action selects exact raw clock state and path, passes a private JSON file and reports API acceptance without inventing the requested value', async t => {

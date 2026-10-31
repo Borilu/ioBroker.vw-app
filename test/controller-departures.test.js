@@ -5,7 +5,13 @@ const assert = require('node:assert/strict');
 const { Controller } = require('../lib/controller');
 const { executeDepartures, returnFromDeparturePage } = require('../lib/departures-controller');
 const { BridgeError } = require('../lib/errors');
+const { AdbRuntime, makeConfirmedRecoveryPermit } = require('../lib/runtime');
+const { EventEmitter } = require('node:events');
+const { PassThrough } = require('node:stream');
+const path = require('node:path');
 const { nativeObservationFromXml } = require('./support/charging-mode-fixtures.cjs');
+const { AndroidUi, editorDigest, claimCleanBackReadPermit } = require('../lib/android-ui');
+const { DepartureScreen } = require('../lib/departures-ui');
 
 const PACKAGE = 'com.volkswagen.weconnect';
 const MARKER = 'Ihr Fahrzeug: Testwagen. ';
@@ -38,7 +44,7 @@ function switched(bounds, enabled) {
     ]);
 }
 function page(title, children, { right = null, bodyClass = 'android.widget.ScrollView', actions = [], scrollable = true } = {}) {
-    const back = node({ class: 'android.widget.Button', clickable: 'true', bounds: '[20,90][160,190]' });
+    const back = node({ class: 'android.widget.Button', clickable: 'true', 'a11y-actions': '[16]', bounds: '[20,90][160,190]' });
     const heading = node({ 'content-desc': title, bounds: '[170,110][830,170]' });
     const trailing = right ? node({ class: 'android.widget.Button', clickable: 'true',
         text: right === 'save' ? 'Speichern' : '', bounds: '[840,90][980,190]' }) : null;
@@ -331,6 +337,23 @@ class App {
         if (this.afterSystemBack) await this.afterSystemBack();
     }
     async departureAction(request) {
+        if (request.action === 'cleanEditorBack' || request.action === 'timerEditorBack') {
+            this.calls.push(['cleanBack']);
+            if (this.beforeAction) await this.beforeAction(request);
+            const current = this.view();
+            const fresh = nativeObservationFromXml(current.xml);
+            if (this.page !== 'timerEditor' || request.action === 'cleanEditorBack' && this.dirtyEditor
+                || editorDigest(fresh.root) !== editorDigest(request.snapshot.root)) {
+                return { beforeMatched: false, actionAttempted: false, actionAccepted: null, success: false, errorCode: 'EDITOR_CHANGED' };
+            }
+            this.page = this.editorKind === 'climate' ? 'departuresOverview' : 'locationOverview';
+            if (this.afterGuardedBack) await this.afterGuardedBack();
+            if (this.noCleanPost) return { beforeMatched: true, actionAttempted: true, actionAccepted: true,
+                success: false, errorCode: null, postReadError: 'POST_READ_UNAVAILABLE', postRead: null };
+            const returned = this.view();
+            return { beforeMatched: true, actionAttempted: true, actionAccepted: true, success: true, errorCode: null,
+                postRead: { xml: returned.xml, observation: nativeObservationFromXml(returned.xml) } };
+        }
         if (!this.writable) throw new Error('Departure writes must not run during reads');
         this.calls.push(['action', clone({ ...request, snapshot: undefined })]);
         if (this.beforeAction) await this.beforeAction(request);
@@ -354,6 +377,7 @@ class App {
         return { beforeMatched: true, actionAttempted: true, actionAccepted: true, success: true,
             postRead: this.noActionPostRead ? null : await this.departureView() };
     }
+    fenceUncertainAction() { this.actionFenced = true; }
 }
 function sameDays(a, b) { return JSON.stringify(a) === JSON.stringify(b); }
 
@@ -390,7 +414,7 @@ test('climate status reads both native timers, checks displayed values and retur
     assert.deepEqual(result.timers[0].days, ['mon']); assert.equal(result.timers[0].daysSummary, 'Montag');
     assert.equal(result.timers[0].daysSummaryRecognized, true);
     assert.equal(result.timers[0].source, 'editor_initial_snapshot');
-    assert.equal(phone.calls.filter(call => call[0] === 'tap' && call[1] === 'timerEditor').length, 2);
+    assert.equal(phone.calls.filter(call => call[0] === 'cleanBack').length, 2);
     finished(c, phone);
 });
 
@@ -505,11 +529,11 @@ test('known contradictory days, clock, enabled and repeat evidence prevents publ
     await rejects(executeDepartures(c, 'departuresClimateStatus'), 'departure_changed');
 });
 
-test('an older editor without wheel metadata still requires the list clock and native snapshot to agree', async () => {
+test('an editor without visible wheel metadata returns once and reads the full native snapshot', async () => {
     const { c, phone } = setup({ noWheels: true });
     const result = await executeDepartures(c, 'departuresClimateStatus');
-    assert.equal(result.timers[0].time, phone.climate[0].time);
-    finished(c, phone);
+    assert.equal(result.timers.length, 2); assert.equal(phone.page, 'home');
+    assert.equal(phone.calls.filter(call => call[0] === 'cleanBack').length, 2);
 });
 
 test('invalid actions, malformed options and invalid native location selectors reject before any phone work', async () => {
@@ -567,14 +591,174 @@ test('the menu is found by exact fresh description after a bounded overview scro
     finished(c, phone);
 });
 
-test('a pre-existing timer editor is left open with an accurate fixed instruction and no navigation input', async () => {
+test('a pre-existing recognized timer editor returns once before the read begins', async () => {
     const { c, phone } = setup({ page: 'timerEditor', editorKind: 'climate', editorId: '1' });
-    await rejects(executeDepartures(c, 'departuresClimateStatus'), 'unsaved_settings');
-    assert.equal(phone.calls.some(call => call[0] === 'tap' || call[0] === 'swipe'), false);
-    assert.equal(phone.page, 'timerEditor');
+    const result = await executeDepartures(c, 'departuresClimateStatus');
+    assert.equal(result.timers.length, 2); assert.equal(phone.page, 'home');
+    assert.equal(phone.calls.filter(call => call[0] === 'cleanBack').length, 3);
 });
 
-test('dirty gear, preferred or newly changed timer drafts are neither saved nor discarded', async () => {
+test('the native guarded back request is bound to the whole clean editor snapshot and exact header button', async () => {
+    const { phone } = setup({ page: 'timerEditor', editorKind: 'climate', editorId: '1' });
+    const view = await phone.departureView();
+    // The generic synthetic XML adapter omits range metadata. Restore the
+    // explicit wheel ranges emitted by the real rich Android observation.
+    const addRanges = current => {
+        if (current.description === 'Hour') current.rangeInfo = { type: 1, min: 0, max: 229999, current: 115001 };
+        if (current.description === 'Minute') current.rangeInfo = { type: 1, min: 0, max: 119999, current: 60001 };
+        current.children.forEach(addRanges);
+    };
+    addRanges(view.observation.root);
+    const screen = new DepartureScreen(view.xml);
+    const bounds = screen._bounds(screen._base().back);
+    let request, actionRuns = 0;
+    const fake = { check() {}, foreground: async () => {}, runtime: { dataDir: require('node:path').resolve('.'), run: async () => '' },
+        run: async args => {
+            if (args[0] === 'push') return '';
+            if (args[1] === 'uiautomator') { actionRuns++; return 'VW_UI_ACTION_RESULT\n'; }
+            if (args[1] === 'cat') return JSON.stringify({ format: 'vw-app-accessibility-action-v1', requestNonce: request.nonce,
+                action: request.action, actionId: 16, beforeMatched: true, actionAttempted: true, actionAccepted: true,
+                success: true, nativeContextVerifiedByRunner: false, errorCode: null, postReadError: null, postRead: view.observation });
+            throw Error('Unexpected synthetic action.');
+        } };
+    const bridge = new AndroidUi(fake, { now: () => 1 });
+    bridge.payload = async () => '/data/local/tmp/synthetic.jar';
+    bridge.requestFile = async value => { request = value; return require('node:path').join(require('node:os').tmpdir(),
+        'vw-editor-test-' + require('node:crypto').randomUUID()); };
+    bridge.observations.set(view.observation, 1);
+    const result = await bridge.action({ snapshot: view.observation, header: 'Zeit einstellen',
+        target: { class: 'android.widget.Button', bounds }, action: 'cleanEditorBack', value: null });
+    assert.equal(result.actionAccepted, true); assert.equal(actionRuns, 1);
+    assert.equal(request.value, editorDigest(view.observation.root));
+    assert.equal(request.action, 'cleanEditorBack'); assert.deepEqual(request.target.bounds, bounds);
+});
+
+test('the timer-back request permits Save and hidden wheels but only targets the verified editor back button', async () => {
+    const { phone } = setup({ page: 'timerEditor', editorKind: 'climate', editorId: '1', dirtyEditor: true, noWheels: true });
+    const view = await phone.departureView();
+    const screen = new DepartureScreen(view.xml), bounds = screen._bounds(screen._base().back);
+    let request;
+    const fake = { check() {}, foreground: async () => {}, runtime: { dataDir: path.resolve('.'), run: async () => '' },
+        run: async args => {
+            if (args[0] === 'push') return '';
+            if (args[1] === 'uiautomator') return 'VW_UI_ACTION_RESULT\n';
+            if (args[1] === 'cat') return JSON.stringify({ format: 'vw-app-accessibility-action-v1', requestNonce: request.nonce,
+                action: request.action, actionId: 16, beforeMatched: true, actionAttempted: true, actionAccepted: true,
+                success: true, nativeContextVerifiedByRunner: false, errorCode: null, postReadError: null, postRead: view.observation });
+            throw Error('Unexpected synthetic action.');
+        } };
+    const bridge = new AndroidUi(fake, { now: () => 1 });
+    bridge.payload = async () => '/data/local/tmp/synthetic.jar';
+    bridge.requestFile = async value => { request = value; return require('node:path').join(require('node:os').tmpdir(),
+        'vw-editor-test-' + require('node:crypto').randomUUID()); };
+    bridge.observations.set(view.observation, 1);
+    const result = await bridge.action({ snapshot: view.observation, header: 'Zeit einstellen',
+        target: { class: 'android.widget.Button', bounds }, action: 'timerEditorBack', value: null });
+    assert.equal(result.actionAccepted, true); assert.equal(request.value, editorDigest(view.observation.root));
+    assert.equal(request.action, 'timerEditorBack'); assert.deepEqual(request.target.bounds, bounds);
+});
+
+test('timer-back rejects a different screen, non-back target or forged observation before any phone action', async () => {
+    for (const mode of ['otherScreen', 'saveButton', 'forged']) {
+        const { phone } = setup({ page: mode === 'otherScreen' ? 'home' : 'timerEditor', editorKind: 'climate', editorId: '1', dirtyEditor: true, noWheels: true });
+        const view = await phone.departureView(); let actions = 0;
+        const fake = { check() {}, foreground: async () => { actions++; }, runtime: { dataDir: path.resolve('.'), run: async () => '' },
+            run: async () => { actions++; return ''; } };
+        const bridge = new AndroidUi(fake, { now: () => 1 });
+        if (mode !== 'forged') bridge.observations.set(view.observation, 1);
+        await assert.rejects(bridge.action({ snapshot: view.observation, header: 'Zeit einstellen',
+            target: { class: 'android.widget.Button', bounds: mode === 'saveButton' ? [840,90,980,190] : [20,90,160,190] },
+            action: 'timerEditorBack', value: null }));
+        assert.equal(actions, 0);
+    }
+});
+
+test('only a real nonce-checked guarded action may mint a one-use same-job post-read permit', async () => {
+    async function create(fields = {}, noJob = false) {
+        const { phone } = setup({ page: 'timerEditor', editorKind: 'climate', editorId: '1' });
+        const view = await phone.departureView();
+        const addRanges = current => {
+            if (current.description === 'Hour') current.rangeInfo = { type: 1, min: 0, max: 229999, current: 115001 };
+            if (current.description === 'Minute') current.rangeInfo = { type: 1, min: 0, max: 119999, current: 60001 };
+            current.children.forEach(addRanges);
+        };
+        addRanges(view.observation.root);
+        const screen = new DepartureScreen(view.xml), bounds = screen._bounds(screen._base().back);
+        let request;
+        const runtime = { dataDir: require('node:path').resolve('.'), _job: noJob ? null : { failureEpoch: 4 },
+            _ready: true, _blocked: false, _stopping: false, _clients: new Map(), run: async () => '' };
+        const fake = { check() {}, foreground: async () => {}, runtime, run: async args => {
+            if (args[0] === 'push') return '';
+            if (args[1] === 'uiautomator') return 'VW_UI_ACTION_RESULT\n';
+            if (args[1] === 'cat') return JSON.stringify({ format: 'vw-app-accessibility-action-v1', requestNonce: request.nonce,
+                action: request.action, actionId: 16, beforeMatched: true, actionAttempted: true, actionAccepted: true,
+                success: false, nativeContextVerifiedByRunner: false, errorCode: null, postReadError: 'POST_READ_UNAVAILABLE',
+                postRead: null, ...fields });
+            throw Error('Unexpected synthetic action.');
+        } };
+        const bridge = new AndroidUi(fake, { now: () => 1 });
+        bridge.payload = async () => '/data/local/tmp/synthetic.jar';
+        bridge.requestFile = async value => { request = value; return require('node:path').join(require('node:os').tmpdir(),
+            'vw-editor-test-' + require('node:crypto').randomUUID()); };
+        bridge.observations.set(view.observation, 1);
+        const result = await bridge.action({ snapshot: view.observation, header: 'Zeit einstellen',
+            target: { class: 'android.widget.Button', bounds }, action: 'cleanEditorBack', value: null });
+        return { fake, runtime, result };
+    }
+    const valid = await create();
+    assert.equal(claimCleanBackReadPermit(valid.fake, { ...valid.result }), null);
+    const permit = claimCleanBackReadPermit(valid.fake, valid.result);
+    assert.equal(typeof permit, 'function'); assert.equal(permit(), true);
+    assert.equal(claimCleanBackReadPermit(valid.fake, valid.result), null);
+    valid.runtime._job.failureEpoch++; assert.equal(permit(), false);
+    for (const fields of [{ beforeMatched: false, actionAttempted: false, actionAccepted: null },
+        { actionAccepted: false }, { errorCode: 'ACTION_OUTCOME_UNKNOWN' }, { postReadError: 'POST_READ_LIMIT' }]) {
+        const value = await create(fields);
+        assert.equal(claimCleanBackReadPermit(value.fake, value.result), null);
+    }
+    const noJob = await create({}, true);
+    assert.equal(claimCleanBackReadPermit(noJob.fake, noJob.result), null);
+    const changedJob = await create(); changedJob.runtime._job = { failureEpoch: 4 };
+    assert.equal(claimCleanBackReadPermit(changedJob.fake, changedJob.result), null);
+    const foreign = await create(); assert.equal(claimCleanBackReadPermit({}, foreign.result), null);
+    assert.equal(claimCleanBackReadPermit(foreign.fake, foreign.result), null);
+});
+
+test('a pre-existing timer editor with visible Save returns without touching Save', async () => {
+    const { c, phone } = setup({ page: 'timerEditor', editorKind: 'climate', editorId: '1', dirtyEditor: true });
+    const result = await executeDepartures(c, 'departuresClimateStatus');
+    assert.equal(result.timers.length, 2); assert.equal(phone.page, 'home');
+    assert.equal(phone.calls.some(call => call[0] === 'tap' && call[1] === 'timerEditor'), false);
+});
+
+test('an already open edited timer with unavailable wheels returns once and still reads all saved timer details', async () => {
+    const { c, phone } = setup({ page: 'timerEditor', editorKind: 'climate', editorId: '1', dirtyEditor: true, noWheels: true });
+    const result = await executeDepartures(c, 'departuresClimateStatus');
+    assert.equal(result.timers.length, 2); assert.equal(phone.page, 'home');
+    assert.deepEqual(result.timers[0].days, ['mon']); assert.equal(result.timers[0].repeat, true);
+    assert.equal(phone.calls.filter(call => call[0] === 'cleanBack').length, 3);
+    assert.equal(phone.calls.some(call => call[0] === 'action'), false);
+    assert.equal(phone.calls.some(call => call[0] === 'tap' && call[1] === 'timerEditor'), false);
+});
+
+test('an unconfirmed timer return fences the active job and cannot be automatically repeated', async () => {
+    const { c, phone } = setup({ page: 'timerEditor', editorKind: 'climate', editorId: '1' });
+    let fenceHeld = false;
+    const fence = { async acquire() { fenceHeld = true; return 'a'.repeat(32); }, async assertClear() {},
+        async release() { fenceHeld = false; } };
+    const runtime = new AdbRuntime({ dataDir: path.resolve('.'), executionFence: fence });
+    await runtime.beginJob(); runtime._ready = true;
+    phone.fenceUncertainAction = () => runtime.fenceUncertainAction();
+    phone.beforeAction = () => { throw new BridgeError('adb_timeout', 'Synthetic unconfirmed return.'); };
+    await rejects(executeDepartures(c, 'departuresClimateStatus'), 'adb_timeout');
+    assert.equal(phone.calls.filter(call => call[0] === 'cleanBack').length, 1);
+    assert.equal(fenceHeld, true); assert.equal(runtime._job.uncertain, true);
+    await assert.rejects(runtime.endJob(), error => error.code === 'adb_execution_fenced');
+    await assert.rejects(runtime.beginJob(), error => error.code === 'adb_execution_fenced');
+    assert.equal(phone.calls.filter(call => call[0] === 'cleanBack').length, 1);
+});
+
+test('dirty gear and preferred drafts remain untouched; an authorized timer draft is left without saving', async () => {
     for (const options of [{ page: 'locationSettings', dirtyGear: true }, { page: 'preferredTimes', dirtyPreferred: true }]) {
         const { c, phone } = setup(options);
         await rejects(executeDepartures(c, 'departuresClimateStatus'), 'unsaved_settings');
@@ -582,7 +766,8 @@ test('dirty gear, preferred or newly changed timer drafts are neither saved nor 
     }
     const { c, phone } = setup();
     phone.afterTap = action => { if (action.startsWith('timer:')) phone.dirtyEditor = true; };
-    await rejects(executeDepartures(c, 'departuresClimateStatus'), 'unsaved_settings');
+    const result = await executeDepartures(c, 'departuresClimateStatus');
+    assert.equal(result.timers.length, 2); assert.equal(phone.page, 'home');
     assert.equal(phone.calls.some(call => call[0] === 'tap' && call[1] === 'timerEditor'), false);
 });
 
@@ -610,7 +795,7 @@ test('soft handoff during an owned timer editor first completes its clean header
     phone.afterTap = action => { if (action.startsWith('timer:')) assert.equal(c.requestReadHandoff(), true); };
     await rejects(executeDepartures(c, 'departuresClimateStatus'), 'cancelled');
     assert.equal(phone.page, 'departuresOverview');
-    assert.equal(phone.calls.filter(call => call[0] === 'tap' && call[1] === 'timerEditor').length, 1);
+    assert.equal(phone.calls.filter(call => call[0] === 'cleanBack').length, 1);
     assert.equal(c.readHandoffProtected, false); assert.equal(c.busy, false);
 });
 
@@ -644,6 +829,235 @@ test('a native timer read failure leaves an owned editor open without inventing 
         assert.equal(phone.calls.filter(call => call[0] === 'tap' && call[1] === 'timerEditor').length, 0);
         assert.equal(phone.calls.some(call => call[0] === 'back'), false);
         assert.equal(c.busy, false); assert.equal(c.readHandoffProtected, false);
+    }
+});
+
+test('a confirmed completed read failure permits one guarded return from the owned clean editor to home', async () => {
+    for (const failureAt of [1, 2]) {
+        const { c, phone } = setup(); let reads = 0;
+        phone.ownedEditorRecoveryPermit = error => error.completedOnDevice === true ? () => true : null;
+        phone.beforeNative = () => {
+            if (phone.page === 'timerEditor' && ++reads === failureAt) {
+                const error = new BridgeError('adb_command_failed', 'Synthetic completed failure.');
+                error.completedOnDevice = true; throw error;
+            }
+        };
+        await rejects(executeDepartures(c, 'departuresClimateStatus'), 'adb_command_failed');
+        assert.equal(phone.page, 'home');
+        assert.equal(phone.calls.filter(call => call[0] === 'cleanBack').length, 1);
+        assert.equal(phone.calls.filter(call => call[0] === 'tap' && call[1] === 'timerEditor').length, 0);
+    }
+});
+
+test('a timeout, foreign editor or change immediately before native guarded click cannot cause an unsafe click', async () => {
+    const timeout = setup();
+    timeout.phone.ownedEditorRecoveryPermit = error => error.completedOnDevice === true ? () => true : null;
+    timeout.phone.beforeNative = () => { if (timeout.phone.page === 'timerEditor') throw new BridgeError('adb_timeout', 'Synthetic.'); };
+    await rejects(executeDepartures(timeout.c, 'departuresClimateStatus'), 'adb_timeout');
+    assert.equal(timeout.phone.calls.some(call => call[0] === 'cleanBack'), false);
+    const foreign = setup({ page: 'timerEditor', editorKind: 'climate', editorId: '1' });
+    foreign.phone.nativeOverride = () => ({ fragment: 'SyntheticOtherFragment', arguments: 'Synthetic' });
+    await rejects(executeDepartures(foreign.c, 'departuresClimateStatus'), 'departure_incomplete');
+    assert.equal(foreign.phone.calls.some(call => call[0] === 'cleanBack'), false);
+    for (const atClick of [false, true]) {
+        const { c, phone } = setup(); let reads = 0;
+        phone.ownedEditorRecoveryPermit = error => error.completedOnDevice === true ? () => true : null;
+        phone.beforeNative = () => {
+            if (phone.page === 'timerEditor' && ++reads === 1) {
+                if (!atClick) phone.dirtyEditor = true;
+                const error = new BridgeError('adb_command_failed', 'Synthetic completed failure.');
+                error.completedOnDevice = true; throw error;
+            }
+        };
+        if (atClick) phone.beforeAction = () => { phone.dirtyEditor = true; };
+        await rejects(executeDepartures(c, 'departuresClimateStatus'), 'adb_command_failed');
+        assert.equal(phone.page, atClick ? 'timerEditor' : 'home'); assert.equal(phone.dirtyEditor, true);
+        if (atClick) assert.notEqual(phone.actionFenced, true, 'verified pre-action refusal is not an uncertain action');
+        assert.equal(phone.calls.some(call => call[0] === 'tap' && call[1] === 'timerEditor'), false);
+    }
+});
+
+test('a changed runtime permit, later read failure, or unconfirmed guarded click cannot trigger a second gesture', async () => {
+    for (const mode of ['permit', 'second-read', 'ack']) {
+        const { c, phone } = setup(); let reads = 0, permitValid = true;
+        phone.ownedEditorRecoveryPermit = error => error.completedOnDevice === true ? () => permitValid : null;
+        phone.beforeNative = () => {
+            if (phone.page !== 'timerEditor') return;
+            reads++;
+            if (reads === 1) { const error = new BridgeError('adb_command_failed', 'Synthetic completed failure.');
+                error.completedOnDevice = true; throw error; }
+            if (reads === 3 && mode === 'permit') permitValid = false;
+            if (reads === 2 && mode === 'second-read') throw new BridgeError('adb_timeout', 'Synthetic later timeout.');
+        };
+        if (mode === 'ack') phone.beforeAction = () => { throw new BridgeError('adb_timeout', 'Synthetic unconfirmed click.'); };
+        await rejects(executeDepartures(c, 'departuresClimateStatus'), 'adb_command_failed');
+        assert.equal(phone.page, 'timerEditor');
+        assert.equal(phone.calls.filter(call => call[0] === 'cleanBack').length, mode === 'ack' ? 1 : 0);
+    }
+});
+
+test('missing helper post-read allows separately permitted reads and never repeats a back gesture', async () => {
+    const { c, phone } = setup({ noCleanPost: true }); let claims = 0;
+    phone.cleanBackReadPermit = () => { claims++; return () => true; };
+    const result = await executeDepartures(c, 'departuresClimateStatus');
+    assert.equal(result.domain, 'departureClimate'); assert.equal(phone.page, 'home');
+    assert.equal(claims, 2); assert.equal(phone.calls.filter(call => call[0] === 'cleanBack').length, 2);
+    assert.equal(phone.calls.some(call => call[0] === 'tap' && call[1] === 'timerEditor'), false);
+});
+
+test('post-read transition waits for an identical owned editor and reads only until the confirmed parent returns', async () => {
+    const { c, phone, clock } = setup({ noCleanPost: true }); let afterClickReads = 0, firstClickAt, settled = false;
+    phone.cleanBackReadPermit = () => () => true;
+    phone.afterGuardedBack = () => {
+        if (phone.calls.filter(call => call[0] === 'cleanBack').length === 1) {
+            firstClickAt = clock.now; phone.page = 'timerEditor';
+        }
+    };
+    phone.beforeView = () => {
+        if (!settled && firstClickAt !== undefined && phone.calls.filter(call => call[0] === 'cleanBack').length === 1 && phone.page === 'timerEditor') {
+            afterClickReads++;
+            assert.ok(clock.now - firstClickAt >= 300);
+            if (afterClickReads === 3) { phone.page = 'departuresOverview'; settled = true; }
+        }
+    };
+    const result = await executeDepartures(c, 'departuresClimateStatus');
+    assert.equal(result.domain, 'departureClimate'); assert.equal(afterClickReads, 3);
+    assert.equal(phone.calls.filter(call => call[0] === 'cleanBack').length, 2);
+});
+
+test('post-read transition stops on a different editor, expired permit, read error or bounded timeout without another click', async () => {
+    for (const mode of ['changed-editor', 'expired-pause', 'cancelled', 'read-failure', 'time-exceeded', 'timeout']) {
+        const { c, phone, clock } = setup({ noCleanPost: true }); let valid = true, start;
+        phone.cleanBackReadPermit = () => () => valid;
+        phone.afterGuardedBack = () => { start = clock.now; phone.page = 'timerEditor'; };
+        phone.afterSleep = () => {
+            if (start !== undefined && mode === 'expired-pause') valid = false;
+            if (start !== undefined && mode === 'cancelled') c.cancel();
+        };
+        phone.beforeView = () => {
+            if (start === undefined) return;
+            if (mode === 'changed-editor') phone.climate[0].time = '01:00';
+            if (mode === 'read-failure') throw new BridgeError('adb_timeout', 'Synthetic.');
+            if (mode === 'time-exceeded') clock.now += 8001;
+        };
+        await assert.rejects(executeDepartures(c, 'departuresClimateStatus'));
+        const firstBack = phone.calls.findIndex(call => call[0] === 'cleanBack');
+        const after = phone.calls.slice(firstBack + 1);
+        assert.equal(phone.calls.filter(call => call[0] === 'cleanBack').length, 1, mode);
+        assert.ok(after.filter(call => call[0] === 'read').length <= 3, mode);
+        assert.equal(after.some(call => ['tap', 'back', 'swipe', 'action'].includes(call[0])), false, mode);
+        if (mode === 'timeout') assert.equal(after.filter(call => call[0] === 'read').length, 3);
+        if (mode === 'expired-pause' || mode === 'cancelled') assert.equal(after.filter(call => call[0] === 'read').length, 0);
+    }
+});
+
+test('post-read transition checks the original recovery permit during the initial wait', async () => {
+    const { c, phone } = setup({ noCleanPost: true }); let reads = 0, valid = true, clicked = false;
+    phone.cleanBackReadPermit = () => () => true;
+    phone.ownedEditorRecoveryPermit = error => error.completedOnDevice === true ? () => valid : null;
+    phone.beforeNative = () => {
+        if (phone.page === 'timerEditor' && ++reads === 3) {
+            const error = new BridgeError('adb_command_failed', 'Synthetic completed failure.');
+            error.completedOnDevice = true; throw error;
+        }
+    };
+    phone.afterGuardedBack = () => { clicked = true; };
+    phone.afterSleep = () => { if (clicked) valid = false; };
+    await assert.rejects(executeDepartures(c, 'departuresClimateStatus'));
+    const firstBack = phone.calls.findIndex(call => call[0] === 'cleanBack');
+    assert.notEqual(firstBack, -1);
+    assert.equal(phone.calls.filter(call => call[0] === 'cleanBack').length, 1);
+    assert.equal(phone.calls.slice(firstBack + 1).some(call => call[0] === 'read'), false);
+});
+
+test('location identity read cannot complete a post-read transition after its permit expires', async () => {
+    const { c, phone } = setup({ noCleanPost: true }); let valid = true, clicked = false;
+    phone.cleanBackReadPermit = () => () => valid;
+    phone.afterGuardedBack = () => { clicked = true; };
+    phone.beforeNative = () => { if (clicked && phone.page === 'locationOverview') valid = false; };
+    await assert.rejects(executeDepartures(c, 'departuresLocationStatus', {
+        location: { nativeId: '22', name: 'Synthetic place Beta' },
+    }));
+    const firstBack = phone.calls.findIndex(call => call[0] === 'cleanBack');
+    assert.notEqual(firstBack, -1);
+    assert.equal(phone.calls.filter(call => call[0] === 'cleanBack').length, 1);
+    assert.equal(phone.calls.slice(firstBack + 1).some(call => ['tap', 'back', 'swipe', 'action'].includes(call[0])), false);
+});
+
+test('missing post-read rejects foreign proof, later read failure, changed parent, or expired permit without another click', async () => {
+    for (const mode of ['foreign', 'read-failure', 'wrong-parent', 'changed-timer', 'permit-expired']) {
+        const { c, phone } = setup({ noCleanPost: true }); let permitValid = true;
+        phone.cleanBackReadPermit = () => mode === 'foreign' ? null : () => permitValid;
+        phone.afterGuardedBack = () => {
+            if (mode === 'wrong-parent') phone.page = 'other';
+            if (mode === 'changed-timer') phone.climate[0].time = '01:00';
+        };
+        phone.beforeView = () => {
+            if (phone.calls.some(call => call[0] === 'cleanBack')) {
+                if (mode === 'read-failure') throw new BridgeError('adb_timeout', 'Synthetic.');
+                if (mode === 'permit-expired') permitValid = false;
+            }
+        };
+        await assert.rejects(executeDepartures(c, 'departuresClimateStatus'));
+        assert.equal(phone.calls.filter(call => call[0] === 'cleanBack').length, 1);
+        assert.equal(phone.calls.some(call => call[0] === 'tap' && call[1] === 'timerEditor'), false);
+        assert.notEqual(phone.page, 'home');
+    }
+});
+
+test('ownership survives a confirmed failure during return preparation but is consumed before the native back attempt', async () => {
+    const preflight = setup(); let reads = 0;
+    preflight.phone.ownedEditorRecoveryPermit = error => error.completedOnDevice === true ? () => true : null;
+    preflight.phone.beforeNative = () => {
+        if (preflight.phone.page === 'timerEditor' && ++reads === 3) {
+            const error = new BridgeError('adb_command_failed', 'Synthetic completed failure.');
+            error.completedOnDevice = true; throw error;
+        }
+    };
+    await rejects(executeDepartures(preflight.c, 'departuresClimateStatus'), 'adb_command_failed');
+    assert.equal(preflight.phone.page, 'home');
+    assert.equal(preflight.phone.calls.filter(call => call[0] === 'cleanBack').length, 1);
+
+    const action = setup();
+    action.phone.ownedEditorRecoveryPermit = error => error.completedOnDevice === true ? () => true : null;
+    action.phone.beforeAction = () => { const error = new BridgeError('adb_command_failed', 'Synthetic completed failure.');
+        error.completedOnDevice = true; throw error; };
+    await rejects(executeDepartures(action.c, 'departuresClimateStatus'), 'adb_command_failed');
+    assert.equal(action.phone.page, 'timerEditor');
+    assert.equal(action.phone.calls.filter(call => call[0] === 'cleanBack').length, 1);
+});
+
+test('real runtime brand and same-job permit drive one clean return, while a later runtime failure cancels it', async () => {
+    for (const laterFailure of [false, true]) {
+        const { c, phone } = setup(); let nativeCalls = 0, held = false;
+        const fence = {
+            async assertClear() { if (held) throw Error('held'); },
+            async acquire() { if (held) throw Error('held'); held = true; return 'a'.repeat(32); },
+            async release() { held = false; },
+        };
+        let commands = 0;
+        const runtime = new AdbRuntime({dataDir: path.resolve('.'), executionFence:fence, spawnImpl: (_file,args) => {
+            const child = new EventEmitter(); child.stdin = new PassThrough(); child.stdout = new PassThrough(); child.stderr = new PassThrough();
+            child.exitCode = null; child.signalCode = null; child.kill = () => true;
+            const frame = args.at(-1).match(/__VW_ANDROID_DONE_[a-f0-9]{32}__:/)[0];
+            const fail = ++commands === 1 || laterFailure && commands === 2;
+            queueMicrotask(() => { child.stdout.write('\n' + frame + (fail ? '1' : '0') + '\n');
+                child.exitCode = 0; child.emit('close', 0); });
+            return child;
+        }});
+        runtime._ready=true; runtime._server=new EventEmitter(); runtime._server.exitCode=0;
+        runtime._binary='synthetic'; runtime._port=12345; runtime._env={};
+        await runtime.beginJob();
+        phone.ownedEditorRecoveryPermit = error => makeConfirmedRecoveryPermit(runtime,error);
+        phone.beforeNative = async () => {
+            if (phone.page === 'timerEditor' && ++nativeCalls <= 4) {
+                await runtime.run(['-s','192.0.2.1:1234','shell','synthetic-reader']);
+            }
+        };
+        await rejects(executeDepartures(c, 'departuresClimateStatus'), 'adb_command_failed');
+        assert.equal(phone.calls.filter(call => call[0] === 'cleanBack').length, laterFailure ? 0 : 1);
+        assert.equal(phone.page, laterFailure ? 'timerEditor' : 'home');
+        await runtime.endJob(); assert.equal(held,false);
     }
 });
 
@@ -1053,12 +1467,19 @@ test('an unexpected second preferred toggle during an owned draft prevents Save 
     assert.equal(phone.calls.filter(call => call[0] === 'tap' && call[1] === 'preferredTimes' && call[2] === 865).length, 1);
 });
 
-test('a request already open in a clean foreign editor blocks both dry-run and real writes without input', async () => {
+test('a pre-existing timer editor can be left for a read-only dry run but blocks a real write', async () => {
     for (const dryRun of [true, false]) {
         const { c, phone } = writeSetup({ page: 'timerEditor', editorKind: 'climate', editorId: '1' });
         phone.editorInitial = clone(phone.savedTimer()); phone.editorDraft = clone(phone.editorInitial);
-        await rejects(executeDepartures(c, 'applyDepartureClimateTimer', { timerId: '1', targetTimer: { time: '08:30' }, dryRun }), 'unsaved_settings');
-        assert.equal(phone.calls.some(call => call[0] === 'tap' || call[0] === 'action'), false);
+        const request = executeDepartures(c, 'applyDepartureClimateTimer', { timerId: '1', targetTimer: { time: '08:30' }, dryRun });
+        if (dryRun) {
+            const result = await request;
+            assert.equal(result.dryRun, true);
+            assert.equal(phone.calls.some(call => call[0] === 'action'), false);
+        } else {
+            await rejects(request, 'departure_editor_unverifiable');
+            assert.equal(phone.calls.some(call => call[0] === 'tap' || call[0] === 'action' || call[0] === 'cleanBack'), false);
+        }
     }
 });
 

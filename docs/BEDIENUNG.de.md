@@ -564,7 +564,7 @@ Für neue Automatisierungen verwende die regulären Datenpunkte unter `vw-app.0`
 | `invalid_temperature`, `temperature_selection_failed` | Gültige Temperatur ausdrücklich neu wählen oder `commands.clearTemperature` auslösen. Der wieder angezeigte alte Wert allein hebt den Auswahlfehler nicht auf. |
 | `settings_selection_failed`, `charging_selection_failed`, `departure_selection_failed` | Das im Auswahlfehlerfeld genannte Feld gültig neu wählen oder die Wünsche genau dieser Gruppe löschen. Eine Änderung eines anderen Felds beseitigt den Fehler nicht. |
 | `departure_binding_changed` | Ladeortliste neu lesen, richtigen Ort prüfen, betroffene Wünsche ausdrücklich neu wählen oder löschen. |
-| `unsaved_settings` oder offener manueller Editor | Am Handy die eigenen Änderungen speichern oder verwerfen und zur Fahrzeugübersicht zurückgehen. Danach erneut lesen. |
+| `unsaved_settings` oder offener manueller Editor | Andere offene Einstellungen am Handy prüfen und zur Fahrzeugübersicht zurückgehen. Bei einem eindeutig erkannten Timereditor darf der Adapter für einen Leseauftrag einmal Zurück wählen, auch wenn Speichern sichtbar ist. Dabei wird nicht gespeichert; ein offener Entwurf kann verloren gehen. Bei unklarem Zurück-Ergebnis wird nicht automatisch wiederholt. |
 | `busy` | Aktuellen Auftrag beenden lassen; erst danach den nächsten eigenen Befehl senden. |
 | `outcome_unknown` oder Zeitlimit | Tatsächlichen App-/Fahrzeugzustand prüfen. Keine automatische Wiederholung eines Start-, Stopp-, Speichern- oder PIN-Auftrags einrichten. |
 | `security.blocked=true` | App, Fahrzeugzustand und PIN prüfen; gegebenenfalls ausschließlich den Rücksetzknopf in den Adaptereinstellungen verwenden. |
