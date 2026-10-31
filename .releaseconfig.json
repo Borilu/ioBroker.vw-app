@@ -1,0 +1,21 @@
+{
+  "plugins": [
+    "iobroker",
+    "license",
+    "manual-review"
+  ],
+  "branchPattern": [
+    "main"
+  ],
+  "numNews": 7,
+  "addPlaceholder": true,
+  "exec": {
+    "before_check": [
+      "npm run lint",
+      "npm test",
+      "npm run check",
+      "npm run test:package",
+      "npm run test:integration"
+    ]
+  }
+}

@@ -1,0 +1,38 @@
+This is an independent community project. It is not provided, approved or
+supported by Volkswagen AG, Google or the ioBroker project.
+
+Volkswagen and Android are trademarks of their respective owners. The adapter
+icon is an original neutral graphic and does not reproduce a Volkswagen logo.
+
+The adapter source is licensed under MIT. Its npm dependencies retain their
+own licenses. Google Android SDK Platform Tools are NOT included in this
+repository or npm archive. An optional explicit setup action downloads the
+unmodified official archive from dl.google.com into the private instance data
+directory after the user accepts the linked download terms. That distribution
+retains its NOTICE.txt and other notices and is not relicensed under MIT.
+
+Platform Tools documentation and terms:
+https://developer.android.com/tools/releases/platform-tools
+https://developer.android.com/studio/terms
+
+The pinned SHA-256 in lib/runtime.js was calculated from the official download;
+it is not represented as a Google-published SHA-256 signature. Google publishes
+archive metadata in https://dl.google.com/android/repository/repository2-3.xml.
+
+The Android view identifiers were informed by primary documentation and by the
+owner's device. No implementation files or fixtures from third-party Volkswagen
+Home Assistant integrations were copied into this project.
+
+The adapter includes its own Android UI helper in lib/android/vw-ui.jar.
+Its two Java implementation sources are part of this MIT-licensed project.
+The compile-only Android API signature placeholders are original declarations
+used to compile those sources; they are not included in the DEX payload.
+No Android framework implementation, helper APK, exploration service or
+private diagnostic fixture is distributed as part of this helper.
+
+Rebuilding the helper is a developer operation using JDK 17 and the pinned
+Google R8/D8 tool identified by version and SHA-256 in lib/android/manifest.json.
+R8/D8 and the JDK are not included in the adapter and are not required on the
+ioBroker host to run the supplied helper. Their own distribution terms apply
+when developers obtain them; the MIT license above covers the project's own
+source, not those build tools or Android SDK Platform Tools.

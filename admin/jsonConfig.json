@@ -1,0 +1,817 @@
+{
+  "i18n": true,
+  "type": "panel",
+  "items": {
+    "_intro": {
+      "type": "staticText",
+      "text": "Connect your Android phone and check the Volkswagen app. You can then control climate, charging settings and departure times from ioBroker, and read the battery, remaining range, doors, windows, trunk, locking state and vehicle health report. Volkswagen sign-in stays on the phone.",
+      "newLine": true,
+      "sm": 12,
+      "xs": 12,
+      "md": 12,
+      "lg": 12,
+      "xl": 12
+    },
+    "_alive": {
+      "type": "alive",
+      "textAlive": "Adapter is running – setup is available",
+      "textNotAlive": "Start the adapter to use the setup buttons",
+      "sm": 12,
+      "xs": 12,
+      "md": 12,
+      "lg": 12,
+      "xl": 12
+    },
+    "_saveHint": {
+      "type": "staticText",
+      "text": "Save permanent settings first and keep the adapter running. The buttons pair the phone or read its app; they do not start climate control.",
+      "sm": 12,
+      "xs": 12,
+      "md": 12,
+      "lg": 12,
+      "xl": 12
+    },
+    "_maintenanceHeader": {
+      "type": "header", "text": "Safe maintenance", "size": 3,
+      "sm": 12, "xs": 12, "md": 12, "lg": 12, "xl": 12
+    },
+    "_maintenanceHint": {
+      "type": "staticText",
+      "text": "Before a planned update, stop new phone work and wait for the current read to finish. Check the status before stopping. This does not prove that no manual app changes are open. After a failed read, inspect the phone yourself. The pause is lost on restart.",
+      "sm": 12, "xs": 12, "md": 12, "lg": 12, "xl": 12
+    },
+    "_maintenanceStart": {
+      "type": "sendTo", "label": "Pause phone work for maintenance", "command": "maintenanceStart",
+      "data": {}, "useNative": true, "showProcess": true, "timeout": 30000,
+      "result": {
+        "maintenance_idle": "Phone work is running normally.",
+        "maintenance_draining": "Phone work is pausing. Wait and check the maintenance status.",
+        "maintenance_ready": "Adapter phone work has finished. Check for any manual app changes before stopping.",
+        "maintenance_blocked": "The last phone operation did not finish safely. Check the phone before stopping."
+      },
+      "sm": 12, "xs": 12, "md": 12, "lg": 12, "xl": 12
+    },
+    "_maintenanceStatus": {
+      "type": "sendTo", "label": "Check maintenance status", "command": "maintenanceStatus",
+      "data": {}, "useNative": true, "showProcess": true, "timeout": 30000,
+      "result": {
+        "maintenance_idle": "Phone work is running normally.",
+        "maintenance_draining": "Phone work is pausing. Wait and check the maintenance status.",
+        "maintenance_ready": "Adapter phone work has finished. Check for any manual app changes before stopping.",
+        "maintenance_blocked": "The last phone operation did not finish safely. Check the phone before stopping."
+      },
+      "sm": 12, "xs": 12, "md": 12, "lg": 12, "xl": 12
+    },
+    "_maintenanceResume": {
+      "type": "sendTo", "label": "Resume phone work", "command": "maintenanceResume",
+      "data": {}, "useNative": true, "showProcess": true, "timeout": 30000,
+      "result": { "maintenance_idle": "Phone work is running normally." },
+      "sm": 12, "xs": 12, "md": 12, "lg": 12, "xl": 12
+    },
+    "_runtimeHeader": {
+      "type": "header",
+      "text": "1. Prepare the Android connection",
+      "size": 3,
+      "sm": 12,
+      "xs": 12,
+      "md": 12,
+      "lg": 12,
+      "xl": 12
+    },
+    "useBundledAdb": {
+      "type": "checkbox",
+      "label": "Use Android tools managed by this instance",
+      "default": true,
+      "help": "Install them once using the button below. Selecting this option alone does not download anything.",
+      "sm": 12,
+      "xs": 12,
+      "md": 12,
+      "lg": 12,
+      "xl": 12
+    },
+    "adbPath": {
+      "type": "text",
+      "label": "Path to an existing adb",
+      "default": "",
+      "hidden": "data.useBundledAdb !== false",
+      "help": "Alternatively, enter the full path to an existing installation, for example /usr/bin/adb.",
+      "sm": 12,
+      "xs": 12,
+      "md": 12,
+      "lg": 12,
+      "xl": 12
+    },
+    "_runtimeLicense": {
+      "type": "staticLink",
+      "label": "Read the Google license for Android SDK Platform-Tools",
+      "href": "https://developer.android.com/studio/terms",
+      "target": "_blank",
+      "hidden": "data.useBundledAdb === false",
+      "sm": 12,
+      "xs": 12,
+      "md": 12,
+      "lg": 12,
+      "xl": 12
+    },
+    "_runtimeSource": {
+      "type": "staticLink",
+      "label": "Official Android tools documentation and downloads",
+      "href": "https://developer.android.com/tools/releases/platform-tools",
+      "target": "_blank",
+      "hidden": "data.useBundledAdb === false",
+      "sm": 12,
+      "xs": 12,
+      "md": 12,
+      "lg": 12,
+      "xl": 12
+    },
+    "_acceptRuntimeLicense": {
+      "type": "checkbox",
+      "label": "I have read and accept the Google SDK license",
+      "default": false,
+      "doNotSave": true,
+      "hidden": "data.useBundledAdb === false",
+      "sm": 12,
+      "xs": 12,
+      "md": 12,
+      "lg": 12,
+      "xl": 12
+    },
+    "_installRuntime": {
+      "type": "sendTo",
+      "label": "Download and install Android tools",
+      "command": "installRuntime",
+      "data": {
+        "acceptLicense": true
+      },
+      "useNative": true,
+      "disabled": "data._acceptRuntimeLicense !== true",
+      "hidden": "data.useBundledAdb === false",
+      "showProcess": true,
+      "timeout": 180000,
+      "variant": "outlined",
+      "result": {
+        "runtime_installed": "Android tools are installed."
+      },
+      "sm": 12,
+      "xs": 12,
+      "md": 12,
+      "lg": 12,
+      "xl": 12
+    },
+    "_pairingHeader": {
+      "type": "header",
+      "text": "2. Pair the phone over Wi-Fi",
+      "size": 3,
+      "sm": 12,
+      "xs": 12,
+      "md": 12,
+      "lg": 12,
+      "xl": 12
+    },
+    "_pairingHint": {
+      "type": "staticText",
+      "text": "On the phone, enable Developer options → Wireless debugging and open Pair device with pairing code. The phone and ioBroker must be able to reach each other. The pairing port and connection port are different values.",
+      "sm": 12,
+      "xs": 12,
+      "md": 12,
+      "lg": 12,
+      "xl": 12
+    },
+    "hostIp": {
+      "type": "text",
+      "label": "Android phone IP address",
+      "default": "",
+      "maxLength": 45,
+      "validator": "data.hostIp === '' || /^[0-9a-fA-F:.]+$/.test(data.hostIp)",
+      "validatorNoSaveOnError": true,
+      "validatorErrorText": "Enter a numeric IP address without spaces or a port.",
+      "help": "Enter the IP address shown in the Android menu, without its port.",
+      "sm": 6,
+      "xs": 12,
+      "md": 6,
+      "lg": 6,
+      "xl": 6
+    },
+    "connectPort": {
+      "type": "number",
+      "label": "Connection port on the main page",
+      "default": 0,
+      "min": 0,
+      "max": 65535,
+      "step": 1,
+      "help": "Shown on the main Wireless debugging page. Do not use the port from the pairing dialog. 0 means not yet configured.",
+      "sm": 6,
+      "xs": 12,
+      "md": 6,
+      "lg": 6,
+      "xl": 6
+    },
+    "_guardianProtectionVerified": {
+      "type": "checkbox",
+      "hidden": true,
+      "doNotSave": true,
+      "sm": 12,
+      "xs": 12,
+      "md": 12,
+      "lg": 12,
+      "xl": 12
+    },
+    "_guardianProtectionCheck": {
+      "type": "sendTo",
+      "label": "Checking Guardian secret protection",
+      "command": "guardianProtectionCheck",
+      "data": {},
+      "useNative": true,
+      "onLoaded": true,
+      "disabled": true,
+      "timeout": 15000,
+      "sm": 12,
+      "xs": 12,
+      "md": 12,
+      "lg": 12,
+      "xl": 12
+    },
+    "_guardianBinderIntro": {
+      "type": "staticText",
+      "text": "Guardian setup: use only for the first connection. The phone must already be securely paired. Existing Guardian connections are never replaced.",
+      "sm": 12,
+      "xs": 12,
+      "md": 12,
+      "lg": 12,
+      "xl": 12
+    },
+    "_guardianPermissionHint": {
+      "type": "staticText",
+      "text": "Wireless Guardian needs Android permission to change protected system settings. This is a broad permission: the app could change other protected settings. This tested version uses it for wireless debugging. Grant it only on a trusted dedicated phone after reviewing the app.",
+      "sm": 12, "xs": 12, "md": 12, "lg": 12, "xl": 12
+    },
+    "_guardianPermissionConfirmed": {
+      "type": "checkbox",
+      "label": "I understand and explicitly permit this Android permission for Wireless Guardian",
+      "default": false, "doNotSave": true,
+      "sm": 12, "xs": 12, "md": 12, "lg": 12, "xl": 12
+    },
+    "_guardianPermissionGrant": {
+      "type": "sendTo", "label": "Grant Android permission to Wireless Guardian",
+      "command": "guardianPermissionGrant", "data": { "confirm": true },
+      "useNative": true, "disabled": "data._guardianPermissionConfirmed !== true", "showProcess": true, "timeout": 120000,
+      "result": {
+        "guardian_permission_granted": "The Android permission was granted and verified for Wireless Guardian.",
+        "guardian_permission_already_granted": "Wireless Guardian already has the Android permission. No new grant was sent.",
+        "guardian_permission_legacy_granted_limited": "The Android permission is present, but an older journal cannot confirm that a previous attempt ended safely. The journal remains unchanged; a later grant remains blocked."
+      },
+      "sm": 12, "xs": 12, "md": 12, "lg": 12, "xl": 12
+    },
+    "_guardianPermissionUncertainHint": {
+      "type": "staticText",
+      "text": "An interrupted or unclear permission attempt remains blocked, even when permission is now present. Do not repeat it or delete local journal files. Check the phone and contact an administrator for investigation.",
+      "sm": 12, "xs": 12, "md": 12, "lg": 12, "xl": 12
+    },
+    "_guardianBinderTestHint": {
+      "type": "staticText",
+      "text": "0. On the phone open the pairing path test and allow it once. Leave Guardian visible, then start this test within 60 seconds. No key or port setting is saved.",
+      "sm": 12,
+      "xs": 12,
+      "md": 12,
+      "lg": 12,
+      "xl": 12
+    },
+    "_guardianBinderTest": {
+      "type": "sendTo",
+      "label": "0. Test Guardian pairing path without a key",
+      "command": "guardianBinderTest",
+      "data": {},
+      "useNative": true,
+      "showProcess": true,
+      "timeout": 90000,
+      "result": {
+        "guardian_binder_test_ok": "The synthetic pairing path worked. No key or port setting was saved."
+      },
+      "sm": 12,
+      "xs": 12,
+      "md": 12,
+      "lg": 12,
+      "xl": 12
+    },
+    "_guardianBinderPrepare": {
+      "type": "sendTo",
+      "label": "1. Prepare encrypted key in ioBroker",
+      "command": "guardianBinderPrepare",
+      "data": {},
+      "useNative": true,
+      "showProcess": true,
+      "timeout": 90000,
+      "result": {
+        "guardian_host_prepared_reload": "Key preparation requested. Reload this page after the adapter restarts and check the status."
+      },
+      "sm": 12,
+      "xs": 12,
+      "md": 12,
+      "lg": 12,
+      "xl": 12,
+      "disabled": "data._guardianProtectionVerified !== true"
+    },
+    "_guardianBinderReload": {
+      "type": "staticText",
+      "text": "After the adapter restarts, reload this page. Do not save an older open settings form.",
+      "sm": 12,
+      "xs": 12,
+      "md": 12,
+      "lg": 12,
+      "xl": 12
+    },
+    "_guardianBinderTransferHint": {
+      "type": "staticText",
+      "text": "2. On the phone open automatic Guardian pairing and approve it once. Leave Guardian visible and press the transfer button within 60 seconds.",
+      "sm": 12,
+      "xs": 12,
+      "md": 12,
+      "lg": 12,
+      "xl": 12
+    },
+    "_guardianBinderTransfer": {
+      "type": "sendTo",
+      "label": "2. Transfer and verify Guardian pairing",
+      "command": "guardianBinderTransfer",
+      "data": {},
+      "useNative": true,
+      "showProcess": true,
+      "timeout": 90000,
+      "result": {
+        "guardian_pair_config_updated_reload": "Transfer verified and enabling requested. Reload the page after restart, then verify the active connection."
+      },
+      "sm": 12,
+      "xs": 12,
+      "md": 12,
+      "lg": 12,
+      "xl": 12,
+      "disabled": "data._guardianProtectionVerified !== true"
+    },
+    "_guardianBinderVerifyHint": {
+      "type": "staticText",
+      "text": "3. After the adapter restarts, reload this page and check the pairing. A restart or lost response can leave the outcome uncertain; do not repeat without review.",
+      "sm": 12,
+      "xs": 12,
+      "md": 12,
+      "lg": 12,
+      "xl": 12
+    },
+    "_guardianBinderStatus": {
+      "type": "sendTo",
+      "label": "Check Guardian pairing status",
+      "command": "guardianBinderStatus",
+      "data": {},
+      "useNative": true,
+      "showProcess": true,
+      "timeout": 90000,
+      "result": {
+        "guardian_status_unpaired": "No Guardian pairing is configured.",
+        "guardian_status_host_ready": "An encrypted key is ready. Open a fresh pairing window on the phone.",
+        "guardian_status_prepare_incomplete": "Key preparation was interrupted before the key was saved. Start preparation again.",
+        "guardian_status_uncertain": "The previous attempt is uncertain. Do not repeat the transfer or delete journal files; investigate with an administrator.",
+        "guardian_status_phone_verified": "The phone was verified, but enabling in ioBroker is not confirmed. Do not repeat the transfer; investigate with an administrator.",
+        "guardian_status_enabled_needs_check": "Discovery is enabled after a verified transfer. Verify the active connection now.",
+        "guardian_status_existing": "An existing Guardian connection is configured and will not be replaced."
+      },
+      "sm": 12,
+      "xs": 12,
+      "md": 12,
+      "lg": 12,
+      "xl": 12
+    },
+    "_guardianPairVerify": {
+      "type": "sendTo",
+      "label": "Verify active Guardian connection",
+      "command": "guardianPairVerify",
+      "data": {},
+      "useNative": true,
+      "showProcess": true,
+      "timeout": 90000,
+      "result": {
+        "guardian_pair_verified": "Guardian responded securely and the paired phone identity was confirmed."
+      },
+      "sm": 12,
+      "xs": 12,
+      "md": 12,
+      "lg": 12,
+      "xl": 12
+    },
+    "_guardianBinderRecoverHint": {
+      "type": "staticText",
+      "text": "If an earlier pairing attempt is uncertain, do not open a new pairing window, repeat the transfer or delete journal files. A delayed earlier operation could use the new window. Ask an administrator to investigate.",
+      "sm": 12, "xs": 12, "md": 12, "lg": 12, "xl": 12
+    },
+    "guardianPortDiscovery": {
+      "type": "checkbox",
+      "label": "Use Wireless Guardian to find the connection port",
+      "default": false,
+      "help": "Optional, off by default. Ask the configured phone for its port using a shared secret. The paired ADB connection and saved phone identity remain mandatory.",
+      "sm": 12,
+      "xs": 12,
+      "md": 12,
+      "lg": 12,
+      "xl": 12
+    },
+    "guardianPort": {
+      "type": "number",
+      "label": "Wireless Guardian UDP port",
+      "default": 37457,
+      "min": 1,
+      "max": 65535,
+      "step": 1,
+      "help": "Use the same port configured in Wireless Guardian. The query is sent only to the configured phone IP.",
+      "sm": 6,
+      "xs": 12,
+      "md": 6,
+      "lg": 6,
+      "xl": 6
+    },
+    "guardianSecret": {
+      "type": "password",
+      "label": "Wireless Guardian shared secret",
+      "default": "",
+      "visible": false,
+      "disabled": "data._guardianProtectionVerified !== true",
+      "maxLength": 64,
+      "validator": "(!data.guardianPortDiscovery && !data.guardianSecret) || /^[0-9a-f]{64}$/.test(data.guardianSecret || '')",
+      "validatorNoSaveOnError": true,
+      "validatorErrorText": "Enter the shared 64-character lowercase hexadecimal secret or leave the feature disabled and empty.",
+      "help": "Before entering a secret, verify that this instance lists guardianSecret in both encryptedNative and protectedNative, then reopen Admin. Enter the same secret on the phone and here. Never post it in chat or logs. Privileged host users may still access it.",
+      "sm": 12,
+      "xs": 12,
+      "md": 12,
+      "lg": 12,
+      "xl": 12
+    },
+    "_pairPort": {
+      "type": "number",
+      "label": "Pairing port from the code dialog",
+      "default": 0,
+      "min": 0,
+      "max": 65535,
+      "step": 1,
+      "doNotSave": true,
+      "help": "Used only for the current pairing operation. Not saved in the instance configuration.",
+      "sm": 6,
+      "xs": 12,
+      "md": 6,
+      "lg": 6,
+      "xl": 6
+    },
+    "_pairCode": {
+      "type": "password",
+      "label": "Six-digit pairing code",
+      "default": "",
+      "maxLength": 6,
+      "visible": false,
+      "doNotSave": true,
+      "validator": "!data._pairCode || /^[0-9]{6}$/.test(data._pairCode)",
+      "validatorNoSaveOnError": true,
+      "validatorErrorText": "Enter all six digits without spaces.",
+      "help": "Sent only for pairing. Clear the field or close the configuration when finished.",
+      "sm": 6,
+      "xs": 12,
+      "md": 6,
+      "lg": 6,
+      "xl": 6
+    },
+    "_pair": {
+      "type": "sendTo",
+      "label": "Pair with the phone now",
+      "command": "pair",
+      "jsonData": "{\"hostIp\":\"${data.hostIp}\",\"pairPort\":\"${data._pairPort}\",\"code\":\"${data._pairCode}\"}",
+      "useNative": true,
+      "disabled": "!data.hostIp || !(data._pairPort >= 1 && data._pairPort <= 65535) || !/^[0-9]{6}$/.test(data._pairCode || '')",
+      "showProcess": true,
+      "timeout": 40000,
+      "variant": "contained",
+      "result": {
+        "pair_success": "Phone paired. Now check the connection port and test the connection."
+      },
+      "sm": 12,
+      "xs": 12,
+      "md": 12,
+      "lg": 12,
+      "xl": 12
+    },
+    "_probe": {
+      "type": "sendTo",
+      "label": "Check connection and app version",
+      "command": "probe",
+      "jsonData": "{\"hostIp\":\"${data.hostIp}\",\"connectPort\":\"${data.connectPort}\"}",
+      "disabled": "!data.hostIp || !(data.connectPort >= 1 && data.connectPort <= 65535)",
+      "useNative": true,
+      "showProcess": true,
+      "timeout": 150000,
+      "variant": "outlined",
+      "result": {
+        "probe_success": "Connection checked. The app version is not yet approved for control; next adopt the app and vehicle."
+      },
+      "sm": 12,
+      "xs": 12,
+      "md": 12,
+      "lg": 12,
+      "xl": 12
+    },
+    "_profileHeader": {
+      "type": "header",
+      "text": "3. Check app and vehicle",
+      "size": 3,
+      "sm": 12,
+      "xs": 12,
+      "md": 12,
+      "lg": 12,
+      "xl": 12
+    },
+    "_calibrateHint": {
+      "type": "staticText",
+      "text": "Unlock the phone, sign in to the Volkswagen app and open the overview of the desired vehicle. Read app and vehicle reads the screen and suggests the current app version and complete vehicle text. Check these values and save them afterward.",
+      "sm": 12,
+      "xs": 12,
+      "md": 12,
+      "lg": 12,
+      "xl": 12
+    },
+    "_calibrate": {
+      "type": "sendTo",
+      "label": "Read app and vehicle",
+      "command": "calibrate",
+      "jsonData": "{\"hostIp\":\"${data.hostIp}\",\"connectPort\":\"${data.connectPort}\"}",
+      "disabled": "!data.hostIp || !(data.connectPort >= 1 && data.connectPort <= 65535)",
+      "useNative": true,
+      "showProcess": true,
+      "timeout": 210000,
+      "variant": "contained",
+      "result": {
+        "calibration_success": "Profile read. Check and save the proposed app version and vehicle text."
+      },
+      "sm": 12,
+      "xs": 12,
+      "md": 12,
+      "lg": 12,
+      "xl": 12
+    },
+    "approvedAppVersion": {
+      "type": "text",
+      "label": "Verified Volkswagen app version",
+      "default": "",
+      "maxLength": 80,
+      "help": "Suggested by Read app and vehicle. Check again after updating the app.",
+      "sm": 6,
+      "xs": 12,
+      "md": 6,
+      "lg": 6,
+      "xl": 6
+    },
+    "vehicleMarker": {
+      "type": "text",
+      "label": "Complete vehicle text from the app",
+      "default": "",
+      "maxLength": 300,
+      "help": "Use the complete fixed text, including the vehicle name. A generic word such as Vehicle is insufficient.",
+      "sm": 6,
+      "xs": 12,
+      "md": 6,
+      "lg": 6,
+      "xl": 6
+    },
+    "modeTitles": {
+      "type": "text",
+      "label": "Allowed climate function labels",
+      "default": "Klimatisierung|Air conditioning",
+      "help": "Exact labels; separate multiple entries with |. Change only after checking the actual app screen.",
+      "expertMode": true,
+      "sm": 12,
+      "xs": 12,
+      "md": 12,
+      "lg": 12,
+      "xl": 12
+    },
+    "_operationHeader": {
+      "type": "header",
+      "text": "4. Allow operation",
+      "size": 3,
+      "sm": 12,
+      "xs": 12,
+      "md": 12,
+      "lg": 12,
+      "xl": 12
+    },
+    "allowWrites": {
+      "type": "checkbox",
+      "label": "Allow climate start, stop and vehicle setting changes",
+      "default": false,
+      "disabled": "!data.approvedAppVersion || !data.vehicleMarker",
+      "help": "Enable and save only after successful setup. Also applies to charging settings. Without permission, app values can be read and preferences saved; actual changes remain blocked. Locking and unlocking have separate permission.",
+      "sm": 12,
+      "xs": 12,
+      "md": 12,
+      "lg": 12,
+      "xl": 12
+    },
+    "_lockingHeader": {
+      "type": "header",
+      "text": "Lock and unlock the vehicle",
+      "size": 3,
+      "sm": 12,
+      "xs": 12,
+      "md": 12,
+      "lg": 12,
+      "xl": 12
+    },
+    "sPin": {
+      "type": "password",
+      "label": "Volkswagen S-PIN",
+      "default": "",
+      "visible": false,
+      "maxLength": 4,
+      "validator": "data.sPin === undefined || data.sPin === '' || typeof data.sPin === 'string' && data.sPin.length === 4 && /^[0-9]{4}$/.test(data.sPin)",
+      "validatorNoSaveOnError": true,
+      "validatorErrorText": "Enter four digits without spaces or leave the field empty.",
+      "help": "Enter the personal S-PIN of your Volkswagen account only here, never in chat or data points. ioBroker stores it encrypted and protects the configuration field from ordinary unrelated adapters. The S-PIN is used only for explicitly requested locking and unlocking commands. Leave empty if you do not want to use this feature.",
+      "sm": 12,
+      "xs": 12,
+      "md": 12,
+      "lg": 12,
+      "xl": 12
+    },
+    "allowVehicleLocking": {
+      "type": "checkbox",
+      "label": "Allow locking and unlocking the vehicle",
+      "default": false,
+      "disabled": "!data.approvedAppVersion || !data.vehicleMarker",
+      "help": "Separate permission for explicitly requested locking and unlocking commands using the saved S-PIN. Independent of permission for climate and setting changes. Regular reading does not lock or unlock the vehicle.",
+      "sm": 12,
+      "xs": 12,
+      "md": 12,
+      "lg": 12,
+      "xl": 12
+    },
+    "_resetSecurityBlock": {
+      "type": "sendTo",
+      "label": "Reset the security block after correcting the S-PIN",
+      "command": "resetSecurityBlock",
+      "data": {},
+      "showProcess": true,
+      "timeout": 150000,
+      "variant": "outlined",
+      "help": "Use only after checking the Volkswagen app and correcting the S-PIN. Correct the S-PIN above and save the settings first; then explicitly reset this block. The button sends no vehicle command and does not change Volkswagen lockout periods.",
+      "result": {
+        "security_block_reset": "Local security block reset. No vehicle command was sent."
+      },
+      "sm": 12,
+      "xs": 12,
+      "md": 12,
+      "lg": 12,
+      "xl": 12
+    },
+    "stayAwakeOnCharge": {
+      "type": "checkbox",
+      "label": "Keep the phone awake while connected to a charger",
+      "default": false,
+      "help": "Optional. Allows the adapter to enable the corresponding Android setting when connecting. This does not unlock an existing screen lock.",
+      "sm": 12,
+      "xs": 12,
+      "md": 12,
+      "lg": 12,
+      "xl": 12
+    },
+    "_temperatureHint": {
+      "type": "staticText",
+      "text": "Under climate, targetTemperature, targetMode, targetClimateOnUnlock, targetAutoWindowHeating and targetZones save preferences for the next command. Acknowledgement means only saved; observed app values are separate in temperature, mode, climateOnUnlock, autoWindowHeating and zones. Temperature: 16 to 29.5 °C in 0.5 °C steps, only in climate mode; LO and HI are excluded. commands.setTemperature applies only the temperature without starting. commands.applySettings applies only the mode, both switches and zones, without temperature or start/stop. commands.clearSettings clears only these four preferences; commands.clearTemperature retains the app temperature. Start uses the saved snapshot; windowHeating ignores the temperature preference. Without a mode preference, the previous climate behavior is retained. Mode changes during operation are rejected; there is no automatic stop/restart. Zones select additional temperature-related features at the front left, right or both, not separate target temperatures or airflow distribution.",
+      "sm": 12,
+      "xs": 12,
+      "md": 12,
+      "lg": 12,
+      "xl": 12
+    },
+    "_keepAwake": {
+      "type": "sendTo",
+      "label": "Enable staying awake while charging now",
+      "command": "keepAwake",
+      "jsonData": "{\"hostIp\":\"${data.hostIp}\",\"connectPort\":\"${data.connectPort}\"}",
+      "useNative": true,
+      "disabled": "!data.hostIp || !(data.connectPort >= 1 && data.connectPort <= 65535)",
+      "showProcess": true,
+      "timeout": 150000,
+      "variant": "outlined",
+      "result": {
+        "keep_awake_applied": "Stay awake while charging is enabled on the Android phone."
+      },
+      "sm": 12,
+      "xs": 12,
+      "md": 12,
+      "lg": 12,
+      "xl": 12
+    },
+    "_chargingHint": {
+      "type": "staticText",
+      "text": "commands.refreshCharging reads battery and charging information available in the app: battery.soc in %, battery.rangeKm in km. battery.observedAt is the app read time, not a vehicle telemetry timestamp. commands.synchronize explicitly requests synchronization in the app; success confirms only the request, not its completion at the vehicle. This may take several minutes. battery.lastSyncRequestAt records the last request sent to the app. Normal reading and automatic queries do not synchronize. Under charging, targetSoc (50, 60, 70, 80, 90 or 100), targetReducedAcCurrent, targetAutoUnlockAc and targetOptimizedBatteryUse save preferences; null retains the app setting. Acknowledgement means only saved. commands.applyChargingSettings applies only these four preferences, saves once and checks the values after reopening. commands.clearChargingSettings clears only these four preferences. Save or discard any manual drafts on the phone first. According to the app, optimized battery use allows the high-voltage battery to power app remote control and may affect range; it is not an automatic 80% battery care setting. According to the app, the charge limit does not apply at defined charging locations. No charging start/stop function.",
+      "sm": 12,
+      "xs": 12,
+      "md": 12,
+      "lg": 12,
+      "xl": 12
+    },
+    "_vehicleReportHint": {
+      "type": "staticText",
+      "text": "commands.refreshVehicleReport only reads the vehicle health report; automatic refresh also reads it. All values under vehicleReport are read-only; there are no preferences, control, save or synchronization actions. Reading does not require permission for setting changes. Mileage, service, summary and seven categories are provided separately; additionalTexts and json contain extra texts and the complete normalized report as JSON. synchronizationText is the raw app notice, observedAt only the read time. no_messages means the app reports no messages, not a diagnosis. Unrecognized texts remain unknown; colors or severity of unnamed icons are not invented. Warning scenarios have not yet been tested live.",
+      "sm": 12,
+      "xs": 12,
+      "md": 12,
+      "lg": 12,
+      "xl": 12
+    },
+    "pollIntervalSeconds": {
+      "type": "number",
+      "label": "Automatic app queries: minimum interval per area (seconds, 0 = off)",
+      "default": 15,
+      "min": 0,
+      "max": 86400,
+      "step": 1,
+      "validator": "Number.isInteger(data.pollIntervalSeconds) && (data.pollIntervalSeconds === 0 || data.pollIntervalSeconds >= 15 && data.pollIntervalSeconds <= 86400)",
+      "validatorNoSaveOnError": true,
+      "validatorErrorText": "Choose 0 to disable polling or a whole number from 15 to 86400 seconds.",
+      "help": "Also reads the selected vehicle's VIN in a separate read-only area. Reads climate, battery/charging settings, vehicle health report, doors/windows/trunk/locking state, climate departure times, charging-location list and each available charging location fairly in sequence. Additional locations lengthen a full cycle. The interval runs from completion of a query until the same area becomes due again; 15 seconds does not promise a full cycle every 15 seconds. Automatic jobs also have a recovery pause of at least 5 seconds or 25% of job duration. Manual commands have priority at safe step boundaries. Errors extend retry intervals up to five minutes; a longer configured minimum still applies. Automatic queries do not synchronize or apply preferences. An existing 0 stays disabled; new instances start at 15.",
+      "sm": 12,
+      "xs": 12,
+      "md": 12,
+      "lg": 12,
+      "xl": 12
+    },
+    "refreshMaxAgeSeconds": {
+      "type": "number",
+      "label": "Mark app observations stale after (seconds, 0 = automatic)",
+      "default": 0,
+      "min": 0,
+      "max": 86400,
+      "step": 1,
+      "validator": "Number.isInteger(data.refreshMaxAgeSeconds) && (data.refreshMaxAgeSeconds === 0 || data.refreshMaxAgeSeconds >= 30 && data.refreshMaxAgeSeconds <= 86400)",
+      "validatorNoSaveOnError": true,
+      "validatorErrorText": "Choose 0 for automatic validity or a whole number from 30 to 86400 seconds.",
+      "help": "Areas under refresh show fresh, stale, error or unknown, plus the time, age, error code and duration of the last query. These also include vehicleAccess for doors/windows/trunk/locking state, departureClimate, departureLocations and a separate area for each detected charging location. Automatic uses the greater of 90 seconds and twice the greater of the minimum interval and estimated full cycle time. fresh confirms a recent app read, not new vehicle measurements. This limit changes neither the query frequency nor the app synchronization notice.",
+      "sm": 12,
+      "xs": 12,
+      "md": 12,
+      "lg": 12,
+      "xl": 12
+    },
+    "commandTimeoutSeconds": {
+      "type": "number",
+      "label": "Overall time limit per command (seconds)",
+      "default": 300,
+      "min": 30,
+      "max": 360,
+      "step": 1,
+      "expertMode": true,
+      "help": "Limits the combined time for applying vehicle or charging settings, temperature selection, connection and waiting for app feedback. Extensive changes need more time. Unclear feedback never repeats a control command.",
+      "sm": 6,
+      "xs": 12,
+      "md": 6,
+      "lg": 6,
+      "xl": 6
+    },
+    "outcomeTimeoutSeconds": {
+      "type": "number",
+      "label": "Wait for confirmation in the app (seconds)",
+      "default": 120,
+      "min": 30,
+      "max": 150,
+      "step": 1,
+      "expertMode": true,
+      "help": "The Volkswagen app may respond with a delay. After a control attempt, wait up to this value for confirmation; a shorter remaining overall time limit ends the command sooner.",
+      "sm": 6,
+      "xs": 12,
+      "md": 6,
+      "lg": 6,
+      "xl": 6
+    },
+    "legacyStatePrefix": {
+      "type": "text",
+      "label": "Reuse existing prototype data points (optional)",
+      "default": "",
+      "expertMode": true,
+      "help": "Only for migration: an existing branch under 0_userdata.0. The previous control service and its script must be disabled.",
+      "sm": 12,
+      "xs": 12,
+      "md": 12,
+      "lg": 12,
+      "xl": 12
+    },
+    "cooldownSeconds": {
+      "type": "number",
+      "label": "Minimum interval between control attempts (seconds)",
+      "default": 60,
+      "min": 60,
+      "max": 3600,
+      "step": 1,
+      "expertMode": true,
+      "sm": 6,
+      "xs": 12,
+      "md": 6,
+      "lg": 6,
+      "xl": 6
+    }
+  }
+}

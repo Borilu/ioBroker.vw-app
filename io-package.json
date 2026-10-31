@@ -1,0 +1,216 @@
+{
+  "common": {
+    "name": "vw-app",
+    "version": "0.11.5",
+    "news": {
+      "0.11.5": {
+        "en": "Find a changed Android connection port using mDNS or a direct query to the configured phone, with identity verification before use.",
+        "de": "Geänderten Android-Verbindungsport per mDNS oder direkter Abfrage des eingestellten Handys finden und Gerätekennung vor der Verwendung prüfen.",
+        "ru": "Поиск изменённого порта Android через mDNS или прямой запрос к настроенному телефону с проверкой устройства перед использованием.",
+        "pt": "Localiza a porta Android alterada por mDNS ou consulta direta ao telefone configurado, verificando a identidade antes do uso.",
+        "nl": "Zoekt een gewijzigde Android-verbindingspoort via mDNS of een directe aanvraag aan de ingestelde telefoon en controleert de identiteit voor gebruik.",
+        "fr": "Recherche le port Android modifié par mDNS ou par requête directe au téléphone configuré, avec vérification de son identité avant utilisation.",
+        "it": "Trova la porta Android modificata tramite mDNS o richiesta diretta al telefono configurato e ne verifica l’identità prima dell’uso.",
+        "es": "Busca el puerto Android cambiado mediante mDNS o una consulta directa al teléfono configurado y verifica su identidad antes de usarlo.",
+        "pl": "Wyszukuje zmieniony port Android przez mDNS lub bezpośrednie zapytanie do skonfigurowanego telefonu i sprawdza jego tożsamość przed użyciem.",
+        "uk": "Пошук зміненого порту Android через mDNS або прямий запит до налаштованого телефона з перевіркою пристрою перед використанням.",
+        "zh-cn": "通过 mDNS 或直接查询已配置的手机查找更改后的 Android 连接端口，并在使用前验证设备身份。"
+      },
+      "0.11.4": {
+        "en": "Support the additional charging overview and maintenance-charging percentage; read the visible mode when its control is disabled.",
+        "de": "Zusätzliche Ladeübersicht und Batterieprozentsatz bei Erhaltungsladen unterstützen; sichtbaren Modus auch bei deaktivierter Auswahl lesen.",
+        "ru": "Поддержка дополнительного обзора и процента батареи при поддерживающей зарядке; чтение видимого режима при отключённом элементе выбора.",
+        "pt": "Suporta a visão adicional de carga e a percentagem na carga de manutenção; lê o modo visível quando a seleção está desativada.",
+        "nl": "Ondersteunt de extra laadweergave en het accupercentage bij onderhoudsladen; leest de zichtbare modus bij uitgeschakelde selectie.",
+        "fr": "Prend en charge la vue supplémentaire et le pourcentage pendant la charge de maintien ; lit le mode visible quand la sélection est désactivée.",
+        "it": "Supporta la vista aggiuntiva e la percentuale durante la carica di mantenimento; legge il modo visibile quando la selezione è disabilitata.",
+        "es": "Admite la vista adicional y el porcentaje durante la carga de mantenimiento; lee el modo visible cuando la selección está desactivada.",
+        "pl": "Obsługuje dodatkowy widok i procent baterii podczas ładowania podtrzymującego; odczytuje widoczny tryb przy wyłączonym wyborze.",
+        "uk": "Підтримка додаткового огляду й відсотка батареї під час підтримувального заряджання; читання видимого режиму при вимкненому виборі.",
+        "zh-cn": "支持额外充电概览和维护充电时的电池百分比；选择控件禁用时仍读取可见模式。"
+      },
+      "0.11.3": {
+        "en": "Improve battery and range reads during charging, including the range tile and SOC display; retain navigation checks.",
+        "de": "Auslesen während des Ladens verbessern: Reichweiten-Kachel und SOC-Anzeige unterstützen, Navigationsprüfungen beibehalten.",
+        "ru": "Улучшено чтение батареи и запаса хода во время зарядки, включая плитку запаса хода и отображение SOC; проверки навигации сохранены.",
+        "pt": "Melhora a leitura da bateria e autonomia durante a carga, incluindo o bloco de autonomia e a indicação SOC; mantém as verificações de navegação.",
+        "nl": "Verbetert het uitlezen van accu en bereik tijdens het laden, inclusief de actieradiustegel en SOC-weergave; behoudt navigatiecontroles.",
+        "fr": "Améliore la lecture de la batterie et de l’autonomie pendant la recharge, y compris la tuile d’autonomie et le SOC ; conserve les contrôles de navigation.",
+        "it": "Migliora la lettura di batteria e autonomia durante la ricarica, inclusi il riquadro autonomia e il SOC; mantiene i controlli di navigazione.",
+        "es": "Mejora la lectura de batería y autonomía durante la carga, incluida la tarjeta de autonomía y el SOC; conserva los controles de navegación.",
+        "pl": "Ulepsza odczyt baterii i zasięgu podczas ładowania, w tym kafelek zasięgu i wskaźnik SOC; zachowuje kontrole nawigacji.",
+        "uk": "Поліпшено читання батареї та запасу ходу під час заряджання, включно з плиткою запасу ходу й відображенням SOC; перевірки навігації збережено.",
+        "zh-cn": "改进充电期间的电池和续航读取，支持续航卡片和 SOC 显示，并保留导航检查。"
+      },
+      "0.11.2": {
+        "en": "Improve Admin translations, pairing-code protection declarations and repository-review metadata; retain vehicle controls and automatic reads.",
+        "de": "Admin-Übersetzungen, Schutzdeklarationen für den Kopplungscode und Metadaten für die Verzeichnisprüfung verbessern; Fahrzeugbedienung und automatische Abfragen bleiben erhalten.",
+        "ru": "Улучшены переводы Admin, объявления защиты кода сопряжения и метаданные проверки каталога; управление автомобилем и автоматическое чтение сохранены.",
+        "pt": "Melhora traduções do Admin, declarações de proteção do código de emparelhamento e metadados da revisão do catálogo; mantém os controles e leituras automáticas.",
+        "nl": "Verbetert Admin-vertalingen, beschermingsdeclaraties voor de koppelcode en metadata voor de registercontrole; voertuigbediening en automatisch uitlezen blijven behouden.",
+        "fr": "Améliore les traductions Admin, les déclarations de protection du code d’association et les métadonnées de revue du catalogue ; conserve les commandes et lectures automatiques.",
+        "it": "Migliora le traduzioni Admin, le dichiarazioni di protezione del codice di associazione e i metadati di revisione del catalogo; mantiene comandi e letture automatiche.",
+        "es": "Mejora las traducciones de Admin, las declaraciones de protección del código de emparejamiento y los metadatos de revisión del catálogo; conserva controles y lecturas automáticas.",
+        "pl": "Ulepsza tłumaczenia Admin, deklaracje ochrony kodu parowania i metadane przeglądu katalogu; zachowuje sterowanie pojazdem i automatyczne odczyty.",
+        "uk": "Поліпшено переклади Admin, декларації захисту коду сполучення й метадані перевірки каталогу; керування автомобілем та автоматичне читання збережено.",
+        "zh-cn": "改进 Admin 翻译、配对码保护声明和目录审核元数据；保留车辆控制和自动读取。"
+      },
+      "0.11.1": {
+        "en": "Recognize the empty charging-picker wrapper and wait for delayed app confirmation through bounded reads without repeating commands; retain all selection and overlay guards.",
+        "de": "Leeren Wrapper der Lademodusauswahl erkennen und verzögerte App-Bestätigung begrenzt lesend abwarten, ohne Befehle zu wiederholen; Auswahl- und Überlagerungsprüfungen bleiben erhalten.",
+        "ru": "Распознавание пустой оболочки выбора режима и ожидание задержанного подтверждения приложения ограниченными чтениями без повтора команд; проверки выбора и перекрытий сохранены.",
+        "pt": "Reconhece a camada vazia da seleção de carga e aguarda a confirmação atrasada por leituras limitadas sem repetir comandos; mantém as verificações de seleção e sobreposição.",
+        "nl": "Herkent de lege laadkeuzecontainer en wacht met begrensde uitlezingen op vertraagde appbevestiging zonder opdrachten te herhalen; selectie- en overlaycontroles blijven behouden.",
+        "fr": "Reconnaît le conteneur vide du choix de recharge et attend la confirmation tardive par lectures limitées, sans répéter les commandes ; contrôles de sélection et de superposition conservés.",
+        "it": "Riconosce il contenitore vuoto della scelta di ricarica e attende conferme ritardate con letture limitate senza ripetere comandi; conserva i controlli di selezione e sovrapposizione.",
+        "es": "Reconoce el contenedor vacío del selector y espera la confirmación tardía con lecturas limitadas sin repetir comandos; mantiene las comprobaciones de selección y superposiciones.",
+        "pl": "Rozpoznaje pusty kontener wyboru trybu i czeka na opóźnione potwierdzenie przez ograniczone odczyty bez powtarzania poleceń; zachowuje kontrole wyboru i nakładek.",
+        "uk": "Розпізнає порожню оболонку вибору й очікує затримане підтвердження обмеженими читаннями без повтору команд; перевірки вибору та перекриттів збережено.",
+        "zh-cn": "识别充电模式选择器的空容器，通过有时限的只读查询等待延迟的应用确认，不重复发送命令，并保留选中状态和遮挡检查。"
+      },
+      "0.11.0": {
+        "en": "Read and explicitly select three charging modes with a separate saved wish, snapshot time and validity; keep charging settings and departure timers independent.",
+        "de": "Drei Lademodi mit getrennt gespeichertem Wunsch, Beobachtungszeit und Gültigkeit auslesen und ausdrücklich wählen; Ladeeinstellungen und Abfahrtstimer bleiben unabhängig.",
+        "ru": "Чтение и явный выбор трёх режимов зарядки с отдельным сохранённым пожеланием, временем наблюдения и достоверностью; настройки зарядки и таймеры отправления остаются независимыми.",
+        "pt": "Lê e seleciona explicitamente três modos de carga, com preferência salva separadamente, horário da leitura e validade; configurações de carga e horários de partida permanecem independentes.",
+        "nl": "Lees en kies drie laadmodi met een apart opgeslagen wens, waarnemingstijd en geldigheid; laadinstellingen en vertrektimers blijven onafhankelijk.",
+        "fr": "Lecture et sélection explicite de trois modes de recharge avec souhait enregistré séparément, heure de lecture et validité ; réglages de recharge et horaires de départ indépendants.",
+        "it": "Legge e seleziona esplicitamente tre modalità di ricarica con preferenza salvata separatamente, ora di lettura e validità; impostazioni di ricarica e timer di partenza restano indipendenti.",
+        "es": "Lee y selecciona expresamente tres modos de carga con una preferencia guardada aparte, hora de lectura y validez; los ajustes de carga y horarios de salida siguen siendo independientes.",
+        "pl": "Odczyt i jawny wybór trzech trybów ładowania z osobno zapisanym wyborem, czasem odczytu i ważnością; ustawienia ładowania i timery odjazdu pozostają niezależne.",
+        "uk": "Читання та явний вибір трьох режимів заряджання з окремо збереженим побажанням, часом спостереження й достовірністю; налаштування заряджання та таймери відправлення залишаються незалежними.",
+        "zh-cn": "读取并明确选择三种充电模式，分别保存目标模式、读取时间和有效性；充电设置与出发定时器保持独立。"
+      },
+      "0.10.1": {
+        "en": "Correct command-button and vehicle-access object metadata, and migrate existing definitions without changing state values or sending vehicle commands.",
+        "de": "Objektmetadaten der Befehlsknöpfe und Fahrzeugzugangssensoren korrigieren und bestehende Definitionen ohne Wertänderungen oder Fahrzeugbefehle aktualisieren.",
+        "ru": "Исправлены метаданные кнопок команд и датчиков доступа к автомобилю; существующие определения обновляются без изменения значений и отправки команд автомобилю.",
+        "pt": "Corrige os metadados dos botões de comando e sensores de acesso ao veículo e atualiza as definições existentes sem alterar valores ou enviar comandos ao veículo.",
+        "nl": "Corrigeert de objectmetadata van opdrachtknoppen en voertuigtoegangssensoren en werkt bestaande definities bij zonder waarden te wijzigen of voertuigopdrachten te versturen.",
+        "fr": "Corrige les métadonnées des boutons de commande et des capteurs d’accès au véhicule, et met à jour les définitions existantes sans modifier les valeurs ni envoyer de commandes au véhicule.",
+        "it": "Corregge i metadati dei pulsanti di comando e dei sensori di accesso al veicolo, aggiornando le definizioni esistenti senza modificare i valori o inviare comandi al veicolo.",
+        "es": "Corrige los metadatos de los botones de comando y sensores de acceso al vehículo y actualiza las definiciones existentes sin cambiar valores ni enviar comandos al vehículo.",
+        "pl": "Poprawia metadane przycisków poleceń i czujników dostępu do pojazdu oraz aktualizuje istniejące definicje bez zmiany wartości i wysyłania poleceń do pojazdu.",
+        "uk": "Виправлено метадані кнопок команд і датчиків доступу до автомобіля; наявні визначення оновлюються без зміни значень і надсилання команд автомобілю.",
+        "zh-cn": "修正命令按钮和车辆门窗锁定传感器的对象元数据，并更新现有定义，不更改状态值或发送车辆命令。"
+      },
+      "0.10.0": {
+        "en": "Read the selected vehicle VIN with a separate automatic and manual app query, read-age diagnostics and retained historical values.",
+        "de": "Die FIN des ausgewählten Fahrzeugs mit einem eigenen automatischen und manuellen Lesebereich, Aktualitätsanzeige und erhaltenen historischen Werten auslesen.",
+        "ru": "Чтение VIN выбранного автомобиля отдельным автоматическим и ручным запросом приложения, с возрастом чтения и сохранением предыдущих значений.",
+        "pt": "Lê o VIN do veículo selecionado em uma área própria de consulta automática e manual, com idade da leitura e preservação dos valores históricos.",
+        "nl": "Lees het VIN van het geselecteerde voertuig via een apart automatisch en handmatig leesgebied, met leesouderdom en behoud van historische waarden.",
+        "fr": "Lecture du VIN du véhicule sélectionné dans une zone distincte, automatiquement ou sur demande, avec ancienneté de lecture et conservation des valeurs historiques.",
+        "it": "Legge il VIN del veicolo selezionato con una query automatica e manuale separata, indicando l’età della lettura e conservando i valori storici.",
+        "es": "Lee el VIN del vehículo seleccionado mediante una consulta automática y manual independiente, con antigüedad de lectura y conservación de los valores históricos.",
+        "pl": "Odczyt VIN wybranego pojazdu w osobnym obszarze automatycznych i ręcznych zapytań, z wiekiem odczytu i zachowaniem wartości historycznych.",
+        "uk": "Читання VIN вибраного автомобіля окремим автоматичним і ручним запитом застосунку, з віком читання та збереженням історичних значень.",
+        "zh-cn": "通过独立的自动和手动应用查询读取所选车辆的 VIN，显示读取时效并保留历史值。"
+      }
+    },
+    "titleLang": {
+      "en": "Volkswagen App Control",
+      "de": "Volkswagen App-Steuerung",
+      "ru": "Управление приложением Volkswagen",
+      "pt": "Controle do aplicativo Volkswagen",
+      "nl": "Volkswagen-appbediening",
+      "fr": "Commande de l’application Volkswagen",
+      "it": "Controllo dell’app Volkswagen",
+      "es": "Control de la aplicación Volkswagen",
+      "pl": "Sterowanie aplikacją Volkswagen",
+      "uk": "Керування застосунком Volkswagen",
+      "zh-cn": "Volkswagen 应用控制"
+    },
+    "desc": {
+      "en": "Operate the official Volkswagen Android app over Wi-Fi using an adapter-managed ADB runtime.",
+      "de": "Die offizielle Volkswagen-Android-App über WLAN mit einer vom Adapter verwalteten ADB-Laufzeit bedienen.",
+      "ru": "Управление официальным приложением Volkswagen для Android по Wi-Fi через среду ADB, управляемую адаптером.",
+      "pt": "Controle o aplicativo oficial Volkswagen para Android por Wi-Fi com um ambiente ADB gerenciado pelo adaptador.",
+      "nl": "Bedien de officiële Volkswagen-Android-app via wifi met een door de adapter beheerde ADB-omgeving.",
+      "fr": "Pilotez l’application officielle Volkswagen pour Android par Wi-Fi avec un environnement ADB géré par l’adaptateur.",
+      "it": "Controlla l’app ufficiale Volkswagen per Android tramite Wi-Fi con un ambiente ADB gestito dall’adattatore.",
+      "es": "Controla la aplicación oficial Volkswagen para Android por Wi-Fi mediante un entorno ADB gestionado por el adaptador.",
+      "pl": "Obsługa oficjalnej aplikacji Volkswagen na Androida przez Wi-Fi za pomocą środowiska ADB zarządzanego przez adapter.",
+      "uk": "Керування офіційним застосунком Volkswagen для Android через Wi-Fi за допомогою середовища ADB, яким керує адаптер.",
+      "zh-cn": "通过适配器管理的 ADB 运行环境，经 Wi-Fi 操作 Volkswagen 官方 Android 应用。"
+    },
+    "authors": [
+      "Borilu <borilu@fn.de>"
+    ],
+    "keywords": [
+      "volkswagen",
+      "android",
+      "climate",
+      "wifi"
+    ],
+    "platform": "Javascript/Node.js",
+    "mode": "daemon",
+    "type": "vehicle",
+    "compact": false,
+    "connectionType": "local",
+    "dataSource": "poll",
+    "messagebox": true,
+    "enabled": true,
+    "loglevel": "info",
+    "icon": "vw-app.svg",
+    "extIcon": "https://raw.githubusercontent.com/Borilu/ioBroker.vw-app/main/admin/vw-app.svg",
+    "readme": "https://github.com/Borilu/ioBroker.vw-app/blob/main/README.md",
+    "adminUI": {
+      "config": "json"
+    },
+    "dataFolder": "vw-app.%INSTANCE%",
+    "os": [
+      "linux"
+    ],
+    "dependencies": [
+      {
+        "js-controller": ">=6.0.11"
+      }
+    ],
+    "globalDependencies": [
+      {
+        "admin": ">=7.6.20"
+      }
+    ],
+    "tier": 2,
+    "licenseInformation": {
+      "license": "MIT",
+      "type": "free",
+      "link": "https://spdx.org/licenses/MIT.html"
+    }
+  },
+  "encryptedNative": [
+    "sPin",
+    "_pairCode",
+    "guardianSecret"
+  ],
+  "protectedNative": [
+    "sPin",
+    "_pairCode",
+    "guardianSecret"
+  ],
+  "native": {
+    "hostIp": "",
+    "connectPort": 0,
+    "guardianPortDiscovery": false,
+    "guardianPort": 37457,
+    "guardianSecret": "",
+    "approvedAppVersion": "",
+    "vehicleMarker": "",
+    "modeTitles": "Klimatisierung|Air conditioning",
+    "allowWrites": false,
+    "allowVehicleLocking": false,
+    "sPin": "",
+    "adbPath": "",
+    "useBundledAdb": true,
+    "commandTimeoutSeconds": 300,
+    "outcomeTimeoutSeconds": 120,
+    "cooldownSeconds": 60,
+    "pollIntervalSeconds": 15,
+    "refreshMaxAgeSeconds": 0,
+    "stayAwakeOnCharge": false,
+    "legacyStatePrefix": ""
+  },
+  "objects": [],
+  "instanceObjects": []
+}
