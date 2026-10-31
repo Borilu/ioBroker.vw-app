@@ -2788,7 +2788,7 @@ test('automatic access reads renew quality and timestamps without replacing manu
 test('access history survives restart with invalid quality until a new app read succeeds', async t => {
     const first = await fixture(t);
     await first.adapter.observation(vehicleAccessResult());
-    const initialStates = Object.fromEntries([...first.adapter.states].filter(([id]) => id.startsWith('vehicleAccess.')));
+    const initialStates = Object.fromEntries([...first.adapter.states].filter(([id]) => id.startsWith('vehicleAccess.') || id.startsWith('refresh.vehicleAccess.')));
     const restarted = await fixture(t, { initialStates });
     assert.equal(restarted.value('vehicleAccess.doors.frontLeftOpen'), true);
     assert.equal(restarted.value('vehicleAccess.doors.frontRightOpen'), false);
@@ -2801,6 +2801,121 @@ test('access history survives restart with invalid quality until a new app read 
     await restarted.adapter.observation(vehicleAccessResult());
     assert.deepEqual(restarted.adapter.states.get('vehicleAccess.locked'), { val: false, ack: true });
     assert.equal(restarted.value('refresh.vehicleAccess.status'), 'fresh');
+});
+
+test('restart preserves historical climate, charging, report and departure observations but marks them stale', async t => {
+    const first = await fixture(t, { enrollment: enrolled(), fakeController: true,
+        departureLocations: [{ nativeId: '700', name: 'Synthetischer Ort A', activeCount: 0 }] });
+    await first.adapter.command('status');
+    await first.adapter.command('chargingStatus');
+    await first.adapter.command('vehicleReportStatus');
+    await first.adapter.command('departuresClimateStatus');
+    await first.adapter.command('departuresLocationsStatus');
+    const key = localKey(VEHICLE, '700');
+    await first.adapter.departureCommand('departuresLocationStatus', { locationKey: key });
+    const states = Object.fromEntries(first.adapter.states);
+    const ids = ['climate.appState', 'battery.soc', 'vehicleReport.odometerText',
+        'departures.climate.timer1.enabled', 'chargingLocations.' + key + '.timer1.enabled'];
+    const domains = ['climate', 'charging', 'vehicleReport', 'departureClimate', 'departureLocations', 'departureLocation_' + key];
+    const restarted = await fixture(t, { enrollment: enrolled(), fakeController: true,
+        memory: first.memory, initialStates: states });
+    for (const id of ids) {
+        assert.equal(restarted.value(id), states[id].val, id);
+        assert.equal(restarted.adapter.states.get(id).q, 0x82, id);
+    }
+    for (const domain of domains) {
+        const prefix = 'refresh.' + domain;
+        assert.equal(restarted.value(prefix + '.lastReadAt'), states[prefix + '.lastReadAt'].val, domain);
+        assert.equal(restarted.value(prefix + '.status'), 'stale', domain);
+    }
+    assert.equal(restarted.records.controllerCalls.length, 0);
+});
+
+test('restart rejects malformed historical values and never presents a saved timestamp as fresh', async t => {
+    const initialStates = {
+        'climate.temperature': { val: 'not a number', ack: true },
+        'battery.soc': { val: 87, ack: false },
+        'refresh.climate.lastReadAt': { val: 'not a date', ack: true },
+        'refresh.charging.lastReadAt': { val: '2026-10-24T19:00:00.000Z', ack: true },
+        'refresh.charging.status': { val: 'fresh', ack: true },
+        'refresh.vehicleReport.lastReadAt': { val: '2026-10-24T19:00:00.000Z', ack: true, q: 0x82 },
+        'charging.modeObservedAt': { val: '2026-10-24T19:00:00.000Z', ack: true, q: 0x82 },
+        'climate.vehicleConfirmed': { val: true, ack: true },
+        'departures.climate.timer1.enabled': { val: true, ack: false },
+    };
+    const restarted = await fixture(t, { initialStates });
+    assert.equal(restarted.value('climate.temperature'), null);
+    assert.equal(restarted.value('battery.soc'), null);
+    assert.equal(restarted.value('departures.climate.timer1.enabled'), null);
+    assert.equal(restarted.value('climate.vehicleConfirmed'), false);
+    assert.equal(restarted.value('refresh.climate.lastReadAt'), '');
+    assert.equal(restarted.value('refresh.climate.status'), 'unknown');
+    assert.equal(restarted.value('refresh.charging.lastReadAt'), '2026-10-24T19:00:00.000Z');
+    assert.equal(restarted.value('refresh.charging.status'), 'stale');
+    assert.equal(restarted.value('refresh.vehicleReport.status'), 'unknown');
+    assert.equal(restarted.value('refresh.vehicleReport.lastReadAt'), '');
+    assert.equal(restarted.value('charging.modeObservedAt'), '2026-10-24T19:00:00.000Z');
+    assert.equal(restarted.adapter.states.get('charging.modeObservedAt').q, 0x82);
+});
+
+test('restart keeps last fully published access read time and rejects unacknowledged values', async t => {
+    const initialStates = {
+        'refresh.vehicleAccess.lastReadAt': { val: '2026-10-24T19:00:00.000Z', ack: true },
+        'vehicleAccess.observedAt': { val: '2026-10-24T20:00:00.000Z', ack: true },
+        'vehicleAccess.locked': { val: false, ack: false },
+        'vehicleInfo.observedAt': { val: '2026-10-24T20:00:00.000Z', ack: false },
+        'vehicleInfo.vin': { val: 'SYNTHETICVIN12345', ack: false },
+        'charging.mode': { val: 'immediate', ack: false },
+        'refresh.departureClimate.lastReadAt': { val: '2026-10-24T19:00:00.000Z', ack: true },
+        'departures.climate.observedAt': { val: '2026-10-24T20:00:00.000Z', ack: true },
+    };
+    const restarted = await fixture(t, { initialStates });
+    assert.equal(restarted.value('refresh.vehicleAccess.lastReadAt'), '2026-10-24T19:00:00.000Z');
+    assert.equal(restarted.value('vehicleAccess.observedAt'), '2026-10-24T20:00:00.000Z');
+    assert.equal(restarted.adapter.states.get('vehicleAccess.observedAt').q, 0x82);
+    assert.equal(restarted.value('vehicleAccess.locked'), null);
+    assert.equal(restarted.value('vehicleInfo.observedAt'), '');
+    assert.equal(restarted.value('vehicleInfo.vin'), '');
+    assert.equal(restarted.value('charging.mode'), null);
+    assert.equal(restarted.value('departures.climate.observedAt'), '2026-10-24T20:00:00.000Z');
+    assert.equal(restarted.adapter.states.get('departures.climate.observedAt').q, 0x82);
+    assert.equal(restarted.value('refresh.departureClimate.lastReadAt'), '2026-10-24T19:00:00.000Z');
+});
+
+test('restart invalidates orphaned location observations without touching wishes or custom objects', async t => {
+    const key = 'loc_' + 'a'.repeat(24), base = 'chargingLocations.' + key;
+    const refresh = 'refresh.departureLocation_' + key;
+    const secondRefresh = 'refresh.departureLocation_loc_' + 'b'.repeat(24);
+    const object = (type, write) => ({ type: 'state', common: { type, write }, native: {} });
+    const initialObjects = {
+        [base + '.timer1.enabled']: object('boolean', false),
+        [base + '.observedAt']: object('string', false),
+        [base + '.timer1.targetEnabled']: object('boolean', true),
+        [base + '.custom']: object('string', false),
+        [refresh + '.status']: object('string', false),
+        [refresh + '.lastReadAt']: object('string', false),
+        [refresh + '.ageSeconds']: object('number', false),
+        [secondRefresh + '.status']: object('string', false),
+    };
+    const initialStates = {
+        [base + '.timer1.enabled']: { val: true, ack: false, q: 1 },
+        [base + '.observedAt']: { val: '2026-10-24T19:00:00.000Z', ack: true },
+        [base + '.timer1.targetEnabled']: { val: true, ack: true },
+        [base + '.custom']: { val: 'custom', ack: true },
+        [refresh + '.status']: { val: 'fresh', ack: true },
+        [refresh + '.lastReadAt']: { val: '2026-10-24T19:00:00.000Z', ack: true },
+        [refresh + '.ageSeconds']: { val: 14, ack: true },
+        [secondRefresh + '.status']: { val: 'fresh', ack: false, q: 1 },
+    };
+    const restarted = await fixture(t, { initialObjects, initialStates });
+    assert.deepEqual(restarted.adapter.states.get(base + '.timer1.enabled'), { val: true, ack: false, q: 0x83 });
+    assert.deepEqual(restarted.adapter.states.get(base + '.observedAt'), { val: '2026-10-24T19:00:00.000Z', ack: true, q: 0x82 });
+    assert.deepEqual(restarted.adapter.states.get(base + '.timer1.targetEnabled'), initialStates[base + '.timer1.targetEnabled']);
+    assert.deepEqual(restarted.adapter.states.get(base + '.custom'), initialStates[base + '.custom']);
+    assert.equal(restarted.value(refresh + '.status'), 'stale');
+    assert.deepEqual(restarted.adapter.states.get(refresh + '.lastReadAt'), initialStates[refresh + '.lastReadAt']);
+    assert.deepEqual(restarted.adapter.states.get(refresh + '.ageSeconds'), { val: 14, ack: true, q: 0x82 });
+    assert.deepEqual(restarted.adapter.states.get(secondRefresh + '.status'), { val: 'fresh', ack: false, q: 0x83 });
 });
 
 test('a manual command takes a safe handoff from an automatic access read without publishing its cancelled result', async t => {
@@ -2952,7 +3067,7 @@ test('automatic FIN reads renew validity while stale or failed reads preserve hi
 test('FIN success history survives restart as invalid until the next successful observation', async t => {
     const first = await fixture(t);
     await first.adapter.observation(vehicleInfoResult());
-    const initialStates = Object.fromEntries([...first.adapter.states].filter(([id]) => id.startsWith('vehicleInfo.')));
+    const initialStates = Object.fromEntries([...first.adapter.states].filter(([id]) => id.startsWith('vehicleInfo.') || id.startsWith('refresh.vehicleInfo.')));
     const restarted = await fixture(t, { initialStates });
     assert.deepEqual(restarted.adapter.states.get('vehicleInfo.vin'), { val: SYNTHETIC_VIN, ack: true, q: 0x82 });
     assert.deepEqual(restarted.adapter.states.get('vehicleInfo.observedAt'),

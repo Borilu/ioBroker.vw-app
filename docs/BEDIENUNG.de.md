@@ -216,6 +216,8 @@ In **Instanzen → vw-app.0 → Einstellungen** lassen sich diese Werte anpassen
 
 Bei Fehlern oder abgelaufener Gültigkeit können letzte bekannte Werte als Historie stehen bleiben. Der letzte erfolgreiche Auslesezeitpunkt wird dabei nicht vorgetäuscht fortgeschrieben. Ein sichtbarer Zahlen- oder Schalterwert allein ist daher kein Beleg für aktuelle Daten.
 
+Auch nach einem Adapterneustart bleiben vorhandene Beobachtungen und der letzte vollständig veröffentlichte Lesezeitpunkt als Historie erhalten. Die Datenpunkte sind bis zur nächsten erfolgreichen Abfrage ungültig und der Bereich steht auf `stale` oder `unknown`. Bei einem unterbrochenen Schreiben können einzelne historische Felder aus einer unvollständigen späteren Abfrage stammen; der Bereichszeitpunkt wird dadurch nicht fortgeschrieben. Nicht mehr zuordenbare Ladeorte werden ebenfalls ungültig markiert.
+
 Für Automatisierungen müssen **Bereichsstatus `fresh`, gültige Datenpunktqualität und ein passender Wert** zusammenpassen. ioBroker kennzeichnet ungültige Qualität hier mit `q=0x82` (dezimal 130); regulär gültig ist `q=0`. `null` bedeutet bei Istwerten unbekannt oder nicht verfügbar, nicht ausgeschaltet. Eine dokumentierte Ausnahme ist das absichtlich fehlende Einmaldatum eines wiederkehrenden Timers. `ack=true` allein sagt nichts über die Aktualität aus.
 
 Die automatische Altersgrenze ist mindestens 90 Sekunden. Genauer verwendet sie das Doppelte des größeren Werts aus Mindestabstand und geschätzter vollständiger Rundlaufzeit, falls dies über 90 Sekunden liegt. Mit zusätzlichen Ladeorten kann sie daher größer werden. Unter `refresh.<Bereich>.maxAgeSeconds` siehst du den tatsächlich verwendeten Wert.
