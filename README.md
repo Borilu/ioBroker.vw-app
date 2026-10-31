@@ -12,7 +12,7 @@ Ein Aufruf ohne `--execute` führt nichts aus. `stage` prüft freie Instanz/Port
 
 `stop` wirkt nur auf eine Instanz mit dem zur Journaldatei passenden Pilot-Marker. Der Ablauf deaktiviert sie und prüft, dass der zugehörige Port wieder frei ist. Zertifikatsnamen und Dateien bleiben bei einem Stopp absichtlich erhalten; der Werkzeugablauf löscht keine bestehenden Zertifikate und versucht bei unklarem Stand keine automatische Bereinigung.
 
-Das journalisierte, separate `lan`-Experiment setzt erfolgreichen Loopback-Nachweis voraus und bindet nach kontrolliertem Stopp nur an eine tatsächlich lokale RFC1918-Adresse. Während des Startfensters kann die Gegenstelle diese Adresse **vor Abschluss der erneuten TLS-Prüfung** erreichen. Bei Absturz oder unklarem CLI-Ergebnis kann eine Laufzeit ohne bestätigtes TLS fortbestehen. Ein unabhängiger, ausfallsicherer Netzfilter steht für den aktuellen SSH-Nutzer nicht zur Verfügung. Bis zu einer gesonderten Entscheidung darf der LAN-Schritt deshalb nicht ausgeführt werden. Niemand darf ein Passwort vor bestätigtem TLS eingeben.
+Das journalisierte, separate `lan`-Modell setzt erfolgreichen Loopback-Nachweis voraus und bindet nach kontrolliertem Stopp nur an eine tatsächlich lokale RFC1918-Adresse. Während des Startfensters kann die Gegenstelle diese Adresse **vor Abschluss der erneuten TLS-Prüfung** erreichen. Bei Absturz oder unklarem CLI-Ergebnis kann eine Laufzeit ohne bestätigtes TLS fortbestehen. Ein unabhängiger, ausfallsicherer Netzfilter steht für den aktuellen SSH-Nutzer nicht zur Verfügung. Der Pilot-CLI bietet deshalb absichtlich **keinen** LAN-Aufruf. Niemand darf ein Passwort vor bestätigtem TLS eingeben.
 
 ## Beispiel für eine lokale, vertrauliche Konfiguration
 

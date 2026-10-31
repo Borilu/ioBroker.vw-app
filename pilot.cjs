@@ -1,11 +1,11 @@
 'use strict';
 // Experimental Linux-only pilot runner; DO NOT run on production until independently
 // reviewed and an operator has reserved the certificate store maintenance window.
-// Usage: node pilot.cjs stage|start|lan|stop /absolute/config.json --execute
+// Usage: node pilot.cjs stage|start|stop /absolute/config.json --execute
 const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
-const { stage, startLoopback, startLan, stopPilot, Stop } = require('./provision.cjs');
+const { stage, startLoopback, stopPilot, Stop } = require('./provision.cjs');
 const { createCliDriver } = require('./cli-driver.cjs');
 
 function privateDirectory(dir) {
@@ -41,7 +41,7 @@ function journalAt(dir) {
 }
 async function main() {
     const [operation, configPath, explicit] = process.argv.slice(2);
-    if (!['stage','start','lan','stop'].includes(operation) || !configPath || explicit !== '--execute' || process.argv.length !== 5)
+    if (!['stage','start','stop'].includes(operation) || !configPath || explicit !== '--execute' || process.argv.length !== 5)
         throw new Stop('usage');
     if (!path.isAbsolute(configPath)) throw new Stop('config_path');
     let config;
@@ -57,7 +57,7 @@ async function main() {
     let finished = false;
     try {
         const driver = createCliDriver(), journal = journalAt(config.journalDir);
-        const action = {stage, start:startLoopback, lan:startLan, stop:stopPilot}[operation];
+        const action = {stage, start:startLoopback, stop:stopPilot}[operation];
         const result = await action(driver, journal, config.pilot);
         process.stdout.write(result + '\n');
         finished = true;
