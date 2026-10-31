@@ -189,3 +189,11 @@ test('Admin PIN validation accepts empty configuration and agrees with exact fou
         assert.equal(validate({ sPin: value }), false);
     }
 });
+
+test('departure overview-only mode is explicit, strict and disabled for existing and new instances', () => {
+    assert.equal(normalizeConfig().departureOverviewOnly, false);
+    assert.equal(normalizeConfig(nativeDefaults).departureOverviewOnly, false);
+    assert.equal(admin.departureOverviewOnly.default, false);
+    assert.equal(normalizeConfig({ departureOverviewOnly: true }).departureOverviewOnly, true);
+    for (const value of ['true', 1, null, {}, []]) assert.throws(() => normalizeConfig({ departureOverviewOnly: value }), invalid);
+});

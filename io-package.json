@@ -208,6 +208,7 @@
     "cooldownSeconds": 60,
     "pollIntervalSeconds": 15,
     "refreshMaxAgeSeconds": 0,
+    "departureOverviewOnly": false,
     "stayAwakeOnCharge": false,
     "legacyStatePrefix": ""
   },

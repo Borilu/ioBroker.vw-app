@@ -394,6 +394,36 @@ test('climate status reads both native timers, checks displayed values and retur
     finished(c, phone);
 });
 
+test('overview-only climate reads visible rows twice without opening either timer editor', async () => {
+    const { c, phone } = setup();
+    const taps = []; phone.afterTap = action => taps.push(action);
+    const result = await executeDepartures(c, 'departuresClimateStatus', { overviewOnly: true });
+    assert.equal(result.partial, true); assert.equal(result.domain, 'departureClimate');
+    assert.equal(result.timers.length, 2); assert.equal(phone.page, 'home');
+    for (const row of result.timers) {
+        assert.deepEqual(Object.keys(row).sort(), ['daysSummary', 'daysSummaryRecognized', 'enabled', 'id', 'time'].sort());
+    }
+    assert.equal(phone.calls.some(call => call[0] === 'tap' && call[1] === 'timerEditor'), false);
+    assert.equal(phone.calls.some(call => call[0] === 'native' && call[1] === 'timerEditor'), false);
+    assert.equal(phone.calls.some(call => call[0] === 'cleanBack'), false);
+    assert.equal(taps.some(action => action.startsWith('timer:')), false);
+});
+
+test('overview-only charging location reads settings but never opens its timer editors', async () => {
+    const { c, phone } = setup();
+    const taps = []; phone.afterTap = action => taps.push(action);
+    const result = await executeDepartures(c, 'departuresLocationStatus', {
+        overviewOnly: true, location: { nativeId: '11', name: 'Synthetic place Alpha' },
+    });
+    assert.equal(result.partial, true); assert.equal(result.domain, 'departureLocation');
+    assert.equal(result.timers.length, 3); assert.equal(result.settings.name, 'Synthetic place Alpha');
+    assert.equal(result.preferredTimes.windows.length, 4); assert.equal(phone.page, 'home');
+    assert.equal(phone.calls.some(call => call[0] === 'tap' && call[1] === 'timerEditor'), false);
+    assert.equal(phone.calls.some(call => call[0] === 'native' && call[1] === 'timerEditor'), false);
+    assert.equal(phone.calls.some(call => call[0] === 'cleanBack'), false);
+    assert.equal(taps.some(action => action.startsWith('timer:')), false);
+});
+
 test('explicit dry-run reads validate the same navigation and never touch a write API or preference queue', async () => {
     const { c, phone } = setup();
     const before = clone({ climate: phone.climate, charging: phone.charging, locations: phone.locations });

@@ -723,6 +723,17 @@
       "lg": 12,
       "xl": 12
     },
+    "departureOverviewOnly": {
+      "type": "checkbox",
+      "label": "Read departure times without opening editors",
+      "default": false,
+      "help": "Optional safe reading mode for departure times: only values visible in timer lists are refreshed; the app's timer editor is not opened by read commands. Repeat, selected days, date and other editor-only fields retain their previous values with invalid quality. The refresh area shows partial and retains the last complete read time. Writing commands still open the editor. Off by default.",
+      "sm": 12,
+      "xs": 12,
+      "md": 12,
+      "lg": 12,
+      "xl": 12
+    },
     "pollIntervalSeconds": {
       "type": "number",
       "label": "Automatic app queries: minimum interval per area (seconds, 0 = off)",

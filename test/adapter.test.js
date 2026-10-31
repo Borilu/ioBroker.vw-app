@@ -123,6 +123,7 @@ async function fixture(t, options = {}) {
             this.log = Object.fromEntries(['info', 'warn', 'error', 'debug'].map(level => [level, message => this.logs.push({ level, message })]));
         }
         async setObjectNotExistsAsync(id, value) { if (options.objectWrite) await options.objectWrite(id, value); if (!this.objects.has(id)) this.objects.set(id, clone(value)); }
+        async getObjectAsync(id) { return clone(this.objects.get(id) || null); }
         async getAdapterObjectsAsync() {
             this.objectLists++;
             if (options.objectList) return options.objectList(this);
@@ -2163,6 +2164,123 @@ test('departure timer states separate read-only initial observations from nullab
     assert.equal(f.value('climate.appState'), 'unknown');
 });
 
+test('optional overview reads publish only visible timer fields and expire without changing wishes or full-read history', async t => {
+    const clock = fakeClock();
+    const f = await fixture(t, { clock, enrollment: enrolled(), fakeController: true, config: { refreshMaxAgeSeconds: 30 },
+        controllerExecute: async (action, input) => {
+            const full = departureClimateResult(new Date(clock.now()).toISOString());
+            if (!input.overviewOnly) return full;
+            return { ...full, partial: true, timers: full.timers.map(({ id, time, enabled, daysSummary, daysSummaryRecognized }) =>
+                ({ id, time: id === '1' ? '08:45' : time, enabled, daysSummary, daysSummaryRecognized })) };
+        },
+    });
+    const base = 'departures.climate.timer1';
+    await f.adapter.departures.stage(f.adapter.departures.groups.get(base), { time: '09:00' });
+    await f.adapter.command('departuresClimateStatus');
+    const completeAt = f.value('refresh.departureClimate.lastReadAt');
+    const oldRepeat = f.value(base + '.repeat');
+    await clock.advance(1000);
+    f.adapter.settings.departureOverviewOnly = true;
+    await f.adapter.runAutomaticRead('departureClimate');
+    assert.equal(f.records.controllerCalls.at(-1).input.overviewOnly, true);
+    assert.equal(f.value('refresh.departureClimate.status'), 'partial');
+    assert.equal(f.value('refresh.departureClimate.lastReadAt'), completeAt);
+    assert.equal(f.value('refresh.departureClimate.partialReadAt'), new Date(clock.now()).toISOString());
+    assert.deepEqual(f.adapter.states.get(base + '.time'), { val: '08:45', ack: true });
+    assert.deepEqual(f.adapter.states.get(base + '.repeat'), { val: oldRepeat, ack: true, q: 0x82 });
+    assert.equal(f.value(base + '.targetTime'), '09:00');
+    await clock.advance(31000);
+    assert.equal(f.value('refresh.departureClimate.status'), 'stale');
+    assert.deepEqual(f.adapter.states.get(base + '.time'), { val: '08:45', ack: true, q: 0x82 });
+    assert.equal(f.value('refresh.departureClimate.lastReadAt'), completeAt);
+    assert.equal(f.value(base + '.targetTime'), '09:00');
+});
+
+test('malformed overview results invalidate the domain and a later full read restores complete freshness', async t => {
+    const clock = fakeClock(); let malformed = false;
+    const f = await fixture(t, { clock, enrollment: enrolled(), fakeController: true,
+        controllerExecute: async (action, input) => {
+            const full = departureClimateResult(new Date(clock.now()).toISOString());
+            if (!input.overviewOnly) return full;
+            const timers = full.timers.map(({ id, time, enabled, daysSummary, daysSummaryRecognized }) =>
+                ({ id, time, enabled, daysSummary, daysSummaryRecognized }));
+            if (malformed) timers[0].repeat = true;
+            return { ...full, partial: true, timers };
+        },
+    });
+    await f.adapter.command('departuresClimateStatus');
+    const completeAt = f.value('refresh.departureClimate.lastReadAt');
+    f.adapter.settings.departureOverviewOnly = true; malformed = true;
+    await rejectsCode(f.adapter.runAutomaticRead('departureClimate'), 'invalid_departures_result');
+    assert.equal(f.value('refresh.departureClimate.status'), 'error');
+    assert.equal(f.value('refresh.departureClimate.lastReadAt'), completeAt);
+    assert.equal(f.adapter.states.get('departures.climate.timer1.repeat').q, 0x82);
+    await clock.advance(1000);
+    f.adapter.settings.departureOverviewOnly = false;
+    await f.adapter.command('departuresClimateStatus');
+    assert.equal(f.value('refresh.departureClimate.status'), 'fresh');
+    assert.equal(f.value('refresh.departureClimate.lastReadAt'), new Date(clock.now()).toISOString());
+    assert.deepEqual(f.adapter.states.get('departures.climate.timer1.repeat'), { val: true, ack: true });
+});
+
+test('partial publication downgrades a fresh domain before any new value and restart invalidates interrupted writes', async t => {
+    const clock = fakeClock(), entered = deferred(), release = deferred(); let armed = false;
+    const base = 'departures.climate.timer1';
+    const f = await fixture(t, { clock, enrollment: enrolled(), fakeController: true,
+        stateWrite: async (id, value) => {
+            if (armed && id === base + '.enabled' && value.q === undefined) { entered.resolve(); await release.promise; }
+        },
+        controllerExecute: async (action, input) => {
+            const full = departureClimateResult(new Date(clock.now()).toISOString());
+            if (!input.overviewOnly) return full;
+            return { ...full, partial: true, timers: full.timers.map(({ id, time, enabled, daysSummary, daysSummaryRecognized }) =>
+                ({ id, time: id === '1' ? '08:45' : time, enabled, daysSummary, daysSummaryRecognized })) };
+        },
+    });
+    t.after(() => release.resolve());
+    await f.adapter.command('departuresClimateStatus');
+    const completeAt = f.value('refresh.departureClimate.lastReadAt');
+    await clock.advance(1000); f.adapter.settings.departureOverviewOnly = true; armed = true;
+    const running = f.adapter.runAutomaticRead('departureClimate');
+    await entered.promise;
+    assert.equal(f.value('refresh.departureClimate.status'), 'stale');
+    assert.equal(f.value('refresh.departureClimate.lastReadAt'), completeAt);
+    assert.deepEqual(f.adapter.states.get(base + '.time'), { val: '08:45', ack: true });
+    const interruptedStates = Object.fromEntries(f.adapter.states);
+    const restarted = await fixture(t, { initialStates: interruptedStates });
+    assert.equal(restarted.value('refresh.departureClimate.status'), 'stale');
+    assert.equal(restarted.value('refresh.departureClimate.lastReadAt'), completeAt);
+    assert.deepEqual(restarted.adapter.states.get(base + '.time'), { val: '08:45', ack: true, q: 0x82 });
+    release.resolve(); await running;
+    assert.equal(f.value('refresh.departureClimate.status'), 'partial');
+    assert.equal(f.value('refresh.departureClimate.partialReadAt'), new Date(clock.now()).toISOString());
+});
+
+test('a partial state write failure invalidates already written fields and preserves complete-read history', async t => {
+    const clock = fakeClock(); let armed = false;
+    const base = 'departures.climate.timer1';
+    const f = await fixture(t, { clock, enrollment: enrolled(), fakeController: true,
+        stateWrite: async (id, value) => {
+            if (armed && id === base + '.enabled' && value.q === undefined) throw new Error('Synthetic partial write failure');
+        },
+        controllerExecute: async (action, input) => {
+            const full = departureClimateResult(new Date(clock.now()).toISOString());
+            if (!input.overviewOnly) return full;
+            return { ...full, partial: true, timers: full.timers.map(({ id, time, enabled, daysSummary, daysSummaryRecognized }) =>
+                ({ id, time: id === '1' ? '08:45' : time, enabled, daysSummary, daysSummaryRecognized })) };
+        },
+    });
+    await f.adapter.command('departuresClimateStatus');
+    const completeAt = f.value('refresh.departureClimate.lastReadAt');
+    await clock.advance(1000); f.adapter.settings.departureOverviewOnly = true; armed = true;
+    await assert.rejects(f.adapter.runAutomaticRead('departureClimate'));
+    assert.equal(f.value('refresh.departureClimate.status'), 'error');
+    assert.equal(f.value('refresh.departureClimate.lastReadAt'), completeAt);
+    assert.deepEqual(f.adapter.states.get(base + '.time'), { val: '08:45', ack: true, q: 0x82 });
+    assert.equal(f.adapter.states.get(base + '.repeat').q, 0x82);
+    assert.equal(f.value('refresh.departureClimate.partialReadAt'), '');
+});
+
 test('timer wishes acknowledge only saved strict fields, allow staging intermediate combinations, and never optimistically alter observations', async t => {
     const f = await fixture(t, { enrollment: enrolled(), fakeController: true, config: { allowWrites: true } });
     const path = 'departures.climate.timer1';
@@ -2325,6 +2443,30 @@ test('location observations expose all three timers and four fixed windows witho
     }
 });
 
+test('overview-only location polling keeps complete timer metadata invalid while refreshing location settings', async t => {
+    const rows = [{ nativeId: '700', name: 'Synthetischer Ort A', activeCount: 0 }];
+    const f = await fixture(t, { enrollment: enrolled(), fakeController: true,
+        config: { departureOverviewOnly: true },
+        controllerExecute: async (action, options) => {
+            if (action === 'departuresLocationsStatus') return departureInventoryResult(rows);
+            const result = departureLocationResult(options.location);
+            return { ...result, partial: true, timers: result.timers.map(({ id, time, enabled, daysSummary, daysSummaryRecognized }) =>
+                ({ id, time, enabled, daysSummary, daysSummaryRecognized })) };
+        },
+    });
+    await f.adapter.command('departuresLocationsStatus');
+    const key = localKey(VEHICLE, '700'), base = 'chargingLocations.' + key;
+    await f.adapter.runAutomaticRead('departureLocation_' + key);
+    assert.equal(f.records.controllerCalls.at(-1).input.overviewOnly, true);
+    assert.equal(f.value('refresh.departureLocation_' + key + '.status'), 'partial');
+    assert.deepEqual(f.adapter.states.get(base + '.timer1.time'), { val: '07:30', ack: true });
+    assert.equal(f.adapter.states.get(base + '.timer1.profileId').q, 0x82);
+    assert.equal(f.adapter.states.get(base + '.timer1.repeat').q, 0x82);
+    assert.deepEqual(f.adapter.states.get(base + '.settings.reducedAcCurrent'), { val: false, ack: true });
+    assert.deepEqual(f.adapter.states.get(base + '.preferredTimes.window1.start'), { val: '00:00', ack: true });
+    assert.equal(f.value('refresh.departureLocation_' + key + '.lastReadAt'), '');
+});
+
 test('external location rename preserves staged values but requires each affected wish to be reselected or cleared', async t => {
     let name = 'Synthetischer Ort A';
     const f = await fixture(t, { enrollment: enrolled(), fakeController: true, config: { allowWrites: true },
@@ -2454,6 +2596,40 @@ test('automatic rotation fairly reads all five actual locations plus old and new
     assert.equal(f.value('operation.lastError'), manual.error);
     assert.equal(f.value('operation.lastErrorCode'), manual.code);
     for (const domain of f.adapter.activeReadDomains) assert.equal(f.value('refresh.' + domain + '.status'), 'fresh', domain);
+});
+
+test('overview-only polling keeps the fair rotation and does not apply timer wishes', async t => {
+    const clock = fakeClock();
+    const rows = [{ nativeId: '700', name: 'Synthetischer Ort A', activeCount: 0 }];
+    const f = await fixture(t, { enrollment: enrolled(), fakeController: true, clock,
+        config: { pollIntervalSeconds: 15, departureOverviewOnly: true },
+        controllerExecute: async (action, input) => {
+            const observedAt = new Date(clock.now()).toISOString();
+            if (action === 'status') return { appState: 'off', appVersion: '4.8.1', vehicleConfirmed: false, observedAt };
+            if (action === 'chargingStatus') return { ...chargingResult(), observedAt };
+            if (action === 'vehicleReportStatus') return { ...vehicleReportResult(), observedAt };
+            if (action === 'refreshVehicleAccess') return { ...vehicleAccessResult(), observedAt };
+            if (action === 'refreshVehicleInfo') return { ...vehicleInfoResult(), observedAt };
+            if (action === 'departuresLocationsStatus') return departureInventoryResult(rows, observedAt);
+            const full = action === 'departuresClimateStatus' ? departureClimateResult(observedAt)
+                : departureLocationResult(input.location, observedAt);
+            assert.equal(input.overviewOnly, true);
+            return { ...full, partial: true, timers: full.timers.map(({ id, time, enabled, daysSummary, daysSummaryRecognized }) =>
+                ({ id, time, enabled, daysSummary, daysSummaryRecognized })) };
+        },
+    });
+    await f.adapter.departures.stage(f.adapter.departures.groups.get('departures.climate.timer1'), { enabled: true });
+    await clock.advance(140000);
+    const calls = f.records.controllerCalls;
+    for (const action of ['status', 'chargingStatus', 'vehicleReportStatus', 'refreshVehicleAccess', 'refreshVehicleInfo',
+        'departuresClimateStatus', 'departuresLocationsStatus', 'departuresLocationStatus']) {
+        assert.ok(calls.filter(call => call.action === action).length >= 2, action);
+    }
+    assert.equal(calls.some(call => /apply|start|stop|synchronize/i.test(call.action)), false);
+    assert.equal(f.value('departures.climate.timer1.targetEnabled'), true);
+    assert.equal(f.value('refresh.departureClimate.status'), 'partial');
+    assert.equal(f.value('refresh.departureLocation_' + localKey(VEHICLE, '700') + '.status'), 'partial');
+    assert.equal(f.value('refresh.charging.status'), 'fresh');
 });
 
 test('a new-domain automatic read cooperatively yields to one manual stop without changing its historical quality or manual feedback', async t => {
@@ -2831,6 +3007,35 @@ test('restart preserves historical climate, charging, report and departure obser
     assert.equal(restarted.records.controllerCalls.length, 0);
 });
 
+test('restart preserves partial-read history but never treats saved list values as fresh', async t => {
+    const initialStates = {
+        'departures.climate.timer1.time': { val: '08:45', ack: true },
+        'departures.climate.timer1.repeat': { val: true, ack: true, q: 0x82 },
+        'refresh.departureClimate.lastReadAt': { val: '2026-10-24T18:00:00.000Z', ack: true },
+        'refresh.departureClimate.partialReadAt': { val: '2026-10-24T19:00:00.000Z', ack: true },
+        'refresh.departureClimate.status': { val: 'partial', ack: true },
+    };
+    const f = await fixture(t, { initialStates });
+    assert.equal(f.value('refresh.departureClimate.status'), 'stale');
+    assert.equal(f.value('refresh.departureClimate.lastReadAt'), initialStates['refresh.departureClimate.lastReadAt'].val);
+    assert.equal(f.value('refresh.departureClimate.partialReadAt'), initialStates['refresh.departureClimate.partialReadAt'].val);
+    assert.deepEqual(f.adapter.states.get('departures.climate.timer1.time'), { val: '08:45', ack: true, q: 0x82 });
+    assert.deepEqual(f.adapter.states.get('departures.climate.timer1.repeat'), { val: true, ack: true, q: 0x82 });
+    assert.equal(f.records.controllerCalls.length, 0);
+});
+
+test('upgrade adds the partial status label without removing customized existing status labels', async t => {
+    const id = 'refresh.departureClimate.status';
+    const object = { type: 'state', common: { name: 'Synthetic custom label', type: 'string', role: 'text', read: true, write: false,
+        states: { unknown: 'custom unknown', fresh: 'custom fresh', stale: 'custom stale', error: 'custom error' } }, native: {} };
+    const f = await fixture(t, { initialObjects: { [id]: object } });
+    const saved = f.adapter.objects.get(id);
+    assert.equal(saved.common.name, 'Synthetic custom label');
+    assert.equal(saved.common.states.fresh, 'custom fresh');
+    assert.equal(saved.common.states.error, 'custom error');
+    assert.equal(saved.common.states.partial, 'Nur teilweise aus der App gelesen');
+});
+
 test('restart rejects malformed historical values and never presents a saved timestamp as fresh', async t => {
     const initialStates = {
         'climate.temperature': { val: 'not a number', ack: true },
@@ -2886,6 +3091,8 @@ test('restart invalidates orphaned location observations without touching wishes
     const key = 'loc_' + 'a'.repeat(24), base = 'chargingLocations.' + key;
     const refresh = 'refresh.departureLocation_' + key;
     const secondRefresh = 'refresh.departureLocation_loc_' + 'b'.repeat(24);
+    const partialOnlyRefresh = 'refresh.departureLocation_loc_' + 'c'.repeat(24);
+    const invalidPartialRefresh = 'refresh.departureLocation_loc_' + 'd'.repeat(24);
     const object = (type, write) => ({ type: 'state', common: { type, write }, native: {} });
     const initialObjects = {
         [base + '.timer1.enabled']: object('boolean', false),
@@ -2895,7 +3102,14 @@ test('restart invalidates orphaned location observations without touching wishes
         [refresh + '.status']: object('string', false),
         [refresh + '.lastReadAt']: object('string', false),
         [refresh + '.ageSeconds']: object('number', false),
+        [refresh + '.partialReadAt']: object('string', false),
+        [refresh + '.partialAgeSeconds']: object('number', false),
         [secondRefresh + '.status']: object('string', false),
+        [partialOnlyRefresh + '.status']: object('string', false),
+        [partialOnlyRefresh + '.partialReadAt']: object('string', false),
+        [partialOnlyRefresh + '.partialAgeSeconds']: object('number', false),
+        [invalidPartialRefresh + '.status']: object('string', false),
+        [invalidPartialRefresh + '.partialReadAt']: object('string', false),
     };
     const initialStates = {
         [base + '.timer1.enabled']: { val: true, ack: false, q: 1 },
@@ -2905,7 +3119,14 @@ test('restart invalidates orphaned location observations without touching wishes
         [refresh + '.status']: { val: 'fresh', ack: true },
         [refresh + '.lastReadAt']: { val: '2026-10-24T19:00:00.000Z', ack: true },
         [refresh + '.ageSeconds']: { val: 14, ack: true },
+        [refresh + '.partialReadAt']: { val: '2026-10-24T20:00:00.000Z', ack: true },
+        [refresh + '.partialAgeSeconds']: { val: 12, ack: true },
         [secondRefresh + '.status']: { val: 'fresh', ack: false, q: 1 },
+        [partialOnlyRefresh + '.status']: { val: 'partial', ack: true },
+        [partialOnlyRefresh + '.partialReadAt']: { val: '2026-10-24T21:00:00.000Z', ack: true },
+        [partialOnlyRefresh + '.partialAgeSeconds']: { val: 5, ack: true },
+        [invalidPartialRefresh + '.status']: { val: 'partial', ack: true },
+        [invalidPartialRefresh + '.partialReadAt']: { val: '2026-10-24T21:00:00.000Z', ack: true, q: 0x82 },
     };
     const restarted = await fixture(t, { initialObjects, initialStates });
     assert.deepEqual(restarted.adapter.states.get(base + '.timer1.enabled'), { val: true, ack: false, q: 0x83 });
@@ -2915,7 +3136,14 @@ test('restart invalidates orphaned location observations without touching wishes
     assert.equal(restarted.value(refresh + '.status'), 'stale');
     assert.deepEqual(restarted.adapter.states.get(refresh + '.lastReadAt'), initialStates[refresh + '.lastReadAt']);
     assert.deepEqual(restarted.adapter.states.get(refresh + '.ageSeconds'), { val: 14, ack: true, q: 0x82 });
+    assert.deepEqual(restarted.adapter.states.get(refresh + '.partialReadAt'), initialStates[refresh + '.partialReadAt']);
+    assert.deepEqual(restarted.adapter.states.get(refresh + '.partialAgeSeconds'), { val: 12, ack: true, q: 0x82 });
     assert.deepEqual(restarted.adapter.states.get(secondRefresh + '.status'), { val: 'fresh', ack: false, q: 0x83 });
+    assert.equal(restarted.value(partialOnlyRefresh + '.status'), 'stale');
+    assert.deepEqual(restarted.adapter.states.get(partialOnlyRefresh + '.partialReadAt'), initialStates[partialOnlyRefresh + '.partialReadAt']);
+    assert.deepEqual(restarted.adapter.states.get(partialOnlyRefresh + '.partialAgeSeconds'), { val: 5, ack: true, q: 0x82 });
+    assert.equal(restarted.value(invalidPartialRefresh + '.status'), 'unknown');
+    assert.deepEqual(restarted.adapter.states.get(invalidPartialRefresh + '.partialReadAt'), initialStates[invalidPartialRefresh + '.partialReadAt']);
 });
 
 test('a manual command takes a safe handoff from an automatic access read without publishing its cancelled result', async t => {
@@ -3470,11 +3698,15 @@ test('normal startup upgrades all 43 errors in the real 0.10.0 metadata includin
     const initialStates = Object.fromEntries(ACCESS_BOOLEAN_IDS.map((id, index) => [id, { val: index % 2 === 0, ack: true, q: 0 }]));
     initialStates['vehicleAccess.observedAt'] = { val: observedAt, ack: true };
     const f = await fixture(t, { initialObjects: previous, initialStates });
-    assert.equal(f.adapter.objects.size, 346, 'the six new charging-mode objects supplement the preserved 0.10.0 metadata');
-    assert.equal(f.adapter.objectPatches.length, 43);
+    assert.equal(f.adapter.objects.size, 348, 'charging-mode objects and two partial-read freshness fields supplement preserved metadata');
+    assert.equal(f.adapter.objectPatches.length, 44);
     assert.equal(f.adapter.objectPatches.filter(row => Object.hasOwn(row.patch.common, 'read')).length, 33);
     assert.equal(f.adapter.objectPatches.filter(row => Object.hasOwn(row.patch.common, 'role')).length, 10);
-    for (const [id, object] of Object.entries(previous)) assert.deepEqual(f.adapter.objects.get(id), correctedLegacyMetadata(id, object), id);
+    for (const [id, object] of Object.entries(previous)) {
+        const expected = correctedLegacyMetadata(id, object);
+        if (id === 'refresh.departureClimate.status') expected.common.states.partial = 'Nur teilweise aus der App gelesen';
+        assert.deepEqual(f.adapter.objects.get(id), expected, id);
+    }
     for (const { patch } of f.adapter.objectPatches) {
         assert.deepEqual(Object.keys(patch), ['common']);
         assert.equal(Object.keys(patch.common).length, 1);
@@ -3484,7 +3716,7 @@ test('normal startup upgrades all 43 errors in the real 0.10.0 metadata includin
     assert.equal(f.records.phones.length, 0);
     assert.equal(f.records.controllerCalls.length, 0);
     await f.adapter.migrateObjectMetadata();
-    assert.equal(f.adapter.objectPatches.length, 43, 'the migration is idempotent');
+    assert.equal(f.adapter.objectPatches.length, 44, 'the migration is idempotent');
 });
 
 test('metadata migration alone cannot write values, apply wishes, inspect PIN/configuration or modify foreign and custom controls', async t => {
@@ -3528,8 +3760,12 @@ test('a failed metadata patch is sanitized on startup and the next normal startu
     assert.equal(first.records.controllerCalls.length, 0);
     assert.equal(JSON.stringify(first.adapter.logs).includes('SYNTHETIC PRIVATE'), false);
     const second = await fixture(t, { initialObjects: Object.fromEntries(first.adapter.objects) });
-    assert.equal(first.adapter.objectPatches.length + second.adapter.objectPatches.length, 43);
-    for (const [id, object] of Object.entries(previous)) assert.deepEqual(second.adapter.objects.get(id), correctedLegacyMetadata(id, object), id);
+    assert.equal(first.adapter.objectPatches.length + second.adapter.objectPatches.length, 44);
+    for (const [id, object] of Object.entries(previous)) {
+        const expected = correctedLegacyMetadata(id, object);
+        if (id === 'refresh.departureClimate.status') expected.common.states.partial = 'Nur teilweise aus der App gelesen';
+        assert.deepEqual(second.adapter.objects.get(id), expected, id);
+    }
     assert.equal(second.records.phones.length, 0);
     assert.equal(second.records.controllerCalls.length, 0);
 });

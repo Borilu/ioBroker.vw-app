@@ -199,6 +199,7 @@ In **Instanzen → vw-app.0 → Einstellungen** lassen sich diese Werte anpassen
 | --- | --- |
 | Automatische App-Abfragen: Mindestabstand je Bereich (`pollIntervalSeconds`) | `0` aus; sonst ganze Sekunden von `15` bis `86400`. Neue Instanzen verwenden `15`. Die Wartezeit beginnt nach Abschluss einer Abfrage desselben Bereichs. |
 | App-Auslesung als veraltet markieren nach (`refreshMaxAgeSeconds`) | `0` automatische Altersgrenze; sonst `30` bis `86400` ganze Sekunden. Ändert die Gültigkeitsbewertung, nicht die Abfragehäufigkeit. |
+| Abfahrtszeiten ohne Öffnen der Zeit-Editoren lesen (`departureOverviewOnly`) | Optional, standardmäßig aus. Aktiviert einen eingeschränkten Lesemodus für Klima- und Ladetimer. Die Timer-Editoren werden beim Lesen nicht geöffnet. |
 | Zeitlimit je Auftrag (`commandTimeoutSeconds`) | `30` bis `360` Sekunden; Standard `300`. Umfasst Verbindung, Einstellungen und Rückmeldung zusammen. |
 | Wartezeit auf Bestätigung in der App (`outcomeTimeoutSeconds`) | `30` bis `150` Sekunden; Standard `120`. Das verbleibende Gesamtzeitlimit kann die Wartezeit verkürzen. |
 | Mindestabstand zwischen Schaltversuchen (`cooldownSeconds`) | `60` bis `3600` Sekunden; Standard `60`. Ein Wartehinweis ist kein Anlass für automatische Wiederholungen. |
@@ -210,6 +211,7 @@ In **Instanzen → vw-app.0 → Einstellungen** lassen sich diese Werte anpassen
 | Status unter `refresh.<Bereich>.status` | Bedeutung |
 | --- | --- |
 | `fresh` | Die App wurde kürzlich erfolgreich gelesen. Einzelne nicht verfügbare Felder können trotzdem ungültig sein. |
+| `partial` | Der optionale Schonmodus hat nur einen Teil der Abfahrtszeitwerte erfolgreich gelesen. Nur einzeln gültig markierte Datenpunkte sind aktuell beobachtet. |
 | `stale` | Die letzte erfolgreiche App-Auslesung ist zu alt oder die Zuordnung muss neu bestätigt werden. |
 | `error` | Die letzte Abfrage dieses Bereichs ist fehlgeschlagen. |
 | `unknown` | Es liegt noch keine erfolgreiche Beobachtung vor. |
@@ -219,6 +221,8 @@ Bei Fehlern oder abgelaufener Gültigkeit können letzte bekannte Werte als Hist
 Auch nach einem Adapterneustart bleiben vorhandene Beobachtungen und der letzte vollständig veröffentlichte Lesezeitpunkt als Historie erhalten. Die Datenpunkte sind bis zur nächsten erfolgreichen Abfrage ungültig und der Bereich steht auf `stale` oder `unknown`. Bei einem unterbrochenen Schreiben können einzelne historische Felder aus einer unvollständigen späteren Abfrage stammen; der Bereichszeitpunkt wird dadurch nicht fortgeschrieben. Nicht mehr zuordenbare Ladeorte werden ebenfalls ungültig markiert.
 
 Für Automatisierungen müssen **Bereichsstatus `fresh`, gültige Datenpunktqualität und ein passender Wert** zusammenpassen. ioBroker kennzeichnet ungültige Qualität hier mit `q=0x82` (dezimal 130); regulär gültig ist `q=0`. `null` bedeutet bei Istwerten unbekannt oder nicht verfügbar, nicht ausgeschaltet. Eine dokumentierte Ausnahme ist das absichtlich fehlende Einmaldatum eines wiederkehrenden Timers. `ack=true` allein sagt nichts über die Aktualität aus.
+
+Im optionalen Schonmodus gilt für Klima- und Ladetimer eine Ausnahme: Nur die in der jeweiligen Liste sichtbaren Felder `time`, `enabled`, `daysSummary` und `daysSummaryRecognized` werden neu gelesen. Bei Ladeorten werden zusätzlich die ohne Timer-Editor lesbaren Ladeort-Einstellungen und bevorzugten Zeitfenster aktualisiert. Wiederholung, ausgewählte Tage, Datum und weitere ausschließlich im Timer-Editor verfügbare Felder behalten ihren letzten bekannten Wert mit ungültiger Qualität. `refresh.<Bereich>.lastReadAt` bleibt der Zeitpunkt der letzten **vollständigen** Auslesung; `partialReadAt` und `partialAgeSeconds` zeigen Zeitpunkt und Alter der Teilablesung. Läuft deren Gültigkeit ab, wechselt der Bereich auf `stale` und auch die zuletzt teilgelesenen Werte werden ungültig. Automatisierungen dürfen bei `partial` nur tatsächlich gültige, nach dieser Beschreibung teilgelesene Felder verwenden. Schreibbefehle können weiterhin einen Timer-Editor öffnen. Bereits geöffnete oder unklare Editoren schließt der Schonmodus nicht automatisch. Auch Ladeort-Einstellungsseiten werden weiterhin geöffnet und können bei einem Fehler eine manuelle Prüfung benötigen.
 
 Die automatische Altersgrenze ist mindestens 90 Sekunden. Genauer verwendet sie das Doppelte des größeren Werts aus Mindestabstand und geschätzter vollständiger Rundlaufzeit, falls dies über 90 Sekunden liegt. Mit zusätzlichen Ladeorten kann sie daher größer werden. Unter `refresh.<Bereich>.maxAgeSeconds` siehst du den tatsächlich verwendeten Wert.
 
@@ -509,12 +513,14 @@ Für jeden Bereich existieren zusätzlich die folgenden sechs **nur lesbaren** F
 
 | Pfadmuster ab `vw-app.0.` | Inhalt |
 | --- | --- |
-| `refresh.<Bereich>.status` | `fresh`, `stale`, `error`, `unknown`. |
-| `refresh.<Bereich>.lastReadAt` | Letzte erfolgreiche App-Auslesung als ISO-Zeit; leer vor der ersten erfolgreichen Auslesung. |
+| `refresh.<Bereich>.status` | `fresh`, `stale`, `error`, `unknown`; im optionalen Schonmodus der Timer zusätzlich `partial`. |
+| `refresh.<Bereich>.lastReadAt` | Letzte erfolgreiche vollständige App-Auslesung als ISO-Zeit; leer vor der ersten erfolgreichen vollständigen Auslesung. |
 | `refresh.<Bereich>.ageSeconds` | Alter dieser erfolgreichen Auslesung in Sekunden; sonst `null`. |
 | `refresh.<Bereich>.lastErrorCode` | Fester Fehlercode der letzten Abfrage, sonst leer. |
 | `refresh.<Bereich>.lastDurationSeconds` | Dauer der letzten Abfrage in Sekunden. |
 | `refresh.<Bereich>.maxAgeSeconds` | Tatsächlich verwendete Gültigkeitsgrenze in Sekunden. |
+
+Für `departureClimate` und jeden `departureLocation_<Schlüssel>` kommen `partialReadAt` und `partialAgeSeconds` hinzu: Zeitpunkt und Alter der letzten erfolgreichen Teilablesung im Schonmodus. Sie ersetzen nicht den Zeitpunkt einer vollständigen Auslesung.
 
 Ersetze `<Bereich>` durch einen dieser Namen:
 
