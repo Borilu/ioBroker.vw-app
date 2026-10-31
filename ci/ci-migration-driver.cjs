@@ -33,7 +33,8 @@ function ciJournal(dir){
     const file=path.join(dir,'pilot-journal.json');
     return {
         read:async()=>{
-            safeDir(dir);const s=fs.lstatSync(file);
+            safeDir(dir);let s;
+            try{s=fs.lstatSync(file);}catch(e){if(e.code==='ENOENT')return null;throw e;}
             if(!s.isFile()||s.isSymbolicLink()||s.uid!==process.getuid()||(s.mode&0o077))throw Error('unsafe_ci_journal');
             return JSON.parse(fs.readFileSync(file,'utf8'));
         },
@@ -114,4 +115,4 @@ async function runCiMigration({p,dir,certPem,WebSocket}){
         if(finished){fs.rmdirSync(lock);syncDir(dir);}
     }
 }
-module.exports={runCiMigration,validateCiPilot,unchangedExceptHttp2};
+module.exports={runCiMigration,validateCiPilot,unchangedExceptHttp2,assertCi,ciJournal,safeDir,syncDir};

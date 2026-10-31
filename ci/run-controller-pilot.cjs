@@ -15,6 +15,7 @@ const {createCliDriver}=require('../cli-driver.cjs');
 const {isolatedCi}=require('./isolation-check.cjs');
 const {probeNoH2}=require('./alpn-probe.cjs');
 const {runCiMigration}=require('./ci-migration-driver.cjs');
+const {runCiShared}=require('./shared-pilot-driver.cjs');
 const expectedController='7.2.5',expectedAdmin='8.3.5';
 const expectedTransitive={'@iobroker/socket-classes':'2.10.0','@iobroker/ws-server':'4.5.2','@iobroker/webserver':'3.4.0'};
 function fixedCommand(exe,args,opts={}) {
@@ -134,5 +135,17 @@ async function main() {
     assert.equal(rejected,true,'auth-off must not pass unauthenticated-access check');
     fixedCommand('iobroker',['stop','admin.17']);
     console.log('negative control: auth-off state was readable; probe rejected it');
+
+    // A separate new disabled instance reuses the existing synthetic aliases.
+    // No write of the shared system.certificates object occurs.
+    requireIsolated();
+    const sharedDir=fs.mkdtempSync(path.join(os.tmpdir(),'vw-admin-https-ci-'));fs.chmodSync(sharedDir,0o700);
+    const sharedId=crypto.randomBytes(16).toString('hex'),sharedPort=await freePort();
+    const shared={...p,id:sharedId,certificateOwnerId:id,instance:19,port:sharedPort};
+    const sharedScope={id:sharedId,certificateOwnerId:id,instance:19,port:sharedPort,expectedIp:p.expectedIp,
+        serverCertSha256:p.serverCertSha256,publicPath:p.publicPath,privatePath:p.privatePath};
+    assert.equal(await runCiShared({p:shared,scope:sharedScope,dir:sharedDir,certPem,WebSocket}),
+        'ci_shared_pilot_observed');
+    console.log('shared-alias loopback pilot completed without certificate-map writes');
 }
 main().catch(e=>{console.error('Synthetic controller integration stopped: '+(e.message||'unknown'));process.exitCode=1;});

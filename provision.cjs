@@ -17,7 +17,9 @@ function validate(p) {
     assert(Number.isInteger(p.instance) && p.instance >= 1 && p.instance <= 999, 'invalid_instance');
     assert(Number.isInteger(p.port) && p.port >= 1024 && p.port <= 65535, 'invalid_port');
     assert(p.bind === '127.0.0.1', 'bind_not_loopback');
-    assert(p.publicAlias === 'pilot_pub_' + p.id && p.privateAlias === 'pilot_key_' + p.id, 'invalid_alias');
+    const certOwnerId=p.certificateOwnerId===undefined?p.id:p.certificateOwnerId;
+    assert(/^[a-f0-9]{32}$/.test(certOwnerId)
+        &&p.publicAlias === 'pilot_pub_' + certOwnerId && p.privateAlias === 'pilot_key_' + certOwnerId, 'invalid_alias');
     for (const path of [p.publicPath, p.privatePath, p.caPath]) {
         assert(typeof path === 'string' && /^\/[a-zA-Z0-9_./-]+$/.test(path) && !path.includes('..'), 'invalid_path');
     }
