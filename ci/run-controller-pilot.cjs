@@ -13,6 +13,7 @@ const {probeSocket}=require('./auth-socket-probe.cjs');
 const {readStateWithNoAuth}=require('./control-socket.cjs');
 const {createCliDriver}=require('../cli-driver.cjs');
 const {isolatedCi}=require('./isolation-check.cjs');
+const {probeNoH2}=require('./alpn-probe.cjs');
 const expectedController='7.2.5',expectedAdmin='8.3.5';
 const expectedTransitive={'@iobroker/socket-classes':'2.10.0','@iobroker/ws-server':'4.5.2','@iobroker/webserver':'3.4.0'};
 function fixedCommand(exe,args,opts={}) {
@@ -86,7 +87,24 @@ async function main() {
         if(!allowed.includes(output.trim())) throw new Error('unexpected_pilot_result');
         console.log(name+': '+output.trim());
     }
-    command('stage');command('start');
+    command('stage');
+    // Only the disposable marked CI instance is changed; never use this on VM.
+    requireIsolated();
+    const staged=JSON.parse(fixedCommand('iobroker',['object','get','system.adapter.admin.17']));
+    if(staged.native?.pilotId!==id || staged.common?.enabled!==false || staged.native?.auth!==true
+        || staged.native?.secure!==true || staged.native?.bind!=='127.0.0.1' || staged.native?.port!==port)
+        throw new Error('http1_control_ownership_unverified');
+    fixedCommand('iobroker',['object','set','system.adapter.admin.17','native.http2=false']);
+    const configured=JSON.parse(fixedCommand('iobroker',['object','get','system.adapter.admin.17']));
+    if(configured.native?.pilotId!==id || configured.native?.http2!==false || configured.common?.enabled!==false)
+        throw new Error('http1_configuration_unverified');
+    command('start');
+    const running=JSON.parse(fixedCommand('iobroker',['object','get','system.adapter.admin.17']));
+    if(running.native?.pilotId!==id || running.native?.http2!==false || running.common?.enabled!==true)
+        throw new Error('http1_running_configuration_unverified');
+    const alpn=await probeNoH2({host:'127.0.0.1',port,ca:certPem,expectedIp:p.expectedIp,
+        expectedCertSha256:p.serverCertSha256});
+    console.log('HTTP/2 not negotiated with h2 and http/1.1 offered: '+alpn);
     const wsPath=require.resolve('ws',{paths:[path.dirname(serverPackage)]});
     const WebSocket=require(wsPath);
     const options={WebSocket,host:'127.0.0.1',port,ca:certPem,expectedIp:p.expectedIp,
@@ -103,6 +121,7 @@ async function main() {
     const testObject=JSON.parse(fixedCommand('iobroker',['object','get','system.adapter.admin.17']));
     if(finalJournal.phase!=='stop_observed_entries_retained' || finalJournal.p?.id!==id
         || testObject.native?.pilotId!==id || testObject.native?.auth!==true || testObject.native?.secure!==true
+        || testObject.native?.http2!==false
         || testObject.native?.bind!=='127.0.0.1' || testObject.native?.port!==port
         || testObject.common?.enabled!==false) throw new Error('negative_control_ownership_unverified');
     fixedCommand('iobroker',['object','set','system.adapter.admin.17','native.auth=false']);

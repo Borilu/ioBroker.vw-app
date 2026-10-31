@@ -69,3 +69,7 @@ Die Tests verwenden synthetische ioBroker-Treiber und temporäre Testzertifikate
 $env:OPENSSL_BIN = 'C:\Program Files\Git\usr\bin\openssl.exe'
 node --test provision.test.cjs tls-probe.test.cjs stop-evidence.test.cjs
 ```
+# Experimental HTTP/1.1 CI control
+
+The disposable controller integration test explicitly sets `native.http2=false` only on its own disabled marked synthetic instance. It then starts it, checks the instance value, offers both `h2` and `http/1.1` to the real test server and rejects an `h2` negotiation. It retains the existing pinned TLS identity/trust negative checks and the synthetic unauthenticated socket negative control. The ALPN check is one observation of that test instance and is not proof about any other connection, browser, installation, or production service. No live instance is changed. The isolated job and its HTTP/1.1 extension must succeed before considering any separate live change.
+
