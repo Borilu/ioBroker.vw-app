@@ -58,6 +58,9 @@ async function main() {
         const pkgPath=require.resolve(name+'/package.json',{paths:['/opt/iobroker/node_modules/iobroker.admin']});
         if(require(pkgPath).version!==expected) throw new Error('transitive_version_mismatch');
     }
+    const serverPackage=require.resolve('@iobroker/ws-server/package.json',{paths:['/opt/iobroker/node_modules/iobroker.admin']});
+    const wsPackage=require.resolve('ws/package.json',{paths:[path.dirname(serverPackage)]});
+    if(require(wsPackage).version!=='8.22.0') throw new Error('websocket_version_mismatch');
     const uid=Number(fixedCommand('/usr/bin/id',['-u','iobroker']).trim());
     const gid=Number(fixedCommand('/usr/bin/id',['-g','iobroker']).trim());
     if(process.getuid()!==uid || process.getgid()!==gid) throw new Error('unexpected_service_identity');
@@ -84,7 +87,7 @@ async function main() {
         console.log(name+': '+output.trim());
     }
     command('stage');command('start');
-    const wsPath=require.resolve('ws',{paths:['/opt/iobroker/node_modules/@iobroker/ws-server']});
+    const wsPath=require.resolve('ws',{paths:[path.dirname(serverPackage)]});
     const WebSocket=require(wsPath);
     const options={WebSocket,host:'127.0.0.1',port,ca:certPem,expectedIp:p.expectedIp,
         expectedCertSha256:p.serverCertSha256,instance:p.instance};

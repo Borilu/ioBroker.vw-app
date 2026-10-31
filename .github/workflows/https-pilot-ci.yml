@@ -80,7 +80,7 @@ jobs:
           CONTAINER: ${{ steps.container.outputs.id }}
         run: |
           set -euo pipefail
-          ws_path=$(docker exec -u iobroker "$CONTAINER" node -p "require.resolve('ws',{paths:['/opt/iobroker/node_modules/@iobroker/ws-server']})")
+          ws_path=$(docker exec -u iobroker "$CONTAINER" node -p "require.resolve('ws',{paths:[require('path').dirname(require.resolve('@iobroker/ws-server/package.json',{paths:['/opt/iobroker/node_modules/iobroker.admin']}))]})")
           docker exec -u iobroker -e OPENSSL_BIN=/usr/bin/openssl -e WS_FIXTURE_PATH="$ws_path" "$CONTAINER" \
             node --test /tmp/vw-pilot-code/provision.test.cjs /tmp/vw-pilot-code/tls-probe.test.cjs \
               /tmp/vw-pilot-code/stop-evidence.test.cjs /tmp/vw-pilot-code/ci/auth-socket-probe.test.cjs \
