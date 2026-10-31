@@ -1,6 +1,6 @@
 {
   "name": "iobroker.vw-app",
-  "version": "0.11.5",
+  "version": "0.12.0-beta.1",
   "description": "Control the official Volkswagen Android app over Wi-Fi from ioBroker",
   "main": "main.js",
   "type": "commonjs",
@@ -37,7 +37,11 @@
     "README.md",
     "docs/",
     "LICENSE",
-    "NOTICE"
+    "NOTICE",
+    "extras/wireless-guardian/README.md",
+    "extras/wireless-guardian/PAIRING-TECHNIK.md",
+    "extras/wireless-guardian/LICENSE",
+    "extras/wireless-guardian/NOTICE"
   ],
   "scripts": {
     "test": "node --test",

@@ -198,7 +198,7 @@ class App {
                 ...(!this.noPreferred ? [node({ clickable: 'true', 'visible-to-user': String(valuesVisible && (!this.preferredLower || this.gearPosition > 0)),
                     bounds: '[0,1540][1000,1700]' }, [text('Bevorzugte Zeiten', '[50,1580][650,1640]')])] : []),
             ], { bodyClass: 'android.view.View', right: this.dirtyGear ? 'save' : null,
-                actions: this.splitGear ? this.gearPosition ? [8192] : [4096] : [] });
+                actions: this.splitGear ? this.gearPosition ? [8192] : [4096] : [], scrollable: !this.nonScrollableGear });
         } else if (this.page === 'preferredTimes') {
             target(90, 140, 'gearBack');
             if (this.writable && this.dirtyPreferred) target(910, 140, 'savePreferred');
@@ -324,7 +324,12 @@ class App {
             else throw new Error('Unexpected synthetic swipe');
         }
     }
-    async back() { throw new Error('Android Back must not be guessed by the departure flow'); }
+    async back() {
+        if (this.page !== 'locationOverview') throw new Error('Android Back is forbidden outside the verified location overview');
+        this.calls.push(['back', this.page]);
+        if (!this.ignoreLocationBack) this.page = 'departuresOverview';
+        if (this.afterSystemBack) await this.afterSystemBack();
+    }
     async departureAction(request) {
         if (!this.writable) throw new Error('Departure writes must not run during reads');
         this.calls.push(['action', clone({ ...request, snapshot: undefined })]);
@@ -406,10 +411,60 @@ test('location discovery explicitly visits and binds every visible name, includi
         assert.equal(result.domain, 'departureLocations');
         assert.deepEqual([...result.locations].sort((a, b) => a.nativeId.localeCompare(b.nativeId)),
             [...locations].sort((a, b) => a.nativeId.localeCompare(b.nativeId)));
-        assert.equal(phone.calls.filter(call => call[0] === 'native' && call[1] === 'locationOverview').length, length);
+        assert.equal(phone.calls.filter(call => call[0] === 'native' && call[1] === 'locationOverview').length, length * 2);
         assert.equal(phone.calls.some(call => call[0] === 'read' && call[1] === 'timerEditor'), false);
         finished(c, phone);
     }
+});
+
+test('read-only location overview returns once with Android Back after checking its identity', async () => {
+    const { c, phone } = setup({ locations: [{ nativeId: '11', name: 'Synthetic place Alpha', activeCount: 1 }] });
+    await executeDepartures(c, 'departuresLocationsStatus');
+    assert.deepEqual(phone.calls.filter(call => call[0] === 'back'), [['back', 'locationOverview']]);
+    assert.equal(phone.calls.some(call => call[0] === 'tap' && call[1] === 'locationOverview' && call[2] === 90), false);
+    finished(c, phone);
+});
+
+test('unconfirmed location return and changed identity never cause a repeated Back', async () => {
+    const stalled = setup({ locations: [{ nativeId: '11', name: 'Synthetic place Alpha', activeCount: 1 }], ignoreLocationBack: true });
+    await rejects(executeDepartures(stalled.c, 'departuresLocationsStatus'), 'unexpected_screen');
+    assert.deepEqual(stalled.phone.calls.filter(call => call[0] === 'back'), [['back', 'locationOverview']]);
+    assert.equal(stalled.phone.page, 'locationOverview');
+
+    const changed = setup({ locations: [{ nativeId: '11', name: 'Synthetic place Alpha', activeCount: 1 }] });
+    let nativeReads = 0;
+    changed.phone.beforeNative = () => {
+        if (changed.phone.page === 'locationOverview' && ++nativeReads === 2) changed.phone.currentLocation.nativeId = '99';
+    };
+    await rejects(executeDepartures(changed.c, 'departuresLocationsStatus'), 'departure_location_mismatch');
+    assert.equal(changed.phone.calls.some(call => call[0] === 'back'), false);
+});
+
+test('manual handoff before read-only location return prevents Android Back', async () => {
+    const { c, phone } = setup({ locations: [{ nativeId: '11', name: 'Synthetic place Alpha', activeCount: 1 }] });
+    let nativeReads = 0;
+    phone.beforeNative = () => {
+        if (phone.page === 'locationOverview' && ++nativeReads === 2) assert.equal(c.requestReadHandoff(), true);
+    };
+    await rejects(executeDepartures(c, 'departuresLocationsStatus'), 'cancelled');
+    assert.equal(phone.calls.some(call => call[0] === 'back'), false);
+    assert.equal(c.busy, false);
+});
+
+test('handoff after the last location read or after Android Back cannot repeat the gesture', async () => {
+    const before = setup({ locations: [{ nativeId: '11', name: 'Synthetic place Alpha', activeCount: 1 }] });
+    let nativeReads = 0;
+    before.phone.beforeNative = () => { if (before.phone.page === 'locationOverview') nativeReads++; };
+    before.phone.afterView = () => {
+        if (before.phone.page === 'locationOverview' && nativeReads >= 2) before.c.requestReadHandoff();
+    };
+    await rejects(executeDepartures(before.c, 'departuresLocationsStatus'), 'cancelled');
+    assert.equal(before.phone.calls.filter(call => call[0] === 'back').length, 0);
+
+    const after = setup({ locations: [{ nativeId: '11', name: 'Synthetic place Alpha', activeCount: 1 }] });
+    after.phone.afterSystemBack = () => { assert.equal(after.c.requestReadHandoff(), true); };
+    await rejects(executeDepartures(after.c, 'departuresLocationsStatus'), 'cancelled');
+    assert.equal(after.phone.calls.filter(call => call[0] === 'back').length, 1);
 });
 
 test('single-location status reads three timers, native profile metadata, partial gear fields and four read-only preferred windows', async () => {
@@ -576,6 +631,36 @@ test('hard cancellation remains effective inside a protected editor and prevents
     assert.equal(c.readHandoffProtected, false); assert.equal(c.busy, false); assert.equal(phone.deadline, null);
 });
 
+test('a native timer read failure leaves an owned editor open without inventing a safe return', async () => {
+    for (const failedRead of [1, 2]) {
+        const { c, phone } = setup(); let nativeReads = 0;
+        phone.beforeNative = () => {
+            if (phone.page === 'timerEditor' && ++nativeReads === failedRead) {
+                throw new BridgeError('adb_timeout', 'Synthetic read failure.');
+            }
+        };
+        await rejects(executeDepartures(c, 'departuresClimateStatus'), 'adb_timeout');
+        assert.equal(phone.page, 'timerEditor');
+        assert.equal(phone.calls.filter(call => call[0] === 'tap' && call[1] === 'timerEditor').length, 0);
+        assert.equal(phone.calls.some(call => call[0] === 'back'), false);
+        assert.equal(c.busy, false); assert.equal(c.readHandoffProtected, false);
+    }
+});
+
+test('a concurrent unsaved edit after opening an owned editor is not discarded following a read failure', async () => {
+    const { c, phone } = setup(); let nativeReads = 0;
+    phone.beforeNative = () => {
+        if (phone.page === 'timerEditor' && ++nativeReads === 2) {
+            phone.dirtyEditor = true;
+            throw new BridgeError('adb_timeout', 'Synthetic read failure.');
+        }
+    };
+    await rejects(executeDepartures(c, 'departuresClimateStatus'), 'adb_timeout');
+    assert.equal(phone.page, 'timerEditor'); assert.equal(phone.dirtyEditor, true);
+    assert.equal(phone.calls.filter(call => call[0] === 'tap' && call[1] === 'timerEditor').length, 0);
+    assert.equal(phone.calls.some(call => call[0] === 'back'), false);
+});
+
 test('version changes, wrong vehicles and a wrong return-home marker prevent successful observations', async () => {
     const wrong = setup({ wrongVehicle: true });
     await rejects(executeDepartures(wrong.c, 'departuresClimateStatus'), 'wrong_vehicle');
@@ -608,6 +693,20 @@ function mutationCalls(phone) {
         || call[2] === 865 || call[1] === 'timerEditor' && call[3] === 965));
 }
 function saves(phone) { return phone.calls.filter(call => call[0] === 'tap' && call[2] === 910 && call[1] !== 'locationOverview'); }
+
+test('location settings dry-run may use a verified Back, actual writes do not', async () => {
+    const dry = writeSetup();
+    await executeDepartures(dry.c, 'applyDepartureLocationSettings', { location: ALPHA,
+        targetSettings: { reducedAcCurrent: true }, dryRun: true });
+    const backwards = dry.phone.calls.filter(call => call[0] === 'back');
+    assert.ok(backwards.length > 0 && backwards.every(call => call[1] === 'locationOverview'));
+    assert.deepEqual(mutationCalls(dry.phone), []);
+
+    const actual = writeSetup();
+    await executeDepartures(actual.c, 'applyDepartureLocationSettings', { location: ALPHA,
+        targetSettings: { reducedAcCurrent: true } });
+    assert.equal(actual.phone.calls.some(call => call[0] === 'back'), false);
+});
 
 test('timer writes reject unsupported five-minute values, malformed wishes and disabled permission before connecting', async () => {
     for (const [action, options, code] of [
@@ -819,6 +918,18 @@ test('gear toggles and an anonymous name input save once and rebind a confirmed 
     const action = phone.calls.find(call => call[0] === 'action')[1];
     assert.equal(action.action, 'setText'); assert.deepEqual(action.target, { class: 'android.widget.EditText', bounds: [50, 280, 950, 400] });
     assert.equal(saves(phone).length, 1); finished(c, phone);
+});
+
+test('non-scrollable location settings reject setting and preferred-window writes before mutation', async () => {
+    for (const [action, target] of [
+        ['applyDepartureLocationSettings', { targetSettings: { name: 'Synthetic renamed location', reducedAcCurrent: true } }],
+        ['applyDeparturePreferredTimes', { targetPreferredTimes: ['1', '2', '3', '4'].map(id => ({ id, enabled: id === '2' ? true : null })) }],
+    ]) {
+        const { c, phone } = writeSetup({ nonScrollableGear: true });
+        await rejects(executeDepartures(c, action, { location: ALPHA, ...target }), 'target_unavailable');
+        assert.deepEqual(mutationCalls(phone), []);
+        assert.equal(saves(phone).length, 0);
+    }
 });
 
 test('a conflicting location name is rejected before any value input and existing location drafts are preserved', async () => {

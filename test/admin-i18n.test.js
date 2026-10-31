@@ -68,3 +68,61 @@ test('transient pairing remains masked and unsaved while both password fields ar
     assert.notEqual(admin.items.sPin.doNotSave, true);
     assert.equal(ioPackage.native.sPin, '');
 });
+
+test('Guardian password stays unavailable until a current instance protection check succeeds', () => {
+    const check = admin.items._guardianProtectionCheck;
+    const marker = admin.items._guardianProtectionVerified;
+    const password = admin.items.guardianSecret;
+    assert.equal(check.type, 'sendTo');
+    assert.equal(check.command, 'guardianProtectionCheck');
+    assert.deepEqual(check.data, {}); // No native configuration or S-PIN sent.
+    assert.equal(check.useNative, true);
+    assert.equal(check.onLoaded, true);
+    assert.equal(check.disabled, true); // It cannot be manually rerun on a stale form.
+    // Admin schedules defaults asynchronously at mount. A false default here
+    // could overwrite an earlier positive backend response 100 ms later.
+    assert.equal(Object.hasOwn(marker, 'default'), false);
+    assert.equal(marker.hidden, true);
+    assert.equal(marker.doNotSave, true);
+    const disabled = new Function('data', 'return (' + password.disabled + ');');
+    for (const value of [undefined, false, 'true', 1, null]) {
+        assert.equal(disabled({ _guardianProtectionVerified: value }), true);
+    }
+    assert.equal(disabled({ _guardianProtectionVerified: true }), false);
+    assert.equal(password.type, 'password');
+    assert.equal(password.visible, false);
+});
+
+test('Guardian recovery offers no unsafe retry button and warns about uncertainty', () => {
+    assert.equal(Object.hasOwn(admin.items, '_guardianBinderRecover'), false);
+    assert.equal(Object.hasOwn(admin.items, '_guardianBinderRecoverConfirmed'), false);
+    const message = admin.items._guardianBinderRecoverHint.text;
+    assert.match(translations.en[message], /If an earlier pairing attempt is uncertain.*do not open a new pairing window/i);
+    assert.match(translations.de[message], /Falls ein vorheriger Kopplungsversuch unklar ist.*kein neues Kopplungsfenster/i);
+});
+
+test('Guardian system permission requires a separate unsaved explicit confirmation', () => {
+    const checkbox = admin.items._guardianPermissionConfirmed;
+    const button = admin.items._guardianPermissionGrant;
+    assert.equal(checkbox.type, 'checkbox');
+    assert.equal(checkbox.default, false);
+    assert.equal(checkbox.doNotSave, true);
+    assert.deepEqual(button.data, { confirm: true });
+    const disabled = new Function('data', 'return (' + button.disabled + ');');
+    assert.equal(disabled({}), true);
+    assert.equal(disabled({ _guardianPermissionConfirmed: 'true' }), true);
+    assert.equal(disabled({ _guardianPermissionConfirmed: true }), false);
+});
+
+test('the permission setup explains that uncertain attempts remain blocked even when permission appears present', () => {
+    const hint = admin.items._guardianPermissionUncertainHint;
+    assert.equal(hint.type, 'staticText');
+    assert.match(translations.en[hint.text], /remains blocked/i);
+    assert.match(translations.de[hint.text], /bleibt gesperrt/i);
+});
+
+test('legacy permission confirmation warns that a later grant remains blocked', () => {
+    const message = admin.items._guardianPermissionGrant.result.guardian_permission_legacy_granted_limited;
+    assert.match(translations.en[message], /older journal.*later grant remains blocked/i);
+    assert.match(translations.de[message], /älterer Journalstand.*Neuerteilung bleibt gesperrt/i);
+});

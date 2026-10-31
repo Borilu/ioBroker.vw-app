@@ -2,7 +2,7 @@
 
 Mit `vw-app` bedient ioBroker die offizielle Volkswagen-App auf einem Android-Handy. Das Handy bleibt zu Hause im WLAN und am Ladegerät. Die Anmeldung bei Volkswagen erfolgt auf dem Handy.
 
-**Stand der Einrichtungsschritte: Adapter 0.11.1.** Die Installation aus GitHub ist bereits möglich. Die Aufnahme in die normale ioBroker-Adapterliste ist beantragt und noch nicht freigegeben. Hinweise zur automatischen Porterkennung unten beziehen sich auf den aktuellen Quellstand; die fest verlinkte ältere Version 0.11.1 enthält sie noch nicht.
+**Stand: unveröffentlichter Beta-Kandidat 0.12.0-beta.1.** Der Beta-Kandidat und Wireless Guardian sind noch nicht allgemein verfügbar. Der unten angegebene feste GitHub-Link installiert die bereits veröffentlichte stabile Version **0.11.5**; sie enthält die experimentelle Guardian-Kopplung nicht. Für einen späteren Betatest muss ausdrücklich der dann bekanntgegebene Beta-Quellstand verwendet werden. Die Aufnahme in die normale ioBroker-Adapterliste ist beantragt und noch nicht freigegeben.
 
 [Einrichtungsanleitung als PDF herunterladen](https://github.com/Borilu/ioBroker.vw-app/releases/download/v0.9.2/VW-App-Installation-und-Kopplung.pdf) (PDF für 0.9.2, gleicher Kopplungsablauf) · [Projekt auf GitHub](https://github.com/Borilu/ioBroker.vw-app)
 
@@ -34,16 +34,16 @@ Für die Grundeinrichtung brauchst du weder dein Volkswagen-Passwort noch die S-
 
 ![Offizieller ioBroker Dialog mit den Reitern Von npm, Von GitHub, Benutzerdefiniert und Aus Datei](images/setup/iobroker-install-source.png)
 
-5. Trage diese Adresse für die veröffentlichte Version 0.11.1 ein:
+5. Trage für die veröffentlichte stabile Version 0.11.5 diese Adresse ein. Sie installiert nicht den Beta-Kandidaten:
 
    ```text
-   https://github.com/Borilu/ioBroker.vw-app/tree/v0.11.1
+   https://github.com/Borilu/ioBroker.vw-app/tree/v0.11.5
    ```
 
 6. Lass **Instanz erstellen, wenn noch keine existiert** eingeschaltet und starte **Installieren**. Warte, bis ioBroker die Installation abgeschlossen hat.
 7. Öffne **Instanzen** und dort die Einstellungen von **vw-app.0**. Falls keine Instanz vorhanden ist, füge auf der Adapterkachel eine hinzu. Starte die Instanz, falls sie ausgeschaltet ist.
 
-Bei einer Installation aus eigener Quelle prüft ioBroker die Adapter-Abhängigkeiten nicht vollständig. Prüfe deshalb die Voraussetzungen oben vor der Installation. Der Reiter **Von GitHub** kann einen aktuellen Entwicklungsstand installieren; der feste Versionslink oben wählt gezielt 0.11.1.
+Bei einer Installation aus eigener Quelle prüft ioBroker die Adapter-Abhängigkeiten nicht vollständig. Prüfe deshalb die Voraussetzungen oben vor der Installation. Der Reiter **Von GitHub** kann einen aktuellen Entwicklungsstand installieren; der feste Versionslink oben wählt gezielt 0.11.5. Für Guardian muss nach einer späteren Beta-Freigabe der ausdrücklich bezeichnete Beta-Quellstand installiert werden; ein Beta-Installationslink ist vor dieser Freigabe noch nicht verfügbar.
 
 ### Später aus der normalen Adapterliste installieren
 
@@ -143,13 +143,39 @@ Für Klima- und Einstellungsänderungen aktiviere **Klimastart, Stopp und Änder
 
 Eine unklare Befehlsrückmeldung ist kein Anlass, den Befehl wiederholt zu drücken. Prüfe zuerst die Volkswagen-App und den tatsächlichen Fahrzeugzustand.
 
+## Wireless Guardian für die automatische Portsuche (experimentell)
+
+Dieser optionale Weg setzt den noch unveröffentlichten **Adapter-Beta-Kandidaten 0.12.0-beta.1** und eine separat installierte **Wireless-Guardian-Testversion 0.6 für Android 16** voraus. Die oben verlinkte stabile Version 0.11.5 bietet diese Funktion nicht. Die App gehört nicht zum Adapterpaket; ein allgemein verfügbarer Installationsweg steht noch nicht bereit. Der Adapter akzeptiert für die automatische Einrichtung ausschließlich die für diesen Test freigegebene App-Version. Die übliche Android-Kopplung und die Prüfung der Handyidentität müssen zuvor erfolgreich sein.
+
+Wireless Guardian benötigt die Android-Berechtigung für geschützte Systemeinstellungen, damit er drahtloses Debugging überwachen und gegebenenfalls aktivieren kann. Nach ausdrücklicher Freigabe bietet er zusätzlich eine durch einen individuellen Schlüssel geschützte Portauskunft im lokalen WLAN an. Die App benötigt dafür Netzwerkzugriff. Die Android-Kopplung und die Prüfung der Handyidentität bleiben erforderlich; ein gemeldeter Port allein ist kein Verbindungsnachweis. Verwende dafür ein vertrauenswürdiges WLAN. Die Portauskunft ist standardmäßig ausgeschaltet.
+
+**Einschränkung des Prüfstands:** Ein Steuerhandy darf nur von genau einer Adapterinstanz auf einem einzigen Host verwendet werden. Sperrvermerke für unklare Vorgänge gelten nur pro Instanz; sie verhindern keinen anderen Versuch durch eine weitere Instanz oder einen weiteren Host. Sie dürfen nicht durch Löschen, Zurückspielen alter Journale oder Wechsel der Instanz umgangen werden. Eine technische Absicherung über mehrere Instanzen oder Hosts hinweg ist noch nicht nachgewiesen.
+
+**Android-Sonderberechtigung einrichten:** Nach der normalen Android-Kopplung und der Installation der freigegebenen Guardian-Test-App lies den Hinweis in den Adaptereinstellungen. Wenn du zustimmst, aktiviere **Ich verstehe und erlaube diese Android-Berechtigung für Wireless Guardian ausdrücklich** und wähle **Android-Berechtigung für Wireless Guardian einrichten**. Der Adapter prüft das gekoppelte Handy, Android 16 und die freigegebene Guardian-App und nutzt seine eigene Android-Verbindung. Die Berechtigung erlaubt der App grundsätzlich das Ändern geschützter Android-Einstellungen; sie ist nicht auf das drahtlose Debugging beschränkt. Die Test-App ist außerdem nicht auf ein bestimmtes WLAN begrenzt. Eine bereits erteilte Berechtigung wird nur geprüft. Das Einschalten der Guardian-Überwachung und gegebenenfalls die Android-Benachrichtigungsfreigabe sind eigene Schritte am Handy.
+
+Bei einer unterbrochenen oder unklaren Rückmeldung bleibt der Versuch gesperrt, auch wenn Android die Berechtigung inzwischen als erteilt anzeigt. Ein möglicherweise noch laufender älterer ADB-Auftrag kann sonst später eintreffen. Daher den Knopf nicht erneut betätigen, keine lokalen Journaldateien löschen und den Zustand mit einer Administration untersuchen. Ein bloßes Auslesen oder ein Neustart allein hebt die Sperre nicht auf; eine allgemein sichere automatische Wiederherstellung steht derzeit nicht zur Verfügung. Die Berechtigung wird nicht nach einem Neustart oder App-Update automatisch erneut erteilt.
+
+Bei einem älteren Journal mit Status „bestätigt“ wird eine vorhandene Berechtigung nur lesend angezeigt. Der alte Status kann auch nach einem unklaren Versuch entstanden sein. Deshalb wird das Journal nicht automatisch aktualisiert; fehlt die Berechtigung später, bleibt eine Neuerteilung gesperrt und muss mit einer Administration gesondert untersucht werden.
+
+1. Öffne die Adaptereinstellungen und lasse den Guardian-Port auf **37457** stehen. Bestehende Guardian-Verbindungen oder bereits gespeicherte Schlüssel werden durch die automatische Erstkopplung nicht ersetzt.
+2. Öffne am Handy in Wireless Guardian **Kopplungsweg ohne Schlüssel testen** und erlaube den Test. Starte innerhalb von 60 Sekunden in ioBroker **Guardian-Kopplungsweg ohne Schlüssel testen**. Dabei wird kein Schlüssel gespeichert und keine Portauskunft freigeschaltet.
+3. Wähle in ioBroker **Verschlüsselten Schlüssel in ioBroker vorbereiten**. Der Adapter kann dabei neu starten. Lade die Einstellungsseite anschließend neu und prüfe den Kopplungsstatus. Ein älteres noch geöffnetes Einstellungsfenster nicht speichern.
+4. Öffne am Handy **Automatisch mit ioBroker koppeln** und erlaube die einmalige Kopplung. Lass Guardian sichtbar und starte innerhalb von 60 Sekunden in ioBroker die Übertragung. Der zufällige Schlüssel wird über die bereits gekoppelte Android-Verbindung übertragen; er muss nicht abgetippt werden. Nach der Übertragung prüft der Adapter die authentifizierte Portauskunft und die gespeicherte Handyidentität.
+5. Lade nach einem erneuten Adapterneustart die Einstellungen neu und wähle **Aktive Guardian-Verbindung prüfen**. Eine beim Neustart unterbrochene Rückmeldung allein belegt weder Erfolg noch Misserfolg.
+
+Der Schlüssel wird durch ioBroker geschützt gespeichert und gehört nicht in Chatnachrichten, Screenshots oder Protokolle. Privilegierte Administratoren des Hosts können auf geschützte Daten zugreifen. Die Kopplung verändert keine S-PIN und löst keinen Fahrzeugbefehl aus.
+
+**Unklarer Ausgang:** Nicht erneut übertragen, keine Journaldateien löschen und auch kein neues Kopplungsfenster öffnen. Ein alter verzögerter Host-Auftrag kann sonst später eine neue Freigabe beanspruchen. Das Abschalten der Portauskunft und Löschen des Schlüssels am Handy belegt nicht, dass alle alten Aufträge beendet sind. Die Sperre bleibt bestehen; den Fall mit einer Administration untersuchen. Eine sichere automatische Wiederherstellung ist derzeit nicht verfügbar. Bereits vorhandene ältere Wiederherstellungsfreigaben erlauben ebenfalls keinen erneuten Transfer.
+
+Die Wiederverbindung und das erneute Aktivieren von drahtlosem Debugging hängen von Android, WLAN und den App-Berechtigungen ab. Es kann nach einem Neustart eine Weile dauern; eine Android-Abfrage oder eine Gerätesperre kann weiterhin eine manuelle Eingabe verlangen. Die regelmäßige Auslesung und ihre einstellbaren Intervalle arbeiten unabhängig von der Guardian-Kopplung weiter. Frischeangaben beziehen sich auf das Lesen der Volkswagen-App, nicht auf einen garantierten neuen Messzeitpunkt im Fahrzeug.
+
 ## Updates und häufige Fragen
 
 **Adapter aktualisieren:** Nach der Aufnahme in dein verwendetes Verzeichnis werden verfügbare Updates auf der Adapterseite angeboten. Bis dahin installierst du die gewünschte veröffentlichte Version erneut über **Aus eigener Quelle → Benutzerdefiniert**, mit dem passenden Versionslink aus den GitHub-Releases. Die vorhandene Instanz bleibt bestehen; füge für ein Update keine neue hinzu.
 
 **Volkswagen-App aktualisiert:** Öffne die Fahrzeugübersicht und führe **App und Fahrzeug übernehmen** erneut aus. Geänderte Ansichten können eine Anpassung des Adapters erfordern.
 
-**Verbindungsport geändert:** Im aktuellen Quellstand kann der Adapter bei Verbindungsausfall den neuen Port für das bereits identifizierte Handy an der eingestellten IP-Adresse automatisch suchen. Falls die übliche Netzwerkerkennung keinen Port findet, kann er das Handy zusätzlich direkt abfragen, wenn dies unterstützt wird und die Antwort die nötigen Dienst- und Adressinformationen enthält. Er durchsucht keine anderen Geräte im Heimnetz. Er prüft die Gerätekennung und speichert den gefundenen Port nur vorübergehend im laufenden Adapter. Falls die Suche im eigenen Netz nicht funktioniert, den Port wie bei der Einrichtung auf der Hauptseite von **Drahtloses Debugging** ablesen, im Adapter eintragen und speichern. Das Handy muss weiterhin gekoppelt, entsperrt und im WLAN erreichbar sein. Android kann das drahtlose Debugging selbst ausschalten; dann musst du es am Handy wieder einschalten.
+**Verbindungsport geändert:** Im aktuellen Quellstand kann der Adapter bei Verbindungsausfall den neuen Port für das bereits identifizierte Handy an der eingestellten IPv4-Adresse automatisch suchen. Falls die übliche Erkennung und eine direkte Abfrage keinen Port finden, kann er eine zeitlich begrenzte mDNS-Multicast-Abfrage im lokalen Netz senden. Andere Geräte können diese Frage empfangen; nur eindeutige Antworten von der eingestellten Handy-IP werden ausgewertet. Der Adapter durchsucht keine anderen Geräte im Heimnetz, prüft die Gerätekennung und speichert den gefundenen Port nur vorübergehend im laufenden Adapter. Falls die Suche im eigenen Netz nicht funktioniert, den Port wie bei der Einrichtung auf der Hauptseite von **Drahtloses Debugging** ablesen, im Adapter eintragen und speichern. Das Handy muss weiterhin gekoppelt, entsperrt und im WLAN erreichbar sein. Android kann das drahtlose Debugging selbst ausschalten; dann musst du es am Handy wieder einschalten.
 
 | Problem | Was du prüfen solltest |
 | --- | --- |

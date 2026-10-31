@@ -458,6 +458,18 @@ test('native vehicle settings expose all four observed charging values and a sep
     assert.equal(new Screen(overviewChargingScreen()).chargingVehicleName(), null);
 });
 
+test('two-layer charging switches can be read but cannot be switched', () => {
+    const screen = new Screen(chargingSettingsScreen({ twoLayer: true }));
+    assert.deepEqual(screen.chargingValues(), { socLimit: 100, reducedAcCurrent: true, autoUnlockAc: false, optimizedBatteryUse: true });
+    for (const key of ['reducedAcCurrent', 'autoUnlockAc', 'optimizedBatteryUse']) {
+        assert.throws(() => screen.chargingToggleTarget(key, false), rejects('unknown_state'));
+    }
+    const reversed = new Screen(chargingSettingsScreen({ twoLayer: true, reducedAcCurrent: false, autoUnlockAc: true, optimizedBatteryUse: false }));
+    assert.deepEqual(reversed.chargingValues(), { socLimit: 100, reducedAcCurrent: false, autoUnlockAc: true, optimizedBatteryUse: false });
+    const bad = editNode(chargingSettingsScreen({ twoLayer: true }), 'bounds="[820,700][960,820]"', { checked: 'false' });
+    assert.throws(() => new Screen(bad).chargingValues(), rejects('unknown_state'));
+});
+
 test('charging limit parsing uses the observed row, percent unit and numeric bounds', () => {
     assert.equal(new Screen(chargingSettingsScreen({ socLimit: 50 })).chargingValues().socLimit, 50);
     for (const value of [49, 101, '80.5', '080', '80 %', 'NaN']) {

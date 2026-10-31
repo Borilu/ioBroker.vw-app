@@ -1,0 +1,7 @@
+# The Android helper manifest pins these exact source and JAR bytes.
+# Never change their line endings during checkout or archive creation.
+/lib/android/compile-only/android/os/Bundle.java -text
+/lib/android/compile-only/com/android/uiautomator/testrunner/UiAutomatorTestRunner.java -text
+/lib/android/src/vw/app/bridge/AccessibilityActionRunner.java -text
+/lib/android/src/vw/app/bridge/ExtendedUiDumpRunner.java -text
+/lib/android/vw-ui.jar -text

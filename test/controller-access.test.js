@@ -169,16 +169,56 @@ test('a small retained offset with visible tiles uses only native scrolling befo
     assert.equal(phone.calls.filter(call => ['swipe', 'tap', 'back'].includes(call[0])).length, 0); noVehicleActions(phone, store);
 });
 
-test('unavailable, failed or stuck native Home normalization has no touch or synchronization fallback', async () => {
-    for (const mode of ['missing', 'unconfirmed', 'stuck']) {
+test('unavailable or unaligned native Home normalization has no touch or synchronization fallback', async () => {
+    for (const mode of ['missing', 'unconfirmed-stuck', 'stuck']) {
         const { controller, phone, store } = setup({ partial: true });
         if (mode === 'missing') phone.departureAction = undefined;
-        if (mode === 'unconfirmed') phone.normalizationResult = { beforeMatched: true, actionAttempted: true,
-            actionAccepted: true, success: false, errorCode: null, postRead: null };
+        if (mode === 'unconfirmed-stuck') {
+            phone.stuckNormalization = true;
+            phone.normalizationResult = { beforeMatched: true, actionAttempted: true,
+                actionAccepted: true, success: false, errorCode: null, postRead: null };
+        }
         if (mode === 'stuck') phone.stuckNormalization = true;
         await rejects(controller.execute('refreshVehicleAccess'), 'charging_navigation_unavailable');
         assert.equal(phone.calls.filter(call => ['swipe', 'tap', 'back'].includes(call[0])).length, 0);
-        assert.equal(phone.calls.filter(call => call[0] === 'homeNativeAction').length, mode === 'stuck' ? 3 : mode === 'unconfirmed' ? 1 : 0);
+        assert.equal(phone.calls.filter(call => call[0] === 'homeNativeAction').length, mode === 'stuck' ? 3 : mode === 'unconfirmed-stuck' ? 1 : 0);
+        noVehicleActions(phone, store);
+    }
+});
+
+test('fresh aligned view after an unconfirmed scroll retains explicitly open windows', async () => {
+    const { controller, phone, store } = setup({ partial: true, view: { locked: false, open: ['Fenster vorne links'] },
+        normalizationResult: { beforeMatched: true, actionAttempted: true, actionAccepted: false,
+            success: false, errorCode: null, postRead: null } });
+    const result = await controller.execute('refreshVehicleAccess');
+    assert.equal(result.vehicleAccess.windows.frontLeft, true);
+    assert.equal(phone.calls.filter(call => call[0] === 'homeNativeAction').length, 1);
+    assert.equal(phone.calls.filter(call => ['swipe', 'tap', 'back'].includes(call[0])).length, 0);
+    noVehicleActions(phone, store);
+});
+
+test('fresh read after an unconfirmed scroll never accepts a damaged access view or different vehicle', async () => {
+    const slot = node('', { class: 'android.view.View', bounds: '[0,500][1000,580]' });
+    const changes = [
+        xml => xml.replace('Ihr Fahrzeug: Testwagen.', 'Ihr Fahrzeug: Anderes Auto.'),
+        xml => xml.replace('Ihr Fahrzeug: Testwagen.', 'Unbekanntes Fahrzeug.'),
+        xml => xml.replace('androidx.compose.ui.viewinterop.ViewFactoryHolder', 'android.view.ViewGroup'),
+        xml => xml.replace(slot, ''),
+        xml => xml.replace(slot, slot + slot),
+        xml => xml.replace('class="android.widget.ImageView"', 'class="android.widget.ImageView" visible-to-user="false"'),
+    ];
+    for (const change of changes) {
+        const { controller, phone, store } = setup({ partial: true, view: { locked: false, open: ['Fenster vorne links'] },
+            normalizationResult: { beforeMatched: true, actionAttempted: true, actionAccepted: false,
+                success: false, errorCode: null, postRead: null } });
+        const original = phone.dump.bind(phone);
+        phone.dump = async () => {
+            const xml = await original();
+            return phone.calls.some(call => call[0] === 'homeNativeAction') ? change(xml) : xml;
+        };
+        await assert.rejects(controller.execute('refreshVehicleAccess'), error => error instanceof BridgeError);
+        assert.equal(phone.calls.filter(call => call[0] === 'homeNativeAction').length, 1);
+        assert.equal(phone.calls.filter(call => ['swipe', 'tap', 'back'].includes(call[0])).length, 0);
         noVehicleActions(phone, store);
     }
 });

@@ -124,6 +124,19 @@ test('settings switches report explicit true and false despite duplicated virtua
     }
 });
 
+test('slightly shifted nested climate switches can be read but never switched', () => {
+    const settings = new Screen(editTag(settingsScreen(), id('ClimatisationAtUnlockEnabled'), { bounds: '[852,172][952,252]' }));
+    assert.deepEqual(settings.settingsValues(), { climateOnUnlock: true, autoWindowHeating: true });
+    code('unknown_state', () => settings.settingsTarget('climateOnUnlock', false));
+
+    const zones = new Screen(editTag(zonesScreen(), checkable, { bounds: '[852,472][952,552]' }, 1));
+    assert.deepEqual(zones.zonesValues(), { frontLeft: true, frontRight: true, zones: 'both' });
+    code('unknown_state', () => zones.zoneToggleTarget('frontLeft', false));
+    for (const bounds of ['[860,170][960,250]', '[852,172][950,250]']) {
+        code('unknown_state', () => new Screen(editTag(settingsScreen(), id('ClimatisationAtUnlockEnabled'), { bounds })).settingsValues());
+    }
+});
+
 test('pending settings are recognized only by the observed Save button in the settings header', () => {
     const clean = new Screen(settingsScreen());
     assert.equal(clean.hasPendingSettings(), false);

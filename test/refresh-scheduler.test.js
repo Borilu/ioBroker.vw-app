@@ -105,6 +105,44 @@ test('start makes all domains due immediately and repeated starts do not duplica
     scheduler.stop();
 });
 
+test('maintenance pause lets the in-flight read finish and preserves cooldown and pending requests', async () => {
+    const job = deferred();
+    const { scheduler, clock, calls } = fixture({ domains: ['climate'], run: domain => {
+        calls.push({ domain, at: clock.time }); return job.promise;
+    } });
+    scheduler.start(); await clock.advance(0);
+    assert.equal(scheduler.snapshot().runningDomain, 'climate');
+    scheduler.pause();
+    assert.equal(scheduler.request('climate', { priority: true }), true);
+    await clock.advance(1000);
+    assert.equal(calls.length, 1);
+    job.reject(new Error('synthetic failure')); await flush();
+    const failed = scheduler.snapshot().domains.climate;
+    assert.equal(failed.failures, 1);
+    assert.ok(failed.nextDueAt >= clock.time + 30000);
+    assert.equal(clock.timers.size, 0);
+    scheduler.resume();
+    assert.equal(scheduler.snapshot().domains.climate.failures, 1);
+    await clock.advance(29999);
+    assert.equal(calls.length, 1);
+    scheduler.stop();
+});
+
+test('a pause between scheduler selection and dispatch prevents phone work and retains the request', async () => {
+    const { scheduler, clock, calls } = fixture({ domains: ['climate'] });
+    scheduler.start();
+    scheduler._pump(); // Select synchronously; the phone dispatch is a microtask.
+    scheduler.pause();
+    await flush();
+    assert.equal(calls.length, 0);
+    assert.equal(scheduler.snapshot().runningDomain, null);
+    assert.ok(scheduler.snapshot().domains.climate.nextDueAt > 0);
+    scheduler.resume();
+    await clock.advance(5000);
+    assert.equal(calls.length, 1);
+    scheduler.stop();
+});
+
 test('automatic reads use fair round robin with a completion pause and no accumulated interval queue', async () => {
     const { scheduler, clock, calls } = fixture();
     scheduler.start();

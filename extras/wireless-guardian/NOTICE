@@ -1,0 +1,12 @@
+Wireless Guardian is an independent community Android app, not provided or
+approved by Volkswagen AG, Google or the ioBroker project. Project-authored
+source and tests are distributed under the MIT license in this directory.
+
+Android is a trademark of Google LLC; Volkswagen belongs to its respective
+owner. The app uses Android framework APIs available on the user's device.
+Android SDK components, JDK and the Android Gradle plugin are build tools
+obtained separately under their own terms and are not relicensed by this
+project. No signing key, Google SDK or JDK is included with the source.
+
+The separately distributed signed APK must be checked against its published
+SHA-256 and signing certificate. A new build is not assumed byte-identical.

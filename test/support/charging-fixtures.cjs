@@ -91,7 +91,7 @@ function rangeScreen({ soc = 52, rangeKm = 205, activeCharging = false } = {}) {
 }
 
 function chargingSettingsScreen({ socLimit = 100, reducedAcCurrent = true, autoUnlockAc = false,
-    optimizedBatteryUse = true, vehicleName = 'Testwagen', dirty = false } = {}) {
+    optimizedBatteryUse = true, vehicleName = 'Testwagen', dirty = false, twoLayer = false } = {}) {
     const text = (id, value, bounds) => node(id, { class: 'android.widget.TextView', text: value, bounds });
     const toggle = (label, checked, top) => {
         const rowBounds = `[40,${top}][960,${top + 120}]`;
@@ -101,7 +101,7 @@ function chargingSettingsScreen({ socLimit = 100, reducedAcCurrent = true, autoU
             node('', { checkable: 'true', checked: String(checked), clickable: 'true', bounds: rowBounds }, [
                 text('', label, `[40,${top + 20}][800,${top + 80}]`),
                 node('', { checkable: 'true', checked: String(checked), clickable: 'true', bounds: switchBounds }, [
-                    node('', { checkable: 'true', checked: String(checked), clickable: 'true', bounds: switchBounds }),
+                    ...(twoLayer ? [] : [node('', { checkable: 'true', checked: String(checked), clickable: 'true', bounds: switchBounds })]),
                 ]),
             ]),
         ]);

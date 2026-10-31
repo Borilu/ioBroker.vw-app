@@ -44,12 +44,39 @@ jobs:
           node-version: ${{ matrix.node-version }}
           os: ${{ matrix.os }}
 
+  guardian-tests:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version: '24.x'
+      - name: Run Guardian protocol, pairing and Java/Node interoperability tests
+        shell: pwsh
+        run: |
+          $cache = Join-Path $env:TEMP 'vwandroid-build-cache'
+          New-Item -ItemType Directory -Force -Path $cache | Out-Null
+          $jdk = Join-Path $cache 'jdk-17.0.20.1+1'
+          New-Item -ItemType Junction -Path $jdk -Target $env:JAVA_HOME | Out-Null
+          & ./extras/wireless-guardian/tests/pairing/run.ps1
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & ./extras/wireless-guardian/tests/run-port-tests.ps1
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
   deploy:
-    needs: [check-and-lint, adapter-tests]
+    needs: [check-and-lint, adapter-tests, guardian-tests]
     if: >-
       github.repository == 'Borilu/ioBroker.vw-app' &&
       github.event_name == 'push' &&
       startsWith(github.ref, 'refs/tags/v') &&
+      !contains(github.ref_name, '-') &&
       github.event.deleted == false
     runs-on: ubuntu-latest
     permissions:
@@ -72,7 +99,7 @@ jobs:
           import { execFileSync } from 'node:child_process';
 
           const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
-          if (pkg.name !== 'iobroker.vw-app' || process.env.GITHUB_REF_NAME !== `v${pkg.version}`) {
+          if (!/^[0-9]+\.[0-9]+\.[0-9]+$/.test(pkg.version) || pkg.name !== 'iobroker.vw-app' || process.env.GITHUB_REF_NAME !== `v${pkg.version}`) {
             throw new Error('The release tag must exactly match this adapter package version.');
           }
           execFileSync('git', ['merge-base', '--is-ancestor', 'HEAD', 'origin/main']);

@@ -1,5 +1,7 @@
 # ioBroker.vw-app
 
+**Unreleased beta candidate 0.12.0-beta.1.** Guardian is optional and experimental. It is a separate Android app with a broad system-settings permission. See [beta notes](docs/BETA-0.12.0.de.md) and the [Guardian guide](extras/wireless-guardian/README.md). Do not use this candidate as a production release.
+
 Control the **official Volkswagen Android app over Wi-Fi** from ioBroker.
 
 **Experimental community adapter.** The source has been tested with synthetic Android views. The initial real-device reference is a Galaxy A31 with Android 12, Volkswagen app 4.8.1 and an ID.7 GTX Tourer. This does not establish compatibility with every Volkswagen model, region or future app version. Only the selected vehicle in one phone app is controlled by an instance.
@@ -61,7 +63,11 @@ Detailed instructions are also available in the [German setup guide](docs/ADMIN-
 
 Pairing code and pairing port are temporary setup inputs and are not saved in the native instance configuration. The adapter never logs the code or puts it in a state. Clear the input or close the configuration page after pairing.
 
-An Android 12 connection port may change after restarting the phone or toggling Wireless debugging. In this source version, if the configured port cannot be reached, the adapter can look for the previously identified phone at its configured IP address using Android ADB service discovery (mDNS). If that does not find a port, it can also query that phone address directly using DNS unicast, where supported; it does not scan the subnet. The direct query requires the phone's response to contain the necessary service and address information; otherwise, enter the port manually. It verifies the saved phone identity before using a discovered port and keeps that port only in the running adapter; it does not overwrite the configured port. Discovery is not guaranteed: network filters, VM or container networking, guest networks and device isolation can prevent mDNS or the direct query from working. Initial setup still requires the connection port shown on the phone.
+An Android wireless-debugging connection port may change after restarting the phone or toggling the setting. In this source version, if the configured port cannot be reached, the adapter can first query an explicitly enabled Guardian helper, then checks ADB service discovery (mDNS) and a bounded directed DNS query to the configured phone address. If neither finds a port, it can send a bounded mDNS multicast question on the local network interface used to reach the phone. Other devices on that local network may receive this question, but only answers from the configured IPv4 address and an unambiguous matching service/address chain are considered. It does not scan the subnet. Before using the discovered port it verifies the saved phone identity, retains the port only in the running adapter and does not overwrite the configured port. Discovery is not guaranteed: filters, VM or container networking, guest networks and device isolation may block it. Initial setup still requires the connection port shown on the phone.
+
+An experimental, separately enabled Wireless Guardian option can query the configured phone for a port using an individual shared secret and a fresh authenticated challenge. It is off by default. A response is only a candidate: paired ADB and the stored phone identity are still required. Before entering the shared secret on an existing instance, verify that its actual instance object lists `guardianSecret` under both `encryptedNative` and `protectedNative` and reopen Admin. The helper is not used if that check fails. No cross-device production setup or automatic migration of these protections has yet been verified; see [Admin setup](docs/ADMIN-SETUP.md).
+
+For the separate Android 16 Guardian 0.6 test build, the current source also provides an explicit first-pairing flow that transfers a random key over the already paired Android connection, without manual copying. This remains experimental and the helper app is not included in the adapter package. The German [installation guide](docs/INSTALLATION.de.md#wireless-guardian-für-die-automatische-portsuche-experimentell) covers the test, setup, confirmation, security boundaries and what to do after an uncertain result.
 
 Wireless debugging itself may be turned off by Android, for example after a restart or network change. The adapter cannot re-enable it once the phone is unreachable. Unlock the phone, enable wireless debugging and check the address and connection port on its main page; if discovery does not work, enter the current connection port in the adapter settings and save. Pair again only if the existing pairing is no longer valid. Keeping the display awake while charging does not unlock the phone or guarantee that wireless debugging remains enabled. A reconnect does not replay a vehicle command or apply a stored wish.
 
@@ -466,13 +472,20 @@ UI regression fixtures must cover the accessibility transport used by the produc
 
 Keep the version in `package.json`, `io-package.json` and `package-lock.json` synchronized, add a dated changelog entry and update the translated adapter news. Merge the release commit into `main` after its checks pass, then create a matching GitHub tag such as `v0.11.3` on that commit.
 
-The tag triggers `.github/workflows/test-and-release.yml`. Package, lint and Linux integration checks must pass before deployment. The deployment job checks that the tag matches the package version and that the commit belongs to `main`; an existing npm version is retained without another publication attempt. For a new version, the job is configured to publish to npm using GitHub OIDC trusted publishing with provenance. npm's trusted-publisher binding must match this public repository and workflow file. No npm access token is stored in the repository.
+The tag triggers `.github/workflows/test-and-release.yml`. This workflow deploys stable versions only; prerelease tags are never published by it. Package, lint and Linux integration checks must pass before deployment. The deployment job checks that the tag matches the package version and that the commit belongs to `main`; an existing npm version is retained without another publication attempt. For a new version, the job is configured to publish to npm using GitHub OIDC trusted publishing with provenance. npm's trusted-publisher binding must match this public repository and workflow file. No npm access token is stored in the repository.
 
 ## Changelog
 
+### 0.12.0-beta.1 (unreleased)
+
+- Add an experimental Android 16 Wireless Guardian setup that can enable wireless debugging and report its changed port after explicit user consent. The separate Android app and its broad system permission are optional.
+- Transfer a newly generated Guardian secret through the already paired ADB connection, check identity and authenticated replies, and handle uncertain outcomes without automatic retry.
+- Add a maintenance pause that drains adapter phone work before planned updates, and report the verified wireless-discovery method using fixed non-sensitive categories.
+- This is a beta candidate: no vehicle telemetry freshness or unattended recovery is guaranteed, and the flow has only been exercised on a single Android 16 test phone.
+
 ### 0.11.5 (2026-10-30)
 
-- Find a changed wireless-debugging connection port for the previously identified phone at its configured IP address via ADB mDNS, or a bounded direct DNS query where supported; do not scan the subnet.
+- Find a changed wireless-debugging connection port for the previously identified phone at its configured IPv4 address via ADB mDNS, a bounded direct DNS query, or a bounded local-network mDNS multicast question; do not scan the subnet.
 - Verify the saved phone identity before using a discovered endpoint, retain the port only in the running adapter and do not overwrite configuration. Reconnection never applies saved wishes or repeats vehicle commands.
 - Keep manual port entry as a fallback when discovery is blocked or unsupported. Wireless debugging must remain enabled; the adapter cannot re-enable it over a lost connection.
 

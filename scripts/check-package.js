@@ -28,8 +28,14 @@ for (const key of Object.keys(ui.items).filter(k => !k.startsWith('_'))) assert(
 assert.equal(io.native.allowWrites, false);
 assert.equal(io.native.allowVehicleLocking, false);
 assert.equal(io.native.sPin, '');
-assert.deepEqual(io.encryptedNative, ['sPin', '_pairCode']);
-assert.deepEqual(io.protectedNative, ['sPin', '_pairCode']);
+assert.deepEqual(io.encryptedNative, ['sPin', '_pairCode', 'guardianSecret']);
+assert.deepEqual(io.protectedNative, ['sPin', '_pairCode', 'guardianSecret']);
+assert.equal(io.native.guardianPortDiscovery, false);
+assert.equal(io.native.guardianPort, 37457);
+assert.equal(io.native.guardianSecret, '');
+assert.equal(ui.items.guardianSecret.type, 'password');
+assert.equal(ui.items.guardianSecret.visible, false);
+assert(!Object.hasOwn(normalizeConfig(io.native), 'guardianSecret'));
 assert.equal(ui.items.sPin.type, 'password');
 assert.equal(ui.items.sPin.visible, false);
 assert.equal(ui.items.sPin.maxLength, 4);
@@ -64,6 +70,10 @@ for (const [name, minimum] of [['pollIntervalSeconds', 15], ['refreshMaxAgeSecon
 assert.equal(ui.items.commandTimeoutSeconds.min, 30);
 assert.equal(ui.items.commandTimeoutSeconds.max, 360);
 assert(!pkg.files.some(s => /node_modules|adb-home|runtime\//.test(s)));
+const guardianDocs = ['extras/wireless-guardian/README.md', 'extras/wireless-guardian/PAIRING-TECHNIK.md',
+    'extras/wireless-guardian/LICENSE', 'extras/wireless-guardian/NOTICE'];
+assert.deepEqual(pkg.files.filter(entry => entry.startsWith('extras/')).sort(), [...guardianDocs].sort());
+for (const doc of guardianDocs) assert(fs.statSync(path.join(root, doc)).isFile());
 const androidRoot = path.join(root, 'lib/android');
 const payload = JSON.parse(fs.readFileSync(path.join(androidRoot, 'manifest.json'), 'utf8'));
 const sha = data => crypto.createHash('sha256').update(data).digest('hex');

@@ -61,6 +61,21 @@ function assertNoUi(runtime) {
     assert.ok(!deviceCommands(runtime).some(args => args[1] === 'input' || args[1] === 'am' || args[1] === 'uiautomator'));
 }
 
+test('keep-awake accepts all original charging sources and additional Android power-source bits', async () => {
+    for (const [value, active] of [['7\n', true], ['15\n', true], ['23\n', true], ['0\n', false],
+        ['1\n', false], ['3\n', false], ['5\n', false], ['6\n', false], ['8\n', false],
+        ['null\n', false], ['-1\n', false], ['07\n', false], ['7junk\n', false], ['2147483655\n', false]]) {
+        const { phone, runtime } = makePhone({ handler: args =>
+            args.slice(2).join(' ') === 'shell settings get global stay_on_while_plugged_in' ? value : undefined });
+        assert.deepEqual(await phone.keepAwake(), { active }, `setting ${JSON.stringify(value)}`);
+        assert.deepEqual(deviceCommands(runtime), [
+            ['shell', 'svc', 'power', 'stayon', 'true'],
+            ['shell', 'settings', 'get', 'global', 'stay_on_while_plugged_in'],
+        ]);
+        assertNoUi(runtime);
+    }
+});
+
 async function temporaryDirectory(t) {
     const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'vw-app-phone-store-test-'));
     t.after(async () => {

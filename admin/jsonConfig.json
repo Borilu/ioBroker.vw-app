@@ -31,6 +31,43 @@
       "lg": 12,
       "xl": 12
     },
+    "_maintenanceHeader": {
+      "type": "header", "text": "Safe maintenance", "size": 3,
+      "sm": 12, "xs": 12, "md": 12, "lg": 12, "xl": 12
+    },
+    "_maintenanceHint": {
+      "type": "staticText",
+      "text": "Before a planned update, stop new phone work and wait for the current read to finish. Check the status before stopping. This does not prove that no manual app changes are open. After a failed read, inspect the phone yourself. The pause is lost on restart.",
+      "sm": 12, "xs": 12, "md": 12, "lg": 12, "xl": 12
+    },
+    "_maintenanceStart": {
+      "type": "sendTo", "label": "Pause phone work for maintenance", "command": "maintenanceStart",
+      "data": {}, "useNative": true, "showProcess": true, "timeout": 30000,
+      "result": {
+        "maintenance_idle": "Phone work is running normally.",
+        "maintenance_draining": "Phone work is pausing. Wait and check the maintenance status.",
+        "maintenance_ready": "Adapter phone work has finished. Check for any manual app changes before stopping.",
+        "maintenance_blocked": "The last phone operation did not finish safely. Check the phone before stopping."
+      },
+      "sm": 12, "xs": 12, "md": 12, "lg": 12, "xl": 12
+    },
+    "_maintenanceStatus": {
+      "type": "sendTo", "label": "Check maintenance status", "command": "maintenanceStatus",
+      "data": {}, "useNative": true, "showProcess": true, "timeout": 30000,
+      "result": {
+        "maintenance_idle": "Phone work is running normally.",
+        "maintenance_draining": "Phone work is pausing. Wait and check the maintenance status.",
+        "maintenance_ready": "Adapter phone work has finished. Check for any manual app changes before stopping.",
+        "maintenance_blocked": "The last phone operation did not finish safely. Check the phone before stopping."
+      },
+      "sm": 12, "xs": 12, "md": 12, "lg": 12, "xl": 12
+    },
+    "_maintenanceResume": {
+      "type": "sendTo", "label": "Resume phone work", "command": "maintenanceResume",
+      "data": {}, "useNative": true, "showProcess": true, "timeout": 30000,
+      "result": { "maintenance_idle": "Phone work is running normally." },
+      "sm": 12, "xs": 12, "md": 12, "lg": 12, "xl": 12
+    },
     "_runtimeHeader": {
       "type": "header",
       "text": "1. Prepare the Android connection",
@@ -169,6 +206,243 @@
       "md": 6,
       "lg": 6,
       "xl": 6
+    },
+    "_guardianProtectionVerified": {
+      "type": "checkbox",
+      "hidden": true,
+      "doNotSave": true,
+      "sm": 12,
+      "xs": 12,
+      "md": 12,
+      "lg": 12,
+      "xl": 12
+    },
+    "_guardianProtectionCheck": {
+      "type": "sendTo",
+      "label": "Checking Guardian secret protection",
+      "command": "guardianProtectionCheck",
+      "data": {},
+      "useNative": true,
+      "onLoaded": true,
+      "disabled": true,
+      "timeout": 15000,
+      "sm": 12,
+      "xs": 12,
+      "md": 12,
+      "lg": 12,
+      "xl": 12
+    },
+    "_guardianBinderIntro": {
+      "type": "staticText",
+      "text": "Guardian setup: use only for the first connection. The phone must already be securely paired. Existing Guardian connections are never replaced.",
+      "sm": 12,
+      "xs": 12,
+      "md": 12,
+      "lg": 12,
+      "xl": 12
+    },
+    "_guardianPermissionHint": {
+      "type": "staticText",
+      "text": "Wireless Guardian needs Android permission to change protected system settings. This is a broad permission: the app could change other protected settings. This tested version uses it for wireless debugging. Grant it only on a trusted dedicated phone after reviewing the app.",
+      "sm": 12, "xs": 12, "md": 12, "lg": 12, "xl": 12
+    },
+    "_guardianPermissionConfirmed": {
+      "type": "checkbox",
+      "label": "I understand and explicitly permit this Android permission for Wireless Guardian",
+      "default": false, "doNotSave": true,
+      "sm": 12, "xs": 12, "md": 12, "lg": 12, "xl": 12
+    },
+    "_guardianPermissionGrant": {
+      "type": "sendTo", "label": "Grant Android permission to Wireless Guardian",
+      "command": "guardianPermissionGrant", "data": { "confirm": true },
+      "useNative": true, "disabled": "data._guardianPermissionConfirmed !== true", "showProcess": true, "timeout": 120000,
+      "result": {
+        "guardian_permission_granted": "The Android permission was granted and verified for Wireless Guardian.",
+        "guardian_permission_already_granted": "Wireless Guardian already has the Android permission. No new grant was sent.",
+        "guardian_permission_legacy_granted_limited": "The Android permission is present, but an older journal cannot confirm that a previous attempt ended safely. The journal remains unchanged; a later grant remains blocked."
+      },
+      "sm": 12, "xs": 12, "md": 12, "lg": 12, "xl": 12
+    },
+    "_guardianPermissionUncertainHint": {
+      "type": "staticText",
+      "text": "An interrupted or unclear permission attempt remains blocked, even when permission is now present. Do not repeat it or delete local journal files. Check the phone and contact an administrator for investigation.",
+      "sm": 12, "xs": 12, "md": 12, "lg": 12, "xl": 12
+    },
+    "_guardianBinderTestHint": {
+      "type": "staticText",
+      "text": "0. On the phone open the pairing path test and allow it once. Leave Guardian visible, then start this test within 60 seconds. No key or port setting is saved.",
+      "sm": 12,
+      "xs": 12,
+      "md": 12,
+      "lg": 12,
+      "xl": 12
+    },
+    "_guardianBinderTest": {
+      "type": "sendTo",
+      "label": "0. Test Guardian pairing path without a key",
+      "command": "guardianBinderTest",
+      "data": {},
+      "useNative": true,
+      "showProcess": true,
+      "timeout": 90000,
+      "result": {
+        "guardian_binder_test_ok": "The synthetic pairing path worked. No key or port setting was saved."
+      },
+      "sm": 12,
+      "xs": 12,
+      "md": 12,
+      "lg": 12,
+      "xl": 12
+    },
+    "_guardianBinderPrepare": {
+      "type": "sendTo",
+      "label": "1. Prepare encrypted key in ioBroker",
+      "command": "guardianBinderPrepare",
+      "data": {},
+      "useNative": true,
+      "showProcess": true,
+      "timeout": 90000,
+      "result": {
+        "guardian_host_prepared_reload": "Key preparation requested. Reload this page after the adapter restarts and check the status."
+      },
+      "sm": 12,
+      "xs": 12,
+      "md": 12,
+      "lg": 12,
+      "xl": 12,
+      "disabled": "data._guardianProtectionVerified !== true"
+    },
+    "_guardianBinderReload": {
+      "type": "staticText",
+      "text": "After the adapter restarts, reload this page. Do not save an older open settings form.",
+      "sm": 12,
+      "xs": 12,
+      "md": 12,
+      "lg": 12,
+      "xl": 12
+    },
+    "_guardianBinderTransferHint": {
+      "type": "staticText",
+      "text": "2. On the phone open automatic Guardian pairing and approve it once. Leave Guardian visible and press the transfer button within 60 seconds.",
+      "sm": 12,
+      "xs": 12,
+      "md": 12,
+      "lg": 12,
+      "xl": 12
+    },
+    "_guardianBinderTransfer": {
+      "type": "sendTo",
+      "label": "2. Transfer and verify Guardian pairing",
+      "command": "guardianBinderTransfer",
+      "data": {},
+      "useNative": true,
+      "showProcess": true,
+      "timeout": 90000,
+      "result": {
+        "guardian_pair_config_updated_reload": "Transfer verified and enabling requested. Reload the page after restart, then verify the active connection."
+      },
+      "sm": 12,
+      "xs": 12,
+      "md": 12,
+      "lg": 12,
+      "xl": 12,
+      "disabled": "data._guardianProtectionVerified !== true"
+    },
+    "_guardianBinderVerifyHint": {
+      "type": "staticText",
+      "text": "3. After the adapter restarts, reload this page and check the pairing. A restart or lost response can leave the outcome uncertain; do not repeat without review.",
+      "sm": 12,
+      "xs": 12,
+      "md": 12,
+      "lg": 12,
+      "xl": 12
+    },
+    "_guardianBinderStatus": {
+      "type": "sendTo",
+      "label": "Check Guardian pairing status",
+      "command": "guardianBinderStatus",
+      "data": {},
+      "useNative": true,
+      "showProcess": true,
+      "timeout": 90000,
+      "result": {
+        "guardian_status_unpaired": "No Guardian pairing is configured.",
+        "guardian_status_host_ready": "An encrypted key is ready. Open a fresh pairing window on the phone.",
+        "guardian_status_prepare_incomplete": "Key preparation was interrupted before the key was saved. Start preparation again.",
+        "guardian_status_uncertain": "The previous attempt is uncertain. Do not repeat the transfer or delete journal files; investigate with an administrator.",
+        "guardian_status_phone_verified": "The phone was verified, but enabling in ioBroker is not confirmed. Do not repeat the transfer; investigate with an administrator.",
+        "guardian_status_enabled_needs_check": "Discovery is enabled after a verified transfer. Verify the active connection now.",
+        "guardian_status_existing": "An existing Guardian connection is configured and will not be replaced."
+      },
+      "sm": 12,
+      "xs": 12,
+      "md": 12,
+      "lg": 12,
+      "xl": 12
+    },
+    "_guardianPairVerify": {
+      "type": "sendTo",
+      "label": "Verify active Guardian connection",
+      "command": "guardianPairVerify",
+      "data": {},
+      "useNative": true,
+      "showProcess": true,
+      "timeout": 90000,
+      "result": {
+        "guardian_pair_verified": "Guardian responded securely and the paired phone identity was confirmed."
+      },
+      "sm": 12,
+      "xs": 12,
+      "md": 12,
+      "lg": 12,
+      "xl": 12
+    },
+    "_guardianBinderRecoverHint": {
+      "type": "staticText",
+      "text": "If an earlier pairing attempt is uncertain, do not open a new pairing window, repeat the transfer or delete journal files. A delayed earlier operation could use the new window. Ask an administrator to investigate.",
+      "sm": 12, "xs": 12, "md": 12, "lg": 12, "xl": 12
+    },
+    "guardianPortDiscovery": {
+      "type": "checkbox",
+      "label": "Use Wireless Guardian to find the connection port",
+      "default": false,
+      "help": "Optional, off by default. Ask the configured phone for its port using a shared secret. The paired ADB connection and saved phone identity remain mandatory.",
+      "sm": 12,
+      "xs": 12,
+      "md": 12,
+      "lg": 12,
+      "xl": 12
+    },
+    "guardianPort": {
+      "type": "number",
+      "label": "Wireless Guardian UDP port",
+      "default": 37457,
+      "min": 1,
+      "max": 65535,
+      "step": 1,
+      "help": "Use the same port configured in Wireless Guardian. The query is sent only to the configured phone IP.",
+      "sm": 6,
+      "xs": 12,
+      "md": 6,
+      "lg": 6,
+      "xl": 6
+    },
+    "guardianSecret": {
+      "type": "password",
+      "label": "Wireless Guardian shared secret",
+      "default": "",
+      "visible": false,
+      "disabled": "data._guardianProtectionVerified !== true",
+      "maxLength": 64,
+      "validator": "(!data.guardianPortDiscovery && !data.guardianSecret) || /^[0-9a-f]{64}$/.test(data.guardianSecret || '')",
+      "validatorNoSaveOnError": true,
+      "validatorErrorText": "Enter the shared 64-character lowercase hexadecimal secret or leave the feature disabled and empty.",
+      "help": "Before entering a secret, verify that this instance lists guardianSecret in both encryptedNative and protectedNative, then reopen Admin. Enter the same secret on the phone and here. Never post it in chat or logs. Privileged host users may still access it.",
+      "sm": 12,
+      "xs": 12,
+      "md": 12,
+      "lg": 12,
+      "xl": 12
     },
     "_pairPort": {
       "type": "number",
