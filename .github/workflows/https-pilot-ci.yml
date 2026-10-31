@@ -1,0 +1,87 @@
+name: Experimental isolated HTTPS admin pilot
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - 'ci/https-pilot-*'
+permissions:
+  contents: read
+jobs:
+  controller-integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Start disposable ioBroker container with no host ports or volumes
+        id: container
+        shell: bash
+        run: |
+          set -euo pipefail
+          name="vw-https-ci-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          container=$(docker run -d --name "$name" --hostname "vwci-${GITHUB_RUN_ID}" \
+            -e VW_HTTPS_PILOT_CI=synthetic buanet/iobroker:v12.0.0@sha256:5953d5cf8e8bad26e67c016c380901f0598afe08a753d7088e2c92d1e8ec3c25)
+          echo "id=$container" >> "$GITHUB_OUTPUT"
+          for attempt in $(seq 1 120); do
+            if docker exec "$container" node -e "require('http').get('http://127.0.0.1:8081/auth',r=>{r.resume();process.exitCode=0}).on('error',()=>process.exitCode=1)" >/dev/null 2>&1; then
+              exit 0
+            fi
+            sleep 5
+          done
+          echo 'Disposable container did not become ready.'
+          exit 1
+      - name: Install exact controller and admin versions in the disposable container
+        shell: bash
+        env:
+          CONTAINER: ${{ steps.container.outputs.id }}
+        run: |
+          set -euo pipefail
+          docker exec "$CONTAINER" sh -c 'command -v ss >/dev/null && command -v openssl >/dev/null || (apt-get update -qq && apt-get install -y -qq iproute2 openssl)'
+          docker exec -u iobroker -w /opt/iobroker "$CONTAINER" npm install --registry=https://registry.npmjs.org/ --omit=dev --no-save --no-audit --no-fund iobroker.js-controller@7.2.5 iobroker.admin@8.3.5 >/dev/null
+          docker restart "$CONTAINER" >/dev/null
+          for attempt in $(seq 1 120); do
+            if docker exec "$CONTAINER" node -e "require('http').get('http://127.0.0.1:8081/auth',r=>{r.resume();process.exitCode=0}).on('error',()=>process.exitCode=1)" >/dev/null 2>&1; then
+              exit 0
+            fi
+            sleep 5
+          done
+          echo 'Disposable pinned controller did not become ready.'
+          exit 1
+      - name: Copy only synthetic test code and isolate container network
+        shell: bash
+        env:
+          CONTAINER: ${{ steps.container.outputs.id }}
+        run: |
+          set -euo pipefail
+          docker exec "$CONTAINER" mkdir -p /tmp/vw-pilot-code/ci
+          for file in provision.cjs cli-driver.cjs pilot.cjs stop-evidence.cjs provision.test.cjs tls-probe.test.cjs stop-evidence.test.cjs; do
+            docker cp "$file" "$CONTAINER:/tmp/vw-pilot-code/$file"
+          done
+          for file in auth-socket-probe.cjs auth-socket-probe.test.cjs control-socket.cjs run-controller-pilot.cjs; do
+            docker cp "ci/$file" "$CONTAINER:/tmp/vw-pilot-code/ci/$file"
+          done
+          docker network disconnect bridge "$CONTAINER"
+      - name: Run local TLS and WebSocket regression tests
+        shell: bash
+        env:
+          CONTAINER: ${{ steps.container.outputs.id }}
+        run: |
+          set -euo pipefail
+          ws_path=$(docker exec -u iobroker "$CONTAINER" node -p "require.resolve('ws',{paths:['/opt/iobroker/node_modules/@iobroker/ws-server']})")
+          docker exec -u iobroker -e OPENSSL_BIN=/usr/bin/openssl -e WS_FIXTURE_PATH="$ws_path" "$CONTAINER" \
+            node --test /tmp/vw-pilot-code/provision.test.cjs /tmp/vw-pilot-code/tls-probe.test.cjs \
+              /tmp/vw-pilot-code/stop-evidence.test.cjs /tmp/vw-pilot-code/ci/auth-socket-probe.test.cjs
+      - name: Exercise real disposable controller, Admin and socket negative control
+        shell: bash
+        env:
+          CONTAINER: ${{ steps.container.outputs.id }}
+        run: |
+          set -euo pipefail
+          docker exec -u iobroker "$CONTAINER" node /tmp/vw-pilot-code/ci/run-controller-pilot.cjs
+      - name: Remove only this disposable container and its anonymous volumes
+        if: always() && steps.container.outputs.id != ''
+        shell: bash
+        env:
+          CONTAINER: ${{ steps.container.outputs.id }}
+        run: docker rm -f -v "$CONTAINER" >/dev/null
