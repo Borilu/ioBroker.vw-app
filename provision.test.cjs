@@ -1,6 +1,8 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
+const {spawnSync}=require('node:child_process');
+const path=require('node:path');
 const { stage, startLoopback, startLan, stopPilot } = require('./provision.cjs');
 const id = 'a'.repeat(32);
 const p = { id, instance:17, port:19081, bind:'127.0.0.1', publicAlias:'pilot_pub_'+id,
@@ -32,6 +34,12 @@ function fixture() {
     };
     return {d,j, get:()=>({obj,map,record,writes}), fail:k=>{failAt=k}, setMap:x=>{map=x}, setObj:x=>{obj=x}, setPort:x=>{port=x}, setTls:x=>{tls=x}};
 }
+test('the executable rejects LAN before reading config or making changes',()=>{
+    const run=spawnSync(process.execPath,[path.join(__dirname,'pilot.cjs'),'lan','/no/such/config','--execute'],{encoding:'utf8',timeout:5000});
+    assert.equal(run.status,1);
+    assert.match(run.stderr,/Pilot gestoppt: usage/);
+    assert.equal(run.stdout,'');
+});
 test('stage retains pre-existing certificates and keeps admin disabled', async () => {
     const f=fixture(); assert.equal(await stage(f.d,f.j,p),'prepared');
     assert.equal(f.get().record.phase,'prepared'); assert.equal(f.get().obj.common.enabled,false);
