@@ -70,7 +70,7 @@ jobs:
           for file in provision.cjs cli-driver.cjs pilot.cjs stop-evidence.cjs http1-migration.cjs http1-migration.test.cjs provision.test.cjs tls-probe.test.cjs stop-evidence.test.cjs; do
             docker cp "$file" "$CONTAINER:/tmp/vw-pilot-code/$file"
           done
-          for file in auth-socket-probe.cjs auth-socket-probe.test.cjs control-socket.cjs isolation-check.cjs isolation-check.test.cjs alpn-probe.cjs alpn-probe.test.cjs run-controller-pilot.cjs; do
+          for file in auth-socket-probe.cjs auth-socket-probe.test.cjs control-socket.cjs isolation-check.cjs isolation-check.test.cjs alpn-probe.cjs alpn-probe.test.cjs ci-migration-driver.cjs ci-migration-driver.test.cjs run-controller-pilot.cjs; do
             docker cp "ci/$file" "$CONTAINER:/tmp/vw-pilot-code/ci/$file"
           done
           docker network disconnect bridge "$CONTAINER"
@@ -84,7 +84,8 @@ jobs:
           docker exec -u iobroker -e OPENSSL_BIN=/usr/bin/openssl -e WS_FIXTURE_PATH="$ws_path" "$CONTAINER" \
             node --test /tmp/vw-pilot-code/provision.test.cjs /tmp/vw-pilot-code/tls-probe.test.cjs /tmp/vw-pilot-code/http1-migration.test.cjs \
               /tmp/vw-pilot-code/stop-evidence.test.cjs /tmp/vw-pilot-code/ci/auth-socket-probe.test.cjs \
-              /tmp/vw-pilot-code/ci/isolation-check.test.cjs /tmp/vw-pilot-code/ci/alpn-probe.test.cjs
+              /tmp/vw-pilot-code/ci/isolation-check.test.cjs /tmp/vw-pilot-code/ci/alpn-probe.test.cjs \
+              /tmp/vw-pilot-code/ci/ci-migration-driver.test.cjs
       - name: Exercise real disposable controller, Admin and socket negative control
         shell: bash
         env:

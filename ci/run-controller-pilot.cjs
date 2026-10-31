@@ -14,6 +14,7 @@ const {readStateWithNoAuth}=require('./control-socket.cjs');
 const {createCliDriver}=require('../cli-driver.cjs');
 const {isolatedCi}=require('./isolation-check.cjs');
 const {probeNoH2}=require('./alpn-probe.cjs');
+const {runCiMigration}=require('./ci-migration-driver.cjs');
 const expectedController='7.2.5',expectedAdmin='8.3.5';
 const expectedTransitive={'@iobroker/socket-classes':'2.10.0','@iobroker/ws-server':'4.5.2','@iobroker/webserver':'3.4.0'};
 function fixedCommand(exe,args,opts={}) {
@@ -87,26 +88,26 @@ async function main() {
         if(!allowed.includes(output.trim())) throw new Error('unexpected_pilot_result');
         console.log(name+': '+output.trim());
     }
-    command('stage');
-    // Only the disposable marked CI instance is changed; never use this on VM.
-    requireIsolated();
-    const staged=JSON.parse(fixedCommand('iobroker',['object','get','system.adapter.admin.17']));
-    if(staged.native?.pilotId!==id || staged.common?.enabled!==false || staged.native?.auth!==true
-        || staged.native?.secure!==true || staged.native?.bind!=='127.0.0.1' || staged.native?.port!==port)
-        throw new Error('http1_control_ownership_unverified');
-    fixedCommand('iobroker',['object','set','system.adapter.admin.17','native.http2=false']);
-    const configured=JSON.parse(fixedCommand('iobroker',['object','get','system.adapter.admin.17']));
-    if(configured.native?.pilotId!==id || configured.native?.http2!==false || configured.common?.enabled!==false)
-        throw new Error('http1_configuration_unverified');
-    command('start');
+    command('stage');command('start');
+    const prior=JSON.parse(fixedCommand('iobroker',['object','get','system.adapter.admin.17']));
+    if(prior.native?.pilotId!==id||prior.native?.http2!==true||prior.common?.enabled!==true)
+        throw new Error('initial_h2_control_unverified');
+    const tlsOptions={host:'127.0.0.1',port,ca:certPem,expectedIp:p.expectedIp,
+        expectedCertSha256:p.serverCertSha256};
+    await assert.rejects(probeNoH2(tlsOptions),{code:'h2_negotiated'});
+    const wsPath=require.resolve('ws',{paths:[path.dirname(serverPackage)]});
+    const WebSocket=require(wsPath);
+    assert.equal(await runCiMigration({p,dir,certPem,WebSocket}),'http1_loopback_observed');
+    const afterJournal=JSON.parse(fs.readFileSync(path.join(dir,'pilot-journal.json'),'utf8'));
+    if(afterJournal.phase!=='loopback_tls_verified_auth_unproven'||afterJournal.http1Verification!=='verified'
+        ||afterJournal.p?.id!==id)throw new Error('ci_migration_journal_unverified');
+    console.log('journaled real-controller HTTP/1.1 migration verified');
     const running=JSON.parse(fixedCommand('iobroker',['object','get','system.adapter.admin.17']));
     if(running.native?.pilotId!==id || running.native?.http2!==false || running.common?.enabled!==true)
         throw new Error('http1_running_configuration_unverified');
     const alpn=await probeNoH2({host:'127.0.0.1',port,ca:certPem,expectedIp:p.expectedIp,
         expectedCertSha256:p.serverCertSha256});
     console.log('HTTP/2 not negotiated with h2 and http/1.1 offered: '+alpn);
-    const wsPath=require.resolve('ws',{paths:[path.dirname(serverPackage)]});
-    const WebSocket=require(wsPath);
     const options={WebSocket,host:'127.0.0.1',port,ca:certPem,expectedIp:p.expectedIp,
         expectedCertSha256:p.serverCertSha256,instance:p.instance};
     const observed=await probeSocket(options);
