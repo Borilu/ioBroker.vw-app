@@ -9,6 +9,7 @@ const https = require('node:https');
 const http = require('node:http');
 const {spawnSync} = require('node:child_process');
 const {tlsProbe} = require('./provision.cjs');
+const {createCliDriver} = require('./cli-driver.cjs');
 const exe = process.env.OPENSSL_BIN;
 test('actual TLS: pin, matching SAN, wrong identity, untrusted CA and HTTP fallback', {skip:!exe}, async()=>{
     const dir=fs.mkdtempSync(path.join(os.tmpdir(),'vw-pilot-tls-'));
@@ -45,7 +46,7 @@ test('actual TLS: pin, matching SAN, wrong identity, untrusted CA and HTTP fallb
 });
 test('explicitly pinned self-signed server certificate works without a CA', {skip:!exe}, async()=>{
     const dir=fs.mkdtempSync(path.join(os.tmpdir(),'vw-pilot-leaf-'));
-    let server;
+    let server, authEnabled=true, anonymousSession=false;
     try {
         const r=spawnSync(exe,['req','-x509','-newkey','rsa:2048','-nodes','-keyout','leaf.key','-out','leaf.pem',
             '-days','1','-subj','/CN=Synthetic leaf','-addext','basicConstraints=critical,CA:FALSE',
@@ -54,13 +55,32 @@ test('explicitly pinned self-signed server certificate works without a CA', {ski
         assert.equal(r.status,0);
         const cert=fs.readFileSync(path.join(dir,'leaf.pem')),key=fs.readFileSync(path.join(dir,'leaf.key'));
         const fingerprint=crypto.createHash('sha256').update(new crypto.X509Certificate(cert).raw).digest('hex');
-        server=https.createServer({cert,key},(_q,res)=>res.end('test'));
+        server=https.createServer({cert,key},(q,res)=>{
+            if(q.url==='/auth') { res.setHeader('content-type','application/json'); res.end(JSON.stringify({auth:authEnabled})); }
+            else if(q.url==='/session') { res.setHeader('content-type','application/json'); res.end(JSON.stringify(anonymousSession?{expireInSec:3600}:{error:'Cannot find session'})); }
+            else {res.writeHead(302,{location:'/index.html?login'});res.end();}
+        });
         await new Promise((resolve,reject)=>{server.once('error',reject);server.listen(0,'127.0.0.1',resolve);});
         const base={host:'127.0.0.1',port:server.address().port,ca:cert,expectedIp:'127.0.0.1',expectedCertSha256:fingerprint};
         await tlsProbe(base);
         await assert.rejects(tlsProbe({...base,ca:[]}));
         await assert.rejects(tlsProbe({...base,expectedIp:'192.0.2.2'}));
         await assert.rejects(tlsProbe({...base,expectedCertSha256:'0'.repeat(64)}));
+        const pilotProbe={
+            bind:'127.0.0.1',port:base.port,caPath:path.join(dir,'leaf.pem'),expectedIp:'127.0.0.1',
+            caSha256:crypto.createHash('sha256').update(cert).digest('hex'),serverCertSha256:fingerprint,
+        };
+        await createCliDriver().verifyRealTls(pilotProbe);
+        await createCliDriver().verifyUnauthenticatedRedirect(pilotProbe);
+        authEnabled=false;
+        await assert.rejects(createCliDriver().verifyUnauthenticatedRedirect(pilotProbe),{code:'partial_http_auth_unconfirmed'});
+        authEnabled=true; anonymousSession=true;
+        await assert.rejects(createCliDriver().verifyUnauthenticatedRedirect(pilotProbe),{code:'partial_http_auth_unconfirmed'});
+        anonymousSession=false;
+        // Review reproducer: service vanishes after first good handshake.
+        server.once('secureConnection',()=>server.close());
+        await assert.rejects(createCliDriver().verifyRealTls(pilotProbe),
+            e=>['tls_negative_probe_failed','tls_io_uncertain'].includes(e.code));
     } finally {
         if(server) await new Promise(resolve=>server.close(resolve));
         for(const name of ['leaf.key','leaf.pem']) {try{fs.unlinkSync(path.join(dir,name));}catch(e){if(e.code!=='ENOENT')throw e;}}

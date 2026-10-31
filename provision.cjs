@@ -36,7 +36,8 @@ function validate(p) {
 async function inspectPrepared(driver, p, expectedBaseline) {
     const obj = await driver.getInstance(p.instance);
     const map = await driver.getCertMap();
-    assert(obj && obj.common?.enabled === false && obj.common?.loglevel === 'info', 'instance_not_disabled_or_loglevel');
+    assert(obj && obj.common?.enabled === false && obj.common?.loglevel === 'info'
+        && obj.common?.mode === 'daemon' && obj.common?.runAsCompactMode === false, 'instance_not_disabled_or_loglevel');
     assert(obj.native?.auth === true && obj.native?.secure === true && obj.native?.bind === p.bind
         && obj.native?.port === p.port && obj.native?.certPublic === p.publicAlias
         && obj.native?.certPrivate === p.privateAlias && !obj.native?.certChained
@@ -54,11 +55,17 @@ async function stage(driver, journal, p) {
     assert(await journal.read() === null, 'journal_already_exists');
     await driver.checkCertificateFiles(p);
     assert(await driver.getInstance(p.instance) === null, 'instance_exists');
+    assert(await driver.pilotProcessCount(p.instance) === 0, 'pilot_process_already_present');
     assert(await driver.portFree(p.bind, p.port), 'port_not_free');
     const certs = await driver.getCertMap();
     assert(!Object.hasOwn(certs, p.publicAlias) && !Object.hasOwn(certs, p.privateAlias), 'alias_exists');
     const baseline = digest(certs);
-    const rec = { version: 1, p, baseline, phase: 'create_attempting' };
+    const beforeListeners=await driver.getListenerHashes(p.id);
+    const secondListeners=await driver.getListenerHashes(p.id);
+    assert(Array.isArray(beforeListeners) && beforeListeners.length>0
+        && JSON.stringify(beforeListeners)===JSON.stringify(secondListeners), 'listeners_unstable');
+    assert(await driver.pilotProcessCount(p.instance) === 0, 'pilot_process_already_present');
+    const rec = { version: 2, p, baseline, beforeListeners, phase: 'create_attempting' };
     await journal.save(rec);
     await driver.createDisabled(p.instance, p.port);
     let instance = await driver.getInstance(p.instance);
@@ -84,9 +91,11 @@ async function startLoopback(driver, journal, p) {
     await inspectPrepared(driver, p, rec.baseline);
     await journal.save({ ...rec, phase: 'start_attempting' });
     await driver.enable(p.instance);
+    await journal.save({ ...rec, phase: 'start_acknowledged' });
     try {
         const state = await driver.getInstance(p.instance);
         assert(state?.common?.enabled === true && state.common.loglevel === 'info'
+            && state.common.mode === 'daemon' && state.common.runAsCompactMode === false
             && state.native?.auth === true && state.native?.secure === true
             && state.native?.bind === p.bind && state.native?.port === p.port
             && state.native?.certPublic === p.publicAlias && state.native?.certPrivate === p.privateAlias
@@ -96,15 +105,15 @@ async function startLoopback(driver, journal, p) {
             && digest(otherEntries(certs,p)) === rec.baseline, 'certificates_changed');
         await driver.checkCertificateFiles(p);
         await driver.verifyRealTls(p); // Pin CA and leaf, verify SAN; negative probes are required.
-        await driver.verifyUnauthenticatedRedirect(p); // No password or vehicle action.
+        await driver.verifyUnauthenticatedRedirect(p); // Partial HTTP evidence only.
     } catch {
         // enable() returned successfully; if TLS is absent, try once to stop this exact pilot.
         // If ownership or stop is unclear, retain the durable stop-attempt marker.
         await stopPilot(driver, journal, p);
-        throw new Stop('tls_failed_pilot_stopped');
+        throw new Stop('pilot_stop_observed_tls_or_http_unconfirmed');
     }
-    await journal.save({ ...rec, phase: 'loopback_tls_verified' });
-    return 'loopback_tls_verified';
+    await journal.save({ ...rec, phase: 'loopback_tls_verified_auth_unproven' });
+    return 'loopback_tls_verified_auth_unproven';
 }
 
 // A safe stop is allowed only on an instance carrying this exact pilot marker.
@@ -113,78 +122,20 @@ async function stopPilot(driver, journal, p) {
     validate(p);
     const rec = await journal.read();
     assert(rec && stable(rec.p) === stable(p), 'journal_mismatch');
+    assert(['start_acknowledged','loopback_tls_verified_auth_unproven'].includes(rec.phase), 'stop_order_uncertain');
+    assert(Array.isArray(rec.beforeListeners) && rec.beforeListeners.length>0
+        && rec.beforeListeners.every(x=>/^[a-f0-9]{64}$/.test(x)), 'listener_baseline_missing');
     const obj = await driver.getInstance(p.instance);
     assert(obj && obj.native?.pilotId === p.id, 'ownership_unverified');
-    await journal.save({ ...rec, phase: 'stop_attempting' });
+    const stopRequestedAt=Date.now();
+    await journal.save({ ...rec, phase: 'stop_attempting', stopRequestedAt });
     await driver.disable(p.instance);
     const checked = await driver.getInstance(p.instance);
     assert(checked && checked.native?.pilotId === p.id && checked.common?.enabled === false, 'stop_unconfirmed');
     assert([p.bind,p.expectedIp].includes(checked.native?.bind) && checked.native?.port===p.port, 'stop_config_changed');
-    assert(await driver.awaitPortFree(checked.native.bind,p.port), 'stop_listener_still_open');
-    await journal.save({ ...rec, phase: 'stopped_entries_retained' });
-    return 'stopped_entries_retained';
-}
-
-// Exposing the pilot to the private LAN is a distinct explicit operation AFTER loopback
-// proof. A remote browser MUST NOT receive the password until the final TLS/auth proof.
-// The listener is briefly reachable during startup before that proof; auth remains enabled
-// and the operator must keep third-party clients away from this pilot port during that window.
-async function startLan(driver, journal, p) {
-    validate(p);
-    let rec = await journal.read();
-    assert(rec && rec.phase === 'loopback_tls_verified' && stable(rec.p) === stable(p), 'loopback_not_verified');
-    assert(await driver.interfacePresent(p.expectedIp), 'pilot_address_not_local');
-    let state = await driver.getInstance(p.instance);
-    assert(state?.common?.enabled === true && state.common.loglevel === 'info'
-        && state.native?.pilotId === p.id && state.native?.auth === true && state.native?.secure === true
-        && state.native?.bind === p.bind && state.native?.port === p.port
-        && state.native?.certPublic === p.publicAlias && state.native?.certPrivate === p.privateAlias
-        && !state.native?.certChained, 'loopback_config_changed');
-    let certs = await driver.getCertMap();
-    assert(certs[p.publicAlias] === p.publicPath && certs[p.privateAlias] === p.privatePath
-        && digest(otherEntries(certs,p)) === rec.baseline, 'certificates_changed');
-    await driver.checkCertificateFiles(p);
-    await driver.verifyRealTls(p);
-    await driver.verifyUnauthenticatedRedirect(p);
-    await journal.save({...rec,phase:'rebind_stop_attempting'});
-    await driver.disable(p.instance);
-    state=await driver.getInstance(p.instance);
-    assert(state?.common?.enabled === false && state.native?.pilotId === p.id, 'rebind_stop_unconfirmed');
-    assert(await driver.awaitPortFree(p.bind,p.port) && await driver.portFree(p.expectedIp,p.port), 'rebind_port_not_free');
-    certs=await driver.getCertMap();
-    assert(certs[p.publicAlias]===p.publicPath && certs[p.privateAlias]===p.privatePath
-        && digest(otherEntries(certs,p))===rec.baseline,'certificates_changed');
-    await driver.checkCertificateFiles(p);
-    await journal.save({...rec,phase:'rebind_config_attempting'});
-    await driver.bindDisabled(p.instance,p.expectedIp);
-    state=await driver.getInstance(p.instance);
-    assert(state?.common?.enabled === false && state.common.loglevel === 'info'
-        && state.native?.pilotId === p.id && state.native?.auth === true && state.native?.secure === true
-        && state.native?.bind === p.expectedIp && state.native?.port === p.port
-        && state.native?.certPublic === p.publicAlias && state.native?.certPrivate === p.privateAlias && !state.native?.certChained,
-    'rebind_config_unconfirmed');
-    await journal.save({...rec,phase:'lan_start_attempting'});
-    await driver.enable(p.instance);
-    try {
-        state=await driver.getInstance(p.instance);
-        assert(state?.common?.enabled === true && state.common.loglevel === 'info'
-            && state.native?.pilotId === p.id && state.native?.auth === true && state.native?.secure === true
-            && state.native?.bind === p.expectedIp && state.native?.port === p.port
-            && state.native?.certPublic === p.publicAlias && state.native?.certPrivate === p.privateAlias && !state.native?.certChained,
-        'lan_config_unconfirmed');
-        certs=await driver.getCertMap();
-        assert(certs[p.publicAlias]===p.publicPath && certs[p.privateAlias]===p.privatePath
-            && digest(otherEntries(certs,p))===rec.baseline,'certificates_changed');
-        await driver.checkCertificateFiles(p);
-        const lan={...p,bind:p.expectedIp};
-        await driver.verifyRealTls(lan);
-        await driver.verifyUnauthenticatedRedirect(lan);
-    } catch {
-        await stopPilot(driver,journal,p);
-        throw new Stop('lan_test_failed_pilot_stopped');
-    }
-    await journal.save({...rec,phase:'lan_tls_verified'});
-    return 'lan_tls_verified';
+    assert(await driver.awaitStopped(p,rec.beforeListeners,stopRequestedAt), 'stop_process_or_listener_unconfirmed');
+    await journal.save({ ...rec, phase: 'stop_observed_entries_retained' });
+    return 'stop_observed_entries_retained';
 }
 
 // Helper for real TLS drivers; a successful TCP connection alone is not proof of TLS.
@@ -199,8 +150,15 @@ async function tlsProbe({ host, port, ca, expectedIp, expectedCertSha256, check 
             s.end(); resolve();
         });
         s.setTimeout(5000, () => s.destroy(new Stop('tls_timeout')));
-        s.once('error', () => reject(new Stop('tls_failed')));
+        s.once('error', err => {
+            const nameErrors = ['ERR_TLS_CERT_ALTNAME_INVALID'];
+            const trustErrors = ['DEPTH_ZERO_SELF_SIGNED_CERT', 'SELF_SIGNED_CERT_IN_CHAIN',
+                'UNABLE_TO_VERIFY_LEAF_SIGNATURE', 'UNABLE_TO_GET_ISSUER_CERT_LOCALLY', 'CERT_UNTRUSTED'];
+            const code = nameErrors.includes(err?.code) ? 'tls_name_mismatch'
+                : trustErrors.includes(err?.code) ? 'tls_untrusted' : 'tls_io_uncertain';
+            reject(new Stop(code));
+        });
     });
 }
 
-module.exports = { Stop, digest, validate, stage, startLoopback, startLan, stopPilot, tlsProbe };
+module.exports = { Stop, digest, validate, stage, startLoopback, stopPilot, tlsProbe };

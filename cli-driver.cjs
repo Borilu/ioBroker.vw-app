@@ -11,6 +11,7 @@ const os = require('node:os');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 const { Stop, tlsProbe } = require('./provision.cjs');
+const { isStoppedObservation } = require('./stop-evidence.cjs');
 
 function cli(args, absentAllowed = false) {
     const result = spawnSync('iobroker', args, { encoding: 'utf8', timeout: 30000, maxBuffer: 8 * 1024 * 1024, windowsHide: true });
@@ -23,6 +24,10 @@ function getObject(id, absentAllowed = false) {
     const value = cli(['object', 'get', id], absentAllowed);
     if (value === null) return null;
     try { return JSON.parse(value); } catch { throw new Stop('object_parse_failed'); }
+}
+function getState(id) {
+    const value=cli(['state','get',id]);
+    try { return JSON.parse(value); } catch { throw new Stop('state_parse_failed'); }
 }
 function extend(id, value) { cli(['object', 'extend', id, JSON.stringify(value)]); }
 function portFree(host, port) {
@@ -93,6 +98,34 @@ async function awaitPortFree(host,port) {
     for(let i=0;i<40;i++) { if(await portFree(host,port)) return true; await wait(250); }
     return false;
 }
+function getListenerHashes(salt) {
+    const r=spawnSync('/usr/bin/ss',['-H','-ltn'],{encoding:'utf8',timeout:5000,maxBuffer:1024*1024});
+    if(r.error || r.status!==0 || !r.stdout.trim()) throw new Stop('listeners_unavailable');
+    const endpoints=r.stdout.trim().split(/\r?\n/).map(line=>{
+        const parts=line.trim().split(/\s+/);
+        if(parts.length<5 || parts[0]!=='LISTEN' || !parts[3].includes(':')) throw new Stop('listeners_unparseable');
+        return parts[3];
+    });
+    return [...new Set(endpoints.map(endpoint=>crypto.createHash('sha256').update(salt+'|tcp|'+endpoint).digest('hex')))].sort();
+}
+function pilotProcessCount(instance) {
+    const r=spawnSync('/usr/bin/ps',['-eo','comm='],{encoding:'utf8',timeout:5000,maxBuffer:1024*1024});
+    if(r.error || r.status!==0) throw new Stop('process_observation_failed');
+    return r.stdout.split(/\r?\n/).filter(name=>name.trim()==='io.admin.'+instance).length;
+}
+async function awaitStopped(p,beforeListeners,stopRequestedAt) {
+    let stable=0;
+    for(let i=0;i<15;i++) {
+        const state=getState('system.adapter.admin.'+p.instance+'.alive');
+        const listeners=getListenerHashes(p.id);
+        const okay=isStoppedObservation({state,processCount:pilotProcessCount(p.instance),listeners,
+            beforeListeners,stopRequestedAt,portFree:await portFree(p.bind,p.port)});
+        if(okay && ++stable>=2) return true;
+        if(!okay) stable=0;
+        await wait(500);
+    }
+    return false;
+}
 async function verifyRealTls(p) {
     const ca = fs.readFileSync(p.caPath);
     if (crypto.createHash('sha256').update(ca).digest('hex') !== p.caSha256) throw new Stop('ca_digest');
@@ -102,28 +135,44 @@ async function verifyRealTls(p) {
         catch { await wait(250); }
     }
     if (!good) throw new Stop('tls_not_ready');
-    let wrongNameRejected = false, untrustedRejected = false;
-    try { await tlsProbe({host:p.bind, port:p.port, ca, expectedIp:'wrong.invalid'}); } catch { wrongNameRejected = true; }
-    try { await tlsProbe({host:p.bind, port:p.port, ca:[], expectedIp:p.expectedIp}); } catch { untrustedRejected = true; }
-    if (!wrongNameRejected || !untrustedRejected) throw new Stop('tls_negative_probe_failed');
+    const positive = () => tlsProbe({host:p.bind, port:p.port, ca, expectedIp:p.expectedIp, expectedCertSha256:p.serverCertSha256});
+    let wrongName, untrusted;
+    try { await tlsProbe({host:p.bind, port:p.port, ca, expectedIp:'wrong.invalid'}); } catch (e) { wrongName=e.code; }
+    if (wrongName !== 'tls_name_mismatch') throw new Stop('tls_negative_probe_failed');
+    await positive();
+    try { await tlsProbe({host:p.bind, port:p.port, ca:[], expectedIp:p.expectedIp}); } catch (e) { untrusted=e.code; }
+    if (untrusted !== 'tls_untrusted') throw new Stop('tls_negative_probe_failed');
+    await positive();
 }
-function verifyUnauthenticatedRedirect(p) {
+async function verifyUnauthenticatedRedirect(p) {
     const ca = fs.readFileSync(p.caPath);
     if (crypto.createHash('sha256').update(ca).digest('hex') !== p.caSha256) throw new Stop('ca_digest');
-    return new Promise((resolve,reject) => {
-        const req=https.get({host:p.bind,port:p.port,path:'/pilot-auth-probe-no-such-resource',ca,rejectUnauthorized:true,
+    function read(requestPath) { return new Promise((resolve,reject) => {
+        const req=https.get({host:p.bind,port:p.port,path:requestPath,ca,rejectUnauthorized:true,
             checkServerIdentity:(_host,cert)=>{
                 const nameError=tls.checkServerIdentity(p.expectedIp,cert);
                 if(nameError) return nameError;
                 if(crypto.createHash('sha256').update(cert.raw).digest('hex')!==p.serverCertSha256) return Error('cert');
             }},res=>{
-                res.resume();
-                if(res.statusCode===302 && typeof res.headers.location==='string' && res.headers.location.includes('index.html?login')) resolve();
-                else reject(new Stop('auth_redirect_unconfirmed'));
+                let bytes=0,body='';
+                res.setEncoding('utf8');
+                res.on('data',chunk=>{bytes+=Buffer.byteLength(chunk);if(bytes>4096)res.destroy();else body+=chunk;});
+                res.once('error',()=>reject(new Stop('auth_probe_failed')));
+                res.once('end',()=>resolve({status:res.statusCode,location:res.headers.location,body}));
             });
         req.setTimeout(5000,()=>req.destroy());
         req.once('error',()=>reject(new Stop('auth_probe_failed')));
-    });
+    });}
+    const auth=await read('/auth');
+    const session=await read('/session');
+    const redirect=await read('/pilot-auth-probe-no-such-resource');
+    try {
+        const a=JSON.parse(auth.body),s=JSON.parse(session.body);
+        if(auth.status!==200 || a.auth!==true || session.status!==200
+            || !(s.error==='Cannot find session' || s.expireInSec===0)
+            || redirect.status!==302 || typeof redirect.location!=='string'
+            || !redirect.location.includes('index.html?login')) throw Error('invalid');
+    } catch { throw new Stop('partial_http_auth_unconfirmed'); }
 }
 function createCliDriver() {
     return {
@@ -133,11 +182,11 @@ function createCliDriver() {
             if (!o?.native?.certificates || typeof o.native.certificates !== 'object') throw new Stop('certificate_store_missing');
             return o.native.certificates;
         },
-        portFree, awaitPortFree, checkCertificateFiles, verifyRealTls, verifyUnauthenticatedRedirect,
+        portFree, awaitPortFree, awaitStopped, getListenerHashes, pilotProcessCount, checkCertificateFiles, verifyRealTls, verifyUnauthenticatedRedirect,
         interfacePresent: async ip => Object.values(os.networkInterfaces()).flat().some(x => x && x.address===ip && !x.internal),
         createDisabled: async (n, port) => { cli(['add', 'admin', String(n), '--enabled=false', '--port', String(port)]); },
         configureDisabled: async p => extend('system.adapter.admin.' + p.instance, {
-            common: {enabled:false, loglevel:'info'},
+            common: {enabled:false, loglevel:'info',mode:'daemon',runAsCompactMode:false},
             native: {auth:true, secure:true, bind:p.bind, port:p.port, certPublic:p.publicAlias,
                 certPrivate:p.privateAlias, certChained:'', pilotId:p.id},
         }),
