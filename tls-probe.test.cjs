@@ -9,7 +9,7 @@ const https = require('node:https');
 const http = require('node:http');
 const {spawnSync} = require('node:child_process');
 const {tlsProbe} = require('./provision.cjs');
-const {createCliDriver} = require('./cli-driver.cjs');
+const {createCliDriver,validateCryptographicMaterial} = require('./cli-driver.cjs');
 const exe = process.env.OPENSSL_BIN;
 test('actual TLS: pin, matching SAN, wrong identity, untrusted CA and HTTP fallback', {skip:!exe}, async()=>{
     const dir=fs.mkdtempSync(path.join(os.tmpdir(),'vw-pilot-tls-'));
@@ -55,6 +55,14 @@ test('explicitly pinned self-signed server certificate works without a CA', {ski
         assert.equal(r.status,0);
         const cert=fs.readFileSync(path.join(dir,'leaf.pem')),key=fs.readFileSync(path.join(dir,'leaf.key'));
         const fingerprint=crypto.createHash('sha256').update(new crypto.X509Certificate(cert).raw).digest('hex');
+        const config={trustMode:'leaf',expectedIp:'127.0.0.1',
+            caSha256:crypto.createHash('sha256').update(cert).digest('hex'),serverCertSha256:fingerprint};
+        validateCryptographicMaterial(config,cert,key,cert);
+        assert.throws(()=>validateCryptographicMaterial({...config,expectedIp:'192.0.2.3'},cert,key,cert),{code:'certificate_invalid'});
+        assert.throws(()=>validateCryptographicMaterial({...config,serverCertSha256:'0'.repeat(64)},cert,key,cert),{code:'server_cert_digest'});
+        assert.throws(()=>validateCryptographicMaterial({...config,caSha256:'0'.repeat(64)},cert,key,cert),{code:'ca_digest'});
+        const otherKey=crypto.generateKeyPairSync('rsa',{modulusLength:2048}).privateKey.export({type:'pkcs8',format:'pem'});
+        assert.throws(()=>validateCryptographicMaterial(config,cert,otherKey,cert),{code:'key_mismatch'});
         server=https.createServer({cert,key},(q,res)=>{
             if(q.url==='/auth') { res.setHeader('content-type','application/json'); res.end(JSON.stringify({auth:authEnabled})); }
             else if(q.url==='/session') { res.setHeader('content-type','application/json'); res.end(JSON.stringify(anonymousSession?{expireInSec:3600}:{error:'Cannot find session'})); }

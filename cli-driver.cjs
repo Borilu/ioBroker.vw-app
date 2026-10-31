@@ -66,6 +66,19 @@ function serviceCanRead(file,p,groups) {
     }
     return true;
 }
+function validateCryptographicMaterial(p,pem,key,caPem) {
+    if (crypto.createHash('sha256').update(caPem).digest('hex') !== p.caSha256) throw new Stop('ca_digest');
+    const cert = new crypto.X509Certificate(pem), ca = new crypto.X509Certificate(caPem);
+    const anchorValid = p.trustMode === 'leaf'
+        ? !ca.ca && cert.raw.equals(ca.raw) && cert.verify(cert.publicKey)
+        : ca.ca && cert.verify(ca.publicKey);
+    if (cert.ca || !anchorValid || !cert.checkIP(p.expectedIp)
+        || Date.parse(cert.validFrom) > Date.now() || Date.parse(cert.validTo) <= Date.now()) throw new Stop('certificate_invalid');
+    if (crypto.createHash('sha256').update(cert.raw).digest('hex') !== p.serverCertSha256) throw new Stop('server_cert_digest');
+    const wanted = cert.publicKey.export({type:'spki',format:'der'});
+    const actual = crypto.createPublicKey(key).export({type:'spki',format:'der'});
+    if (!crypto.timingSafeEqual(wanted, actual)) throw new Stop('key_mismatch');
+}
 function checkCertificateFiles(p) {
     try {
         const groups=serviceIds(p);
@@ -79,17 +92,7 @@ function checkCertificateFiles(p) {
         const pem = fs.readFileSync(p.publicPath);
         const key = fs.readFileSync(p.privatePath);
         const caPem = fs.readFileSync(p.caPath);
-        if (crypto.createHash('sha256').update(caPem).digest('hex') !== p.caSha256) throw new Stop('ca_digest');
-        const cert = new crypto.X509Certificate(pem), ca = new crypto.X509Certificate(caPem);
-        const anchorValid = p.trustMode === 'leaf'
-            ? !ca.ca && cert.raw.equals(ca.raw) && cert.verify(cert.publicKey)
-            : ca.ca && cert.verify(ca.publicKey);
-        if (cert.ca || !anchorValid || !cert.checkIP(p.expectedIp)
-            || Date.parse(cert.validFrom) > Date.now() || Date.parse(cert.validTo) <= Date.now()) throw new Stop('certificate_invalid');
-        if (crypto.createHash('sha256').update(cert.raw).digest('hex') !== p.serverCertSha256) throw new Stop('server_cert_digest');
-        const wanted = cert.publicKey.export({type:'spki',format:'der'});
-        const actual = crypto.createPublicKey(key).export({type:'spki',format:'der'});
-        if (!crypto.timingSafeEqual(wanted, actual)) throw new Stop('key_mismatch');
+        validateCryptographicMaterial(p,pem,key,caPem);
     } catch (e) { if (e instanceof Stop) throw e; throw new Stop('certificate_check_failed'); }
 }
 function wait(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
@@ -189,4 +192,4 @@ function createCliDriver() {
         disable: async n => { cli(['stop', 'admin.' + n]); },
     };
 }
-module.exports = { createCliDriver };
+module.exports = { createCliDriver, validateCryptographicMaterial };
