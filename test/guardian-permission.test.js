@@ -54,7 +54,7 @@ function fixture(options = {}) {
         if (options.journalFailure) throw Error('PRIVATE JOURNAL');
         journalState = value;
     } };
-    return { phone, journal, records, calls, signal, getJournal: () => journalState,
+    return { phone, journal, records, calls, signal, getJournal: () => journalState, setGranted: value => { granted = value; },
         args: { phone, journal, signal: signal.signal, userConfirmed: true }, getHashes: () => hashes };
 }
 const grantCalls = f => f.calls.filter(c => Array.isArray(c) && c[0] === 'shell' && c[1] === 'pm' && c[2] === 'grant');
@@ -70,11 +70,11 @@ test('explicit consent, pinned phone, exact approved APK and active user are req
     const unpinned = fixture({unpinned:true});
     await assert.rejects(grantGuardianPermission(unpinned.args)); assert.deepEqual(unpinned.calls, []);
 });
-test('a previously uncertain grant is confirmed without another grant', async () => {
+test('an observed permission never clears a previously uncertain grant', async () => {
     const f = fixture({initiallyGranted:true, previous: {status:'attempting'}});
-    assert.deepEqual(await grantGuardianPermission(f.args), {result:'guardian_permission_already_granted'});
-    assert.equal(grantCalls(f).length, 0); assert.deepEqual(f.records, [{status:'confirmed'}]); assert.equal(f.getHashes(), 2);
-    assert.deepEqual(f.getJournal(), {status:'confirmed'});
+    await assert.rejects(grantGuardianPermission(f.args), e => e.code === 'guardian_permission_unconfirmed');
+    assert.equal(grantCalls(f).length, 0); assert.deepEqual(f.records, []); assert.equal(f.getHashes(), 2);
+    assert.deepEqual(f.getJournal(), {status:'attempting'});
 });
 test('an existing permission and invalid or failed recovery journal do not issue a grant or false success', async () => {
     for (const options of [{initiallyGranted:true, previous:{status:'damaged'}},
@@ -91,25 +91,45 @@ test('revocation between initial and final check cannot confirm an old uncertain
 test('only the fixed user and permission are granted once after the durable fence and independently checked', async () => {
     const f = fixture();
     assert.deepEqual(await grantGuardianPermission(f.args), {result:'guardian_permission_granted'});
-    assert.deepEqual(f.records, [{status:'attempting'}, {status:'confirmed'}]);
+    assert.deepEqual(f.records, [{status:'attempting',version:2}, {status:'confirmed',version:2}]);
     assert.deepEqual(grantCalls(f), [['shell','pm','grant','--user','12',PACKAGE,PERMISSION]]);
     assert.ok(f.getHashes() >= 3);
 });
 test('an uncertain grant does not retry when the permission remains denied', async () => {
     for (const opts of [{grantWithoutEffect:true}, {grantOutput:'PRIVATE UNKNOWN'}, {abortOnGrant:true}]) {
         const f = fixture(opts); await assert.rejects(grantGuardianPermission(f.args));
-        assert.deepEqual(f.getJournal(), {status:'attempting'}); assert.equal(grantCalls(f).length, 1);
+        assert.deepEqual(f.getJournal(), {status:'attempting',version:2}); assert.equal(grantCalls(f).length, 1);
         if (opts.grantWithoutEffect) {
             await assert.rejects(grantGuardianPermission(f.args));
             assert.equal(grantCalls(f).length, 1);
         }
     }
 });
+test('a delayed grant or independently granted permission cannot clear an uncertain fence', async () => {
+    const f = fixture({grantWithoutEffect:true, grantThrows:true});
+    await assert.rejects(grantGuardianPermission(f.args));
+    assert.deepEqual(f.getJournal(),{status:'attempting',version:2}); assert.equal(grantCalls(f).length,1);
+    // An independent action can temporarily produce a granted status while
+    // the original timed-out ADB process may still be alive.
+    f.setGranted(true);
+    await assert.rejects(grantGuardianPermission(f.args),e=>e.code==='guardian_permission_unconfirmed');
+    assert.deepEqual(f.getJournal(),{status:'attempting',version:2}); assert.equal(grantCalls(f).length,1);
+    f.setGranted(false);
+    await assert.rejects(grantGuardianPermission(f.args));
+    f.setGranted(true); // Original delayed command arrives after revocation.
+    await assert.rejects(grantGuardianPermission(f.args));
+    assert.deepEqual(f.getJournal(),{status:'attempting',version:2}); assert.equal(grantCalls(f).length,1);
+});
+test('a previously confirmed grant remains read-only when permission is already present', async () => {
+    const f=fixture({initiallyGranted:true,previous:{status:'confirmed',version:2}});
+    assert.deepEqual(await grantGuardianPermission(f.args),{result:'guardian_permission_already_granted'});
+    assert.deepEqual(f.getJournal(),{status:'confirmed',version:2}); assert.equal(grantCalls(f).length,0);
+});
 test('a permission grant followed by an app update remains uncertain and never retries', async () => {
     for (const options of [{changeApkAfterGrant:true}, {wrongDeviceAfterGrant:true}, {sdkChangesAfterGrant:true}, {revokeOnFinalCheck:true}]) {
         const f = fixture(options);
         await assert.rejects(grantGuardianPermission(f.args), e => e.code === 'guardian_permission_unconfirmed');
-        assert.deepEqual(f.getJournal(), {status:'attempting'}); assert.equal(grantCalls(f).length, 1);
+        assert.deepEqual(f.getJournal(), {status:'attempting',version:2}); assert.equal(grantCalls(f).length, 1);
         await assert.rejects(grantGuardianPermission(f.args)); assert.equal(grantCalls(f).length, 1);
     }
 });
@@ -121,12 +141,27 @@ test('failure to persist fence prevents any Android grant', async () => {
 test('an SDK change after the first check blocks before the grant', async () => {
     const f = fixture({sdkChangesBeforeGrant:true});
     await assert.rejects(grantGuardianPermission(f.args));
-    assert.equal(grantCalls(f).length, 0); assert.deepEqual(f.getJournal(), {status:'attempting'});
+    assert.equal(grantCalls(f).length, 0); assert.deepEqual(f.getJournal(), {status:'attempting',version:2});
 });
 test('a previously confirmed grant that was later revoked needs a new explicit action', async () => {
-    const f = fixture({ previous: {status:'confirmed'} });
+    const f = fixture({ previous: {status:'confirmed',version:2} });
     assert.deepEqual(await grantGuardianPermission(f.args), {result:'guardian_permission_granted'});
     assert.equal(grantCalls(f).length, 1);
+});
+test('a legacy confirmed record is observable when granted but never authorizes another grant when denied', async () => {
+    const granted = fixture({initiallyGranted:true,previous:{status:'confirmed'}});
+    assert.deepEqual(await grantGuardianPermission(granted.args),{result:'guardian_permission_legacy_granted_limited'});
+    assert.deepEqual(granted.getJournal(),{status:'confirmed'}); assert.equal(grantCalls(granted).length,0);
+    const denied = fixture({previous:{status:'confirmed'}});
+    await assert.rejects(grantGuardianPermission(denied.args),e=>e.code==='guardian_permission_unconfirmed');
+    assert.deepEqual(denied.getJournal(),{status:'confirmed'}); assert.equal(grantCalls(denied).length,0);
+});
+test('unknown journal versions fail closed and cannot authorize a grant', async () => {
+    for (const initiallyGranted of [false,true]) {
+        const f=fixture({initiallyGranted,previous:{status:'confirmed',version:999}});
+        await assert.rejects(grantGuardianPermission(f.args),e=>e.code==='guardian_permission_unconfirmed');
+        assert.equal(grantCalls(f).length,0); assert.equal(f.records.length,0);
+    }
 });
 test('status and user parsers fail closed for extra output and unexpected data', () => {
     assert.equal(permissionState('0\n'), true); assert.equal(permissionState('-1'), false);

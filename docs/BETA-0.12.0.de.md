@@ -10,6 +10,12 @@ Der getestete Guardian-Build ist nicht im Quellcode oder npm-Paket enthalten. Vo
 
 Die automatische Kopplung und Wiederverbindung wurden auf einem Android-16-Testgerät geprüft. Das ist kein Nachweis für andere Geräte, WLAN-Umgebungen oder dauerhafte unbeaufsichtigte Funktion. Beim Start können zunächst Fehlversuche auftreten; Android kann weiterhin eine Geräteentsperrung oder eine Netzwerkfreigabe verlangen.
 
+Auf dem Moto-Testgerät wurde die zuvor entzogene Android-Sonderberechtigung mit dem Adapterknopf einer früheren Testfassung erfolgreich neu erteilt und unabhängig überprüft. Das ersetzt keinen Test einer vollständig neuen Installation. Die nachträglich gehärteten Abbruch- und Fehlerpfade sind bislang nur künstlich getestet.
+
+**Einschränkung für den Prüfstand:** Ein Steuerhandy darf nur von genau einer Adapterinstanz auf einem einzigen Host verwendet werden. Die Sperrvermerke für unklare Berechtigungs- und Kopplungsvorgänge gelten nur pro Instanz; sie verhindern keinen parallelen Versuch einer anderen Instanz oder eines anderen Hosts. Sie dürfen nicht durch Löschen, Zurückspielen eines Backups oder Wechsel der Instanz umgangen werden. Ein allgemein sicherer Wiederherstellungsweg und eine hostübergreifende Absicherung sind noch nicht nachgewiesen.
+
+**Offener Freigabepunkt:** Nach einem Zeitlimit kann ein zuvor gestarteter Befehl auf dem Handy noch weiterlaufen, während der Adapter andere Handyaufträge wieder annimmt. Die Sperren schützen die beiden erneuten Einrichtungsversuche, halten aber nicht sämtliche übrigen Handyaufträge an. Diese Laufzeitgrenze muss vor einer öffentlichen Beta behoben und überprüft werden.
+
 Wireless Guardian benötigt `WRITE_SECURE_SETTINGS`, eine weitreichende Sonderberechtigung, und Netzwerkzugriff. Der geprüfte Code nutzt die Sonderberechtigung für drahtloses Debugging; die Portauskunft wird gesondert aktiviert und authentifiziert. Android-Debugging erlaubt gekoppelten Computern weitreichenden Zugriff auf das Handy. Auf einem Gerät ohne Bildschirmsperre sind angemeldete Konten für Personen mit physischem Zugriff zugänglich. Einrichtung, Grenzen und Wiederherstellung stehen in der [Guardian-Anleitung](../extras/wireless-guardian/README.md) und der [Adapter-Installation](INSTALLATION.de.md).
 
 ## Veröffentlichungsschutz

@@ -59,19 +59,17 @@ test('host preparation saves only a protected encrypted key and waits for separa
     assert.deepEqual(f.writes[0], ['system.adapter.vw-app.99', { native: { guardianSecret: 'encrypted:' + secret } }]);
     assert.deepEqual(f.getJournal(), journalFor('host_prepared'));
 });
-test('recovery needs explicit consent, inactive Android and an existing unresolved attempt', async () => {
-    for (const opts of [{ journal: journalFor('attempting'), active: true }, { journal: journalFor('attempting'), unprotected: true },
-        { journal: journalFor('attempting'), badHash: true }, { journal: journalFor('attempting'), enabled: true }, {}]) {
-        const f = fixture(opts);
+test('unresolved and legacy recovery journals never release a delayed host client fence', async () => {
+    for (const status of ['attempting', 'android_verified_host_not_enabled', 'recovery_approved']) {
+        const f = fixture({journal: journalFor(status)});
+        // Even an explicit confirmation and inactive phone do not prove the
+        // earlier /prepare client has stopped. A fresh window could be taken.
         await assert.rejects(approveRecovery({ adapter: f.adapter, phone: f.args.phone, approvedApkHash: apkHash, userConfirmed: true }));
-        assert.notEqual(f.getJournal()?.status, 'recovery_approved');
+        await assert.rejects(transferAndVerify(f.args));
+        assert.deepEqual(f.getJournal(), journalFor(status));
+        assert.equal(f.calls.length, 0); assert.equal(f.writes.length, 0);
+        if (status === 'recovery_approved') assert.equal(await pairingStatus(f.adapter), 'guardian_status_uncertain');
     }
-    const f = fixture({journal: journalFor('attempting')});
-    await assert.rejects(approveRecovery({ adapter: f.adapter, phone: f.args.phone, approvedApkHash: apkHash }));
-    await approveRecovery({ adapter: f.adapter, phone: f.args.phone, approvedApkHash: apkHash, userConfirmed: true });
-    assert.deepEqual(f.getJournal(), journalFor('recovery_approved'));
-    await transferAndVerify(f.args);
-    assert.deepEqual(f.getJournal(), journalFor('android_verified_host_not_enabled'));
 });
 test('existing config, active discovery, journal and absent protection block preparation', async () => {
     for (const opts of [{}, { empty: true, enabled: true }, { empty: true, journal: { status: 'attempting' } }, { empty: true, unprotected: true }]) {
