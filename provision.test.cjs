@@ -107,12 +107,12 @@ test('start succeeds only after TLS proof',async()=>{
     assert.equal(await startLoopback(f.d,f.j,p),'loopback_tls_verified_auth_unproven');
     assert.equal(f.get().obj.common.enabled,true);
 });
-test('uncertain start acknowledgement never claims stopped or retries',async()=>{
+test('journal failure after acknowledged start performs one guarded stop',async()=>{
     const f=fixture(); await stage(f.d,f.j,p); f.fail('journal:start_acknowledged');
-    await assert.rejects(startLoopback(f.d,f.j,p));
-    assert.equal(f.get().record.phase,'start_attempting'); assert.equal(f.get().obj.native.bind,'127.0.0.1');
+    await assert.rejects(startLoopback(f.d,f.j,p),{code:'emergency_stop_observed'});
+    assert.equal(f.get().record.phase,'stop_observed_entries_retained'); assert.equal(f.get().obj.native.bind,'127.0.0.1');
     await assert.rejects(stopPilot(f.d,f.j,p),{code:'stop_order_uncertain'});
-    assert.equal(f.get().writes.includes('disable'),false);
+    assert.equal(f.get().writes.filter(x=>x==='disable').length,1);
 });
 test('failed real TLS stops the owned instance and preserves aliases',async()=>{
     const f=fixture(); await stage(f.d,f.j,p); f.setTls(false);
@@ -142,7 +142,7 @@ test('ambiguous disable retains stop attempt instead of retrying',async()=>{
 test('a still-open listener after stop is not reported as successful',async()=>{
     const f=fixture(); await stage(f.d,f.j,p); f.setTls(false);
     f.d.awaitStopped=async()=>false;
-    await assert.rejects(startLoopback(f.d,f.j,p),{code:'stop_process_or_listener_unconfirmed'});
+    await assert.rejects(startLoopback(f.d,f.j,p),{code:'emergency_stop_unconfirmed'});
     assert.equal(f.get().record.phase,'stop_attempting');
 });
 test('stop rejects instance whose ownership marker has changed',async()=>{

@@ -90,8 +90,20 @@ async function startLoopback(driver, journal, p) {
     assert(rec && rec.phase === 'prepared' && stable(rec.p) === stable(p), 'not_prepared');
     await inspectPrepared(driver, p, rec.baseline);
     await journal.save({ ...rec, phase: 'start_attempting' });
-    await driver.enable(p.instance);
-    await journal.save({ ...rec, phase: 'start_acknowledged' });
+    try { await driver.enable(p.instance); }
+    catch {
+        // The controller might have applied the request before losing its reply.
+        // A fresh enabled object permits one identity-guarded emergency stop;
+        // disabled/unreadable is still ambiguous (a delayed start is possible).
+        let observed;
+        try { observed=await driver.getInstance(p.instance); }
+        catch { throw new Stop('start_outcome_uncertain'); }
+        if(observed?.common?.enabled===true)
+            await emergencyStopAfterJournalFailure(driver,journal,p,rec);
+        throw new Stop('start_outcome_uncertain');
+    }
+    try { await journal.save({ ...rec, phase: 'start_acknowledged' }); }
+    catch { await emergencyStopAfterJournalFailure(driver,journal,p,rec); }
     try {
         const state = await driver.getInstance(p.instance);
         assert(state?.common?.enabled === true && state.common.loglevel === 'info'
@@ -107,14 +119,45 @@ async function startLoopback(driver, journal, p) {
         await driver.verifyRealTls(p); // Pin CA and leaf, verify SAN; negative probes are required.
         await driver.verifyUnauthenticatedRedirect(p); // Partial HTTP evidence only.
     } catch {
-        // enable() returned successfully; if TLS is absent, try once to stop this exact pilot.
-        // If ownership or stop is unclear, retain the durable stop-attempt marker.
-        await stopPilot(driver, journal, p);
-        throw new Stop('pilot_stop_observed_tls_or_http_unconfirmed');
+        // A failed journal can make stopPilot refuse even before its single stop.
+        // Emergency stop still checks exact ownership and never repeats a stop.
+        try { await emergencyStopAfterJournalFailure(driver,journal,p,rec); }
+        catch(e) { if(e instanceof Stop&&e.code==='emergency_stop_observed')
+            throw new Stop('pilot_stop_observed_tls_or_http_unconfirmed'); throw e; }
     }
-    await journal.save({ ...rec, phase: 'loopback_tls_verified_auth_unproven' });
+    try { await journal.save({ ...rec, phase: 'loopback_tls_verified_auth_unproven' }); }
+    catch { await emergencyStopAfterJournalFailure(driver,journal,p,rec); }
     return 'loopback_tls_verified_auth_unproven';
 }
+
+// The start intent is durable before enable(). If a later journal write fails,
+// make exactly one guarded attempt to stop the owned instance even if storage
+// cannot record a fresh stop intent. Never claim clean rollback without the
+// process/listener evidence AND a durable stop record. No automatic retry.
+async function emergencyStopAfterJournalFailure(driver,journal,p,rec){
+    validate(p);
+    if(!rec||!isSamePilot(rec.p,p)||!Array.isArray(rec.beforeListeners)||!rec.beforeListeners.length)
+        throw new Stop('emergency_stop_ownership_uncertain');
+    const obj=await driver.getInstance(p.instance);
+    if(!obj||obj.native?.pilotId!==p.id||obj.native?.bind!==p.bind||obj.native?.port!==p.port
+        ||obj.native?.certPublic!==p.publicAlias||obj.native?.certPrivate!==p.privateAlias
+        ||obj.common?.enabled!==true)throw new Stop('emergency_stop_ownership_uncertain');
+    const stopRequestedAt=Date.now();let recorded=true;
+    try { await journal.save({...rec,phase:'stop_attempting',stopRequestedAt}); }
+    catch { recorded=false; }
+    await driver.disable(p.instance);
+    const checked=await driver.getInstance(p.instance);
+    if(!checked||checked.native?.pilotId!==p.id||checked.native?.bind!==p.bind
+        ||checked.native?.port!==p.port||checked.common?.enabled!==false
+        ||!await driver.awaitStopped(p,rec.beforeListeners,stopRequestedAt))
+        throw new Stop('emergency_stop_unconfirmed');
+    if(recorded){
+        try{await journal.save({...rec,phase:'stop_observed_entries_retained'});}
+        catch{recorded=false;}
+    }
+    throw new Stop(recorded?'emergency_stop_observed':'emergency_stop_journal_uncertain');
+}
+function isSamePilot(a,b){return !!a&&!!b&&stable(a)===stable(b);}
 
 // A safe stop is allowed only on an instance carrying this exact pilot marker.
 // Global certificate entries and files are deliberately retained for later reviewed cleanup.
@@ -161,4 +204,4 @@ async function tlsProbe({ host, port, ca, expectedIp, expectedCertSha256, check 
     });
 }
 
-module.exports = { Stop, digest, validate, stage, startLoopback, stopPilot, tlsProbe };
+module.exports = { Stop, digest, validate, stage, startLoopback, stopPilot, tlsProbe, emergencyStopAfterJournalFailure };
