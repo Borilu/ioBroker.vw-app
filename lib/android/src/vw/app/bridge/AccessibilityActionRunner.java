@@ -279,7 +279,7 @@ public final class AccessibilityActionRunner extends UiAutomatorTestRunner {
             else if ("setText".equals(action)) actionId = 2097152;
             else if ("scrollForward".equals(action)) actionId = 4096;
             else if ("scrollBackward".equals(action)) actionId = 8192;
-            else if ("click".equals(action) || "cleanEditorBack".equals(action)) actionId = 16;
+            else if ("click".equals(action) || "cleanEditorBack".equals(action) || "timerEditorBack".equals(action)) actionId = 16;
             else throw new Failure("INVALID_REQUEST");
             target = new Selector(data.get("target"));
             Map<String,Object> context = record(data.get("context"), "windowId,header");
@@ -291,7 +291,7 @@ public final class AccessibilityActionRunner extends UiAutomatorTestRunner {
                 finite(value);
                 if (target.range == null) throw new Failure("INVALID_REQUEST");
             } else if ("setText".equals(action)) string(value, true);
-            else if ("cleanEditorBack".equals(action)) {
+            else if ("cleanEditorBack".equals(action) || "timerEditorBack".equals(action)) {
                 if (!"Zeit einstellen".equals(header.description) || !"android.widget.Button".equals(target.className)
                         || (target.text != null && !target.text.isEmpty()) || (target.description != null && !target.description.isEmpty())
                         || (target.bounds[0] + target.bounds[2]) / 2 >= header.bounds[0]
@@ -389,7 +389,7 @@ public final class AccessibilityActionRunner extends UiAutomatorTestRunner {
                 if (!Boolean.TRUE.equals(call(target, "refresh")) || !matches(target, spec.target, verify.path, true)) throw new Failure("STALE_NODE");
                 checkContext(current, spec);
                 rejectSecurity(current, 0, new int[]{0});
-                if ("cleanEditorBack".equals(spec.action)) {
+                if ("cleanEditorBack".equals(spec.action) || "timerEditorBack".equals(spec.action)) {
                     // CLEAN_EDITOR_FRESH_ROOT_BOUNDARY
                     // The prior traversal may describe an earlier window tree.
                     // Fetch and verify once more; no claim of atomicity with a
@@ -408,7 +408,8 @@ public final class AccessibilityActionRunner extends UiAutomatorTestRunner {
                             throw new Failure("STALE_NODE");
                         checkContext(fresh, spec);
                         rejectSecurity(fresh, 0, new int[]{0});
-                        verifyCleanEditor(fresh, (String)spec.value);
+                        if ("cleanEditorBack".equals(spec.action)) verifyCleanEditor(fresh, (String)spec.value);
+                        else verifyTimerEditor(fresh, (String)spec.value);
                         recycle(target);
                         target = last.target; last.target = null;
                     } finally {
@@ -430,7 +431,7 @@ public final class AccessibilityActionRunner extends UiAutomatorTestRunner {
                     arguments = Class.forName("android.os.Bundle").getConstructor().newInstance();
                     String key = (String)Class.forName("android.view.accessibility.AccessibilityNodeInfo").getField("ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE").get(null);
                     call(arguments, "putCharSequence", new Class<?>[]{String.class,CharSequence.class}, new Object[]{key,(String)spec.value});
-                } else if (("click".equals(spec.action) || "cleanEditorBack".equals(spec.action))
+                } else if (("click".equals(spec.action) || "cleanEditorBack".equals(spec.action) || "timerEditorBack".equals(spec.action))
                         && !Boolean.TRUE.equals(call(target, "isClickable"))) throw new Failure("ACTION_UNAVAILABLE");
                 outcome.beforeMatched = true;
                 outcome.attempted = true; // From here, missing results must never cause a retry.
@@ -496,14 +497,14 @@ public final class AccessibilityActionRunner extends UiAutomatorTestRunner {
             digest.update(ByteBuffer.allocate(4).putInt(bytes == null ? -1 : bytes.length).array());
             if (bytes != null) digest.update(bytes);
         }
-        private void hashEditor(Object node, MessageDigest digest, int depth, int[] count) throws Failure {
+        private void hashEditor(Object node, MessageDigest digest, int depth, int[] count, boolean allowSave) throws Failure {
             if (depth > 40 || ++count[0] > 2000) throw new Failure("TREE_LIMIT");
             checkPackage(node);
             String text = nullable(call(node,"getText")), description = nullable(call(node,"getContentDescription"));
             String state = nullable(call(node,"getStateDescription")), id = nullable(call(node,"getViewIdResourceName"));
             // Tested VW app invariant: a changed editor exposes this action.
             // Unknown/hidden text also blocks; never click Save here.
-            if (isSaveIndicator(text) || isSaveIndicator(description) || isSaveIndicator(state) || isSaveResource(id))
+            if (!allowSave && (isSaveIndicator(text) || isSaveIndicator(description) || isSaveIndicator(state) || isSaveResource(id)))
                 throw new Failure("EDITOR_DIRTY");
             for (String method : new String[]{"getClassName","getViewIdResourceName","getText","getContentDescription","getStateDescription"})
                 hashText(digest, nullable(call(node,method)));
@@ -525,13 +526,23 @@ public final class AccessibilityActionRunner extends UiAutomatorTestRunner {
             for (int index=0; index<children; index++) {
                 Object child = call(node,"getChild",new Class<?>[]{int.class},new Object[]{Integer.valueOf(index)});
                 if (child == null) throw new Failure("EDITOR_UNAVAILABLE");
-                try { hashEditor(child,digest,depth+1,count); } finally { recycle(child); }
+                try { hashEditor(child,digest,depth+1,count,allowSave); } finally { recycle(child); }
             }
         }
         private void verifyCleanEditor(Object root, String expected) throws Failure {
             try {
                 MessageDigest digest = MessageDigest.getInstance("SHA-256");
-                hashEditor(root,digest,0,new int[]{0});
+                hashEditor(root,digest,0,new int[]{0},false);
+                StringBuilder out = new StringBuilder();
+                for (byte value : digest.digest()) out.append(String.format(java.util.Locale.ROOT,"%02x",value & 0xff));
+                if (!out.toString().equals(expected)) throw new Failure("EDITOR_CHANGED");
+            } catch (Failure error) { throw error; }
+            catch (Throwable error) { throw new Failure("EDITOR_UNAVAILABLE"); }
+        }
+        private void verifyTimerEditor(Object root, String expected) throws Failure {
+            try {
+                MessageDigest digest = MessageDigest.getInstance("SHA-256");
+                hashEditor(root,digest,0,new int[]{0},true);
                 StringBuilder out = new StringBuilder();
                 for (byte value : digest.digest()) out.append(String.format(java.util.Locale.ROOT,"%02x",value & 0xff));
                 if (!out.toString().equals(expected)) throw new Failure("EDITOR_CHANGED");

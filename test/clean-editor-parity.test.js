@@ -49,4 +49,11 @@ test('native clean-editor guard matches the JS fingerprint and blocks changed or
         const run = spawnSync(exe('java'), ['-cp', folder, 'vw.app.bridge.EditorGuardHarness', digest, mode], { encoding: 'utf8' });
         assert.equal(run.status, 0, run.stderr); assert.equal(run.stdout, expected);
     }
+    const dirty = syntheticTree(); dirty.children.at(-1).text = 'Speichern';
+    const hidden = syntheticTree(); hidden.children.splice(2, 2);
+    for (const [tree, mode, expected] of [[dirty, 'dirty', 'OK'], [hidden, 'noWheels', 'OK'],
+        [syntheticTree(), 'dirty', 'EDITOR_CHANGED'], [syntheticTree(), 'foreign', 'EDITOR_CHANGED']]) {
+        const run = spawnSync(exe('java'), ['-cp', folder, 'vw.app.bridge.EditorGuardHarness', editorDigest(tree), mode, 'timer'], { encoding: 'utf8' });
+        assert.equal(run.status, 0, run.stderr); assert.equal(run.stdout, expected);
+    }
 });

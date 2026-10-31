@@ -257,6 +257,19 @@ test('an absent or wrong-device pairing acknowledgement stays fenced across a ne
     }
 });
 
+test('an unconfirmed guarded UI action leaves its real durable fence across a new runtime',
+    { skip: process.platform !== 'linux' }, async t => {
+        const dataDir = await fs.mkdtemp(path.join(os.tmpdir(), 'vw-action-fence-'));
+        t.after(async () => { await fs.rm(dataDir, { recursive: true, force: true }); });
+        const first = new AdbRuntime({ dataDir });
+        await first.beginJob();
+        first.fenceUncertainAction();
+        await assert.rejects(first.endJob(), { code: 'adb_execution_fenced' });
+        const second = new AdbRuntime({ dataDir });
+        await assert.rejects(second.assertJobClear(), { code: 'adb_execution_fenced' });
+        await assert.rejects(second.beginJob(), { code: 'adb_execution_fenced' });
+    });
+
 function crc32(bytes) {
     let crc = 0xffffffff;
     for (const byte of bytes) {

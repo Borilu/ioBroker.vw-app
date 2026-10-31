@@ -53,9 +53,9 @@ public final class EditorGuardHarness {
         root.children.add(new FakeNode("android.widget.Button",null,null,null,null,true,true,true,false,false,false,new int[]{mode.equals("geometry") ? 21 : 20,90,160,190}));
         root.children.add(new FakeNode("android.view.View",null,null,mode.equals("foreign") ? "Andere Ansicht" : "Zeit einstellen",null,true,true,false,false,false,false,new int[]{170,110,830,170}));
         FakeNode hour = new FakeNode("android.widget.SeekBar",null,null,"Hour",mode.equals("time") ? "09" : "08",true,true,true,false,false,false,new int[]{380,500,460,820});
-        hour.range = new FakeRange(mode.equals("progress") ? 115002f : 115001f); root.children.add(hour);
+        hour.range = new FakeRange(mode.equals("progress") ? 115002f : 115001f); if (!mode.equals("noWheels")) root.children.add(hour);
         FakeNode minute = new FakeNode("android.widget.SeekBar",null,null,"Minute",mode.equals("minute") ? "31" : "30",true,true,true,false,false,false,new int[]{580,500,660,820});
-        minute.range = new FakeRange(60001f); root.children.add(minute);
+        minute.range = new FakeRange(60001f); if (!mode.equals("noWheels")) root.children.add(minute);
         String[] days={"MONDAY","TUESDAY","WEDNESDAY","THURSDAY","FRIDAY","SATURDAY","SUNDAY"};
         for (int i=0; i<days.length; i++) root.children.add(new FakeNode("android.view.View","cta_"+days[i],null,null,null,
                 true,true,true,false,false,mode.equals("day") && i==3,new int[]{40+i*135,900,160+i*135,1030}));
@@ -71,7 +71,7 @@ public final class EditorGuardHarness {
         Class<?> cls=Class.forName("vw.app.bridge.AccessibilityActionRunner$Session");
         Constructor<?> constructor=cls.getDeclaredConstructor(); constructor.setAccessible(true);
         Object session=constructor.newInstance();
-        Method verify=cls.getDeclaredMethod("verifyCleanEditor",Object.class,String.class); verify.setAccessible(true);
+        Method verify=cls.getDeclaredMethod(args.length > 2 && "timer".equals(args[2]) ? "verifyTimerEditor" : "verifyCleanEditor",Object.class,String.class); verify.setAccessible(true);
         try { verify.invoke(session,make(args[1]),args[0]); System.out.print("OK"); }
         catch (InvocationTargetException ex) { System.out.print(ex.getCause().getMessage()); }
     }

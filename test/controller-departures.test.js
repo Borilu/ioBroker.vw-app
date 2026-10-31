@@ -337,12 +337,13 @@ class App {
         if (this.afterSystemBack) await this.afterSystemBack();
     }
     async departureAction(request) {
-        if (request.action === 'cleanEditorBack') {
+        if (request.action === 'cleanEditorBack' || request.action === 'timerEditorBack') {
             this.calls.push(['cleanBack']);
             if (this.beforeAction) await this.beforeAction(request);
             const current = this.view();
             const fresh = nativeObservationFromXml(current.xml);
-            if (this.page !== 'timerEditor' || this.dirtyEditor || editorDigest(fresh.root) !== editorDigest(request.snapshot.root)) {
+            if (this.page !== 'timerEditor' || request.action === 'cleanEditorBack' && this.dirtyEditor
+                || editorDigest(fresh.root) !== editorDigest(request.snapshot.root)) {
                 return { beforeMatched: false, actionAttempted: false, actionAccepted: null, success: false, errorCode: 'EDITOR_CHANGED' };
             }
             this.page = this.editorKind === 'climate' ? 'departuresOverview' : 'locationOverview';
@@ -376,6 +377,7 @@ class App {
         return { beforeMatched: true, actionAttempted: true, actionAccepted: true, success: true,
             postRead: this.noActionPostRead ? null : await this.departureView() };
     }
+    fenceUncertainAction() { this.actionFenced = true; }
 }
 function sameDays(a, b) { return JSON.stringify(a) === JSON.stringify(b); }
 
@@ -527,11 +529,11 @@ test('known contradictory days, clock, enabled and repeat evidence prevents publ
     await rejects(executeDepartures(c, 'departuresClimateStatus'), 'departure_changed');
 });
 
-test('an editor without visible wheel metadata is left open because the draft time cannot be checked', async () => {
+test('an editor without visible wheel metadata returns once and reads the full native snapshot', async () => {
     const { c, phone } = setup({ noWheels: true });
-    await rejects(executeDepartures(c, 'departuresClimateStatus'), 'departure_editor_unverifiable');
-    assert.equal(phone.page, 'timerEditor');
-    assert.equal(phone.calls.some(call => call[0] === 'cleanBack'), false);
+    const result = await executeDepartures(c, 'departuresClimateStatus');
+    assert.equal(result.timers.length, 2); assert.equal(phone.page, 'home');
+    assert.equal(phone.calls.filter(call => call[0] === 'cleanBack').length, 2);
 });
 
 test('invalid actions, malformed options and invalid native location selectors reject before any phone work', async () => {
@@ -589,11 +591,11 @@ test('the menu is found by exact fresh description after a bounded overview scro
     finished(c, phone);
 });
 
-test('a pre-existing timer editor is left open with an accurate fixed instruction and no navigation input', async () => {
+test('a pre-existing recognized timer editor returns once before the read begins', async () => {
     const { c, phone } = setup({ page: 'timerEditor', editorKind: 'climate', editorId: '1' });
-    await rejects(executeDepartures(c, 'departuresClimateStatus'), 'departure_editor_open');
-    assert.equal(phone.calls.some(call => call[0] === 'tap' || call[0] === 'swipe'), false);
-    assert.equal(phone.page, 'timerEditor');
+    const result = await executeDepartures(c, 'departuresClimateStatus');
+    assert.equal(result.timers.length, 2); assert.equal(phone.page, 'home');
+    assert.equal(phone.calls.filter(call => call[0] === 'cleanBack').length, 3);
 });
 
 test('the native guarded back request is bound to the whole clean editor snapshot and exact header button', async () => {
@@ -629,6 +631,46 @@ test('the native guarded back request is bound to the whole clean editor snapsho
     assert.equal(result.actionAccepted, true); assert.equal(actionRuns, 1);
     assert.equal(request.value, editorDigest(view.observation.root));
     assert.equal(request.action, 'cleanEditorBack'); assert.deepEqual(request.target.bounds, bounds);
+});
+
+test('the timer-back request permits Save and hidden wheels but only targets the verified editor back button', async () => {
+    const { phone } = setup({ page: 'timerEditor', editorKind: 'climate', editorId: '1', dirtyEditor: true, noWheels: true });
+    const view = await phone.departureView();
+    const screen = new DepartureScreen(view.xml), bounds = screen._bounds(screen._base().back);
+    let request;
+    const fake = { check() {}, foreground: async () => {}, runtime: { dataDir: path.resolve('.'), run: async () => '' },
+        run: async args => {
+            if (args[0] === 'push') return '';
+            if (args[1] === 'uiautomator') return 'VW_UI_ACTION_RESULT\n';
+            if (args[1] === 'cat') return JSON.stringify({ format: 'vw-app-accessibility-action-v1', requestNonce: request.nonce,
+                action: request.action, actionId: 16, beforeMatched: true, actionAttempted: true, actionAccepted: true,
+                success: true, nativeContextVerifiedByRunner: false, errorCode: null, postReadError: null, postRead: view.observation });
+            throw Error('Unexpected synthetic action.');
+        } };
+    const bridge = new AndroidUi(fake, { now: () => 1 });
+    bridge.payload = async () => '/data/local/tmp/synthetic.jar';
+    bridge.requestFile = async value => { request = value; return require('node:path').join(require('node:os').tmpdir(),
+        'vw-editor-test-' + require('node:crypto').randomUUID()); };
+    bridge.observations.set(view.observation, 1);
+    const result = await bridge.action({ snapshot: view.observation, header: 'Zeit einstellen',
+        target: { class: 'android.widget.Button', bounds }, action: 'timerEditorBack', value: null });
+    assert.equal(result.actionAccepted, true); assert.equal(request.value, editorDigest(view.observation.root));
+    assert.equal(request.action, 'timerEditorBack'); assert.deepEqual(request.target.bounds, bounds);
+});
+
+test('timer-back rejects a different screen, non-back target or forged observation before any phone action', async () => {
+    for (const mode of ['otherScreen', 'saveButton', 'forged']) {
+        const { phone } = setup({ page: mode === 'otherScreen' ? 'home' : 'timerEditor', editorKind: 'climate', editorId: '1', dirtyEditor: true, noWheels: true });
+        const view = await phone.departureView(); let actions = 0;
+        const fake = { check() {}, foreground: async () => { actions++; }, runtime: { dataDir: path.resolve('.'), run: async () => '' },
+            run: async () => { actions++; return ''; } };
+        const bridge = new AndroidUi(fake, { now: () => 1 });
+        if (mode !== 'forged') bridge.observations.set(view.observation, 1);
+        await assert.rejects(bridge.action({ snapshot: view.observation, header: 'Zeit einstellen',
+            target: { class: 'android.widget.Button', bounds: mode === 'saveButton' ? [840,90,980,190] : [20,90,160,190] },
+            action: 'timerEditorBack', value: null }));
+        assert.equal(actions, 0);
+    }
 });
 
 test('only a real nonce-checked guarded action may mint a one-use same-job post-read permit', async () => {
@@ -682,14 +724,41 @@ test('only a real nonce-checked guarded action may mint a one-use same-job post-
     assert.equal(claimCleanBackReadPermit(foreign.fake, foreign.result), null);
 });
 
-test('a pre-existing timer editor with a visible Save control is still reported as unsaved and left untouched', async () => {
+test('a pre-existing timer editor with visible Save returns without touching Save', async () => {
     const { c, phone } = setup({ page: 'timerEditor', editorKind: 'climate', editorId: '1', dirtyEditor: true });
-    await rejects(executeDepartures(c, 'departuresClimateStatus'), 'unsaved_settings');
-    assert.equal(phone.page, 'timerEditor');
-    assert.equal(phone.calls.some(call => call[0] === 'tap' || call[0] === 'swipe' || call[0] === 'back'), false);
+    const result = await executeDepartures(c, 'departuresClimateStatus');
+    assert.equal(result.timers.length, 2); assert.equal(phone.page, 'home');
+    assert.equal(phone.calls.some(call => call[0] === 'tap' && call[1] === 'timerEditor'), false);
 });
 
-test('dirty gear, preferred or newly changed timer drafts are neither saved nor discarded', async () => {
+test('an already open edited timer with unavailable wheels returns once and still reads all saved timer details', async () => {
+    const { c, phone } = setup({ page: 'timerEditor', editorKind: 'climate', editorId: '1', dirtyEditor: true, noWheels: true });
+    const result = await executeDepartures(c, 'departuresClimateStatus');
+    assert.equal(result.timers.length, 2); assert.equal(phone.page, 'home');
+    assert.deepEqual(result.timers[0].days, ['mon']); assert.equal(result.timers[0].repeat, true);
+    assert.equal(phone.calls.filter(call => call[0] === 'cleanBack').length, 3);
+    assert.equal(phone.calls.some(call => call[0] === 'action'), false);
+    assert.equal(phone.calls.some(call => call[0] === 'tap' && call[1] === 'timerEditor'), false);
+});
+
+test('an unconfirmed timer return fences the active job and cannot be automatically repeated', async () => {
+    const { c, phone } = setup({ page: 'timerEditor', editorKind: 'climate', editorId: '1' });
+    let fenceHeld = false;
+    const fence = { async acquire() { fenceHeld = true; return 'a'.repeat(32); }, async assertClear() {},
+        async release() { fenceHeld = false; } };
+    const runtime = new AdbRuntime({ dataDir: path.resolve('.'), executionFence: fence });
+    await runtime.beginJob(); runtime._ready = true;
+    phone.fenceUncertainAction = () => runtime.fenceUncertainAction();
+    phone.beforeAction = () => { throw new BridgeError('adb_timeout', 'Synthetic unconfirmed return.'); };
+    await rejects(executeDepartures(c, 'departuresClimateStatus'), 'adb_timeout');
+    assert.equal(phone.calls.filter(call => call[0] === 'cleanBack').length, 1);
+    assert.equal(fenceHeld, true); assert.equal(runtime._job.uncertain, true);
+    await assert.rejects(runtime.endJob(), error => error.code === 'adb_execution_fenced');
+    await assert.rejects(runtime.beginJob(), error => error.code === 'adb_execution_fenced');
+    assert.equal(phone.calls.filter(call => call[0] === 'cleanBack').length, 1);
+});
+
+test('dirty gear and preferred drafts remain untouched; an authorized timer draft is left without saving', async () => {
     for (const options of [{ page: 'locationSettings', dirtyGear: true }, { page: 'preferredTimes', dirtyPreferred: true }]) {
         const { c, phone } = setup(options);
         await rejects(executeDepartures(c, 'departuresClimateStatus'), 'unsaved_settings');
@@ -697,7 +766,8 @@ test('dirty gear, preferred or newly changed timer drafts are neither saved nor 
     }
     const { c, phone } = setup();
     phone.afterTap = action => { if (action.startsWith('timer:')) phone.dirtyEditor = true; };
-    await rejects(executeDepartures(c, 'departuresClimateStatus'), 'unsaved_settings');
+    const result = await executeDepartures(c, 'departuresClimateStatus');
+    assert.equal(result.timers.length, 2); assert.equal(phone.page, 'home');
     assert.equal(phone.calls.some(call => call[0] === 'tap' && call[1] === 'timerEditor'), false);
 });
 
@@ -779,15 +849,15 @@ test('a confirmed completed read failure permits one guarded return from the own
     }
 });
 
-test('a timeout, foreign editor, visible Save or change immediately before native guarded click never closes the editor', async () => {
+test('a timeout, foreign editor or change immediately before native guarded click cannot cause an unsafe click', async () => {
     const timeout = setup();
     timeout.phone.ownedEditorRecoveryPermit = error => error.completedOnDevice === true ? () => true : null;
     timeout.phone.beforeNative = () => { if (timeout.phone.page === 'timerEditor') throw new BridgeError('adb_timeout', 'Synthetic.'); };
     await rejects(executeDepartures(timeout.c, 'departuresClimateStatus'), 'adb_timeout');
     assert.equal(timeout.phone.calls.some(call => call[0] === 'cleanBack'), false);
     const foreign = setup({ page: 'timerEditor', editorKind: 'climate', editorId: '1' });
-    foreign.phone.ownedEditorRecoveryPermit = () => () => true;
-    await rejects(executeDepartures(foreign.c, 'departuresClimateStatus'), 'departure_editor_open');
+    foreign.phone.nativeOverride = () => ({ fragment: 'SyntheticOtherFragment', arguments: 'Synthetic' });
+    await rejects(executeDepartures(foreign.c, 'departuresClimateStatus'), 'departure_incomplete');
     assert.equal(foreign.phone.calls.some(call => call[0] === 'cleanBack'), false);
     for (const atClick of [false, true]) {
         const { c, phone } = setup(); let reads = 0;
@@ -801,7 +871,8 @@ test('a timeout, foreign editor, visible Save or change immediately before nativ
         };
         if (atClick) phone.beforeAction = () => { phone.dirtyEditor = true; };
         await rejects(executeDepartures(c, 'departuresClimateStatus'), 'adb_command_failed');
-        assert.equal(phone.page, 'timerEditor'); assert.equal(phone.dirtyEditor, true);
+        assert.equal(phone.page, atClick ? 'timerEditor' : 'home'); assert.equal(phone.dirtyEditor, true);
+        if (atClick) assert.notEqual(phone.actionFenced, true, 'verified pre-action refusal is not an uncertain action');
         assert.equal(phone.calls.some(call => call[0] === 'tap' && call[1] === 'timerEditor'), false);
     }
 });
@@ -1396,12 +1467,19 @@ test('an unexpected second preferred toggle during an owned draft prevents Save 
     assert.equal(phone.calls.filter(call => call[0] === 'tap' && call[1] === 'preferredTimes' && call[2] === 865).length, 1);
 });
 
-test('a request already open in a clean foreign editor blocks both dry-run and real writes without input', async () => {
+test('a pre-existing timer editor can be left for a read-only dry run but blocks a real write', async () => {
     for (const dryRun of [true, false]) {
         const { c, phone } = writeSetup({ page: 'timerEditor', editorKind: 'climate', editorId: '1' });
         phone.editorInitial = clone(phone.savedTimer()); phone.editorDraft = clone(phone.editorInitial);
-        await rejects(executeDepartures(c, 'applyDepartureClimateTimer', { timerId: '1', targetTimer: { time: '08:30' }, dryRun }), 'departure_editor_open');
-        assert.equal(phone.calls.some(call => call[0] === 'tap' || call[0] === 'action'), false);
+        const request = executeDepartures(c, 'applyDepartureClimateTimer', { timerId: '1', targetTimer: { time: '08:30' }, dryRun });
+        if (dryRun) {
+            const result = await request;
+            assert.equal(result.dryRun, true);
+            assert.equal(phone.calls.some(call => call[0] === 'action'), false);
+        } else {
+            await rejects(request, 'departure_editor_unverifiable');
+            assert.equal(phone.calls.some(call => call[0] === 'tap' || call[0] === 'action' || call[0] === 'cleanBack'), false);
+        }
     }
 });
 
