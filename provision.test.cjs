@@ -17,7 +17,6 @@ function fixture() {
         getInstance: async () => structuredClone(obj),
         getCertMap: async () => structuredClone(map),
         portFree: async () => port,
-        awaitPortFree: async () => port,
         awaitStopped: async () => port,
         getListenerHashes: async () => ['d'.repeat(64)],
         pilotProcessCount: async () => 0,
@@ -28,8 +27,6 @@ function fixture() {
         disable: async () => { fail('disable'); obj.common.enabled=false; },
         verifyRealTls: async () => { if (!tls) throw Error('no tls'); },
         verifyUnauthenticatedRedirect: async () => {},
-        interfacePresent: async () => true,
-        bindDisabled: async (_n,ip) => {fail('bind'); obj.native.bind=ip;},
     };
     const j = {
         read: async () => structuredClone(record),

@@ -7,7 +7,6 @@ const crypto = require('node:crypto');
 const net = require('node:net');
 const https = require('node:https');
 const tls = require('node:tls');
-const os = require('node:os');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 const { Stop, tlsProbe } = require('./provision.cjs');
@@ -94,10 +93,6 @@ function checkCertificateFiles(p) {
     } catch (e) { if (e instanceof Stop) throw e; throw new Stop('certificate_check_failed'); }
 }
 function wait(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
-async function awaitPortFree(host,port) {
-    for(let i=0;i<40;i++) { if(await portFree(host,port)) return true; await wait(250); }
-    return false;
-}
 function getListenerHashes(salt) {
     const r=spawnSync('/usr/bin/ss',['-H','-ltn'],{encoding:'utf8',timeout:5000,maxBuffer:1024*1024});
     if(r.error || r.status!==0 || !r.stdout.trim()) throw new Stop('listeners_unavailable');
@@ -182,8 +177,7 @@ function createCliDriver() {
             if (!o?.native?.certificates || typeof o.native.certificates !== 'object') throw new Stop('certificate_store_missing');
             return o.native.certificates;
         },
-        portFree, awaitPortFree, awaitStopped, getListenerHashes, pilotProcessCount, checkCertificateFiles, verifyRealTls, verifyUnauthenticatedRedirect,
-        interfacePresent: async ip => Object.values(os.networkInterfaces()).flat().some(x => x && x.address===ip && !x.internal),
+        portFree, awaitStopped, getListenerHashes, pilotProcessCount, checkCertificateFiles, verifyRealTls, verifyUnauthenticatedRedirect,
         createDisabled: async (n, port) => { cli(['add', 'admin', String(n), '--enabled=false', '--port', String(port)]); },
         configureDisabled: async p => extend('system.adapter.admin.' + p.instance, {
             common: {enabled:false, loglevel:'info',mode:'daemon',runAsCompactMode:false},
@@ -191,7 +185,6 @@ function createCliDriver() {
                 certPrivate:p.privateAlias, certChained:'', pilotId:p.id},
         }),
         extendCertMap: async entries => extend('system.certificates', {native:{certificates:entries}}),
-        bindDisabled: async (n, ip) => extend('system.adapter.admin.'+n, {native:{bind:ip}}),
         enable: async n => { cli(['start', 'admin.' + n]); },
         disable: async n => { cli(['stop', 'admin.' + n]); },
     };
