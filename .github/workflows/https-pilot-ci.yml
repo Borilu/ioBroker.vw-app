@@ -14,13 +14,24 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           persist-credentials: false
-      - name: Start disposable ioBroker container with no host ports or volumes
-        id: container
+      - name: Reserve an exact disposable-container identity
+        id: identity
         shell: bash
         run: |
           set -euo pipefail
-          name="vw-https-ci-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
-          container=$(docker run -d --name "$name" --hostname "vwci-${GITHUB_RUN_ID}" \
+          echo "name=vw-https-ci-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_OUTPUT"
+          echo "marker=$(openssl rand -hex 16)" >> "$GITHUB_OUTPUT"
+      - name: Start disposable ioBroker container with no host ports or bind mounts
+        id: container
+        shell: bash
+        env:
+          NAME: ${{ steps.identity.outputs.name }}
+          MARKER: ${{ steps.identity.outputs.marker }}
+        run: |
+          set -euo pipefail
+          container=$(docker run -d --name "$NAME" --hostname "vwci-${GITHUB_RUN_ID}" \
+            --label "org.vw-app.https-pilot=$MARKER" -e GITHUB_ACTIONS=true \
+            -e "VW_HTTPS_RUN_ID=$GITHUB_RUN_ID" -e "VW_HTTPS_MARKER=$MARKER" \
             -e VW_HTTPS_PILOT_CI=synthetic buanet/iobroker:v12.0.0@sha256:5953d5cf8e8bad26e67c016c380901f0598afe08a753d7088e2c92d1e8ec3c25)
           echo "id=$container" >> "$GITHUB_OUTPUT"
           for attempt in $(seq 1 120); do
@@ -54,11 +65,12 @@ jobs:
           CONTAINER: ${{ steps.container.outputs.id }}
         run: |
           set -euo pipefail
+          docker inspect "$CONTAINER" | node -e "let s='';process.stdin.on('data',x=>s+=x);process.stdin.on('end',()=>{const c=JSON.parse(s)[0];if(c.HostConfig.Privileged||c.HostConfig.NetworkMode==='host'||c.Mounts.some(m=>m.Type!=='volume'||m.Destination!=='/opt/iobroker')||Object.keys(c.NetworkSettings.Ports||{}).some(k=>c.NetworkSettings.Ports[k]))process.exit(1);});"
           docker exec "$CONTAINER" mkdir -p /tmp/vw-pilot-code/ci
           for file in provision.cjs cli-driver.cjs pilot.cjs stop-evidence.cjs provision.test.cjs tls-probe.test.cjs stop-evidence.test.cjs; do
             docker cp "$file" "$CONTAINER:/tmp/vw-pilot-code/$file"
           done
-          for file in auth-socket-probe.cjs auth-socket-probe.test.cjs control-socket.cjs run-controller-pilot.cjs; do
+          for file in auth-socket-probe.cjs auth-socket-probe.test.cjs control-socket.cjs isolation-check.cjs isolation-check.test.cjs run-controller-pilot.cjs; do
             docker cp "ci/$file" "$CONTAINER:/tmp/vw-pilot-code/ci/$file"
           done
           docker network disconnect bridge "$CONTAINER"
@@ -71,7 +83,8 @@ jobs:
           ws_path=$(docker exec -u iobroker "$CONTAINER" node -p "require.resolve('ws',{paths:['/opt/iobroker/node_modules/@iobroker/ws-server']})")
           docker exec -u iobroker -e OPENSSL_BIN=/usr/bin/openssl -e WS_FIXTURE_PATH="$ws_path" "$CONTAINER" \
             node --test /tmp/vw-pilot-code/provision.test.cjs /tmp/vw-pilot-code/tls-probe.test.cjs \
-              /tmp/vw-pilot-code/stop-evidence.test.cjs /tmp/vw-pilot-code/ci/auth-socket-probe.test.cjs
+              /tmp/vw-pilot-code/stop-evidence.test.cjs /tmp/vw-pilot-code/ci/auth-socket-probe.test.cjs \
+              /tmp/vw-pilot-code/ci/isolation-check.test.cjs
       - name: Exercise real disposable controller, Admin and socket negative control
         shell: bash
         env:
@@ -80,8 +93,19 @@ jobs:
           set -euo pipefail
           docker exec -u iobroker "$CONTAINER" node /tmp/vw-pilot-code/ci/run-controller-pilot.cjs
       - name: Remove only this disposable container and its anonymous volumes
-        if: always() && steps.container.outputs.id != ''
+        if: always() && steps.identity.outputs.name != '' && steps.identity.outputs.marker != ''
         shell: bash
         env:
-          CONTAINER: ${{ steps.container.outputs.id }}
-        run: docker rm -f -v "$CONTAINER" >/dev/null
+          NAME: ${{ steps.identity.outputs.name }}
+          MARKER: ${{ steps.identity.outputs.marker }}
+        run: |
+          set -euo pipefail
+          if actual=$(docker inspect --type container --format '{{ index .Config.Labels "org.vw-app.https-pilot" }}' "$NAME" 2>/dev/null); then
+            test "$actual" = "$MARKER"
+            docker rm -f -v "$NAME" >/dev/null
+          else
+            # Do not misreport an unreachable daemon or an existing uninspectable
+            # container as successfully cleaned up.
+            existing=$(docker ps -a --filter "name=^/${NAME}$" --format '{{.Names}}')
+            test -z "$existing"
+          fi

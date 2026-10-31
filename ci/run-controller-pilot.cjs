@@ -12,7 +12,9 @@ const {tlsProbe}=require('../provision.cjs');
 const {probeSocket}=require('./auth-socket-probe.cjs');
 const {readStateWithNoAuth}=require('./control-socket.cjs');
 const {createCliDriver}=require('../cli-driver.cjs');
+const {isolatedCi}=require('./isolation-check.cjs');
 const expectedController='7.2.5',expectedAdmin='8.3.5';
+const expectedTransitive={'@iobroker/socket-classes':'2.10.0','@iobroker/ws-server':'4.5.2','@iobroker/webserver':'3.4.0'};
 function fixedCommand(exe,args,opts={}) {
     const r=spawnSync(exe,args,{encoding:'utf8',timeout:120000,maxBuffer:8*1024*1024,...opts});
     if(r.error || r.status!==0) {
@@ -35,13 +37,27 @@ async function waitTls(p,ca) {
     throw new Error('control_tls_unavailable');
 }
 async function main() {
-    if(process.env.VW_HTTPS_PILOT_CI!=='synthetic' || !fs.existsSync('/.dockerenv')
-        || !os.hostname().startsWith('vwci-') || typeof process.getuid!=='function' || process.getuid()===0)
-        throw new Error('not_disposable_ci_container');
+    function requireIsolated() {
+        const okay=isolatedCi({githubActions:process.env.GITHUB_ACTIONS,mode:process.env.VW_HTTPS_PILOT_CI,
+            docker:fs.existsSync('/.dockerenv'),runId:process.env.VW_HTTPS_RUN_ID,marker:process.env.VW_HTTPS_MARKER,
+            hostname:os.hostname(),uid:typeof process.getuid==='function'?process.getuid():-1,
+            platform:process.platform,interfaces:Object.values(os.networkInterfaces()).flat().filter(Boolean)});
+        if(!okay)throw new Error('not_disposable_ci_container');
+    }
+    requireIsolated();
     const actualController=require('/opt/iobroker/node_modules/iobroker.js-controller/package.json').version;
     const actualAdmin=require('/opt/iobroker/node_modules/iobroker.admin/package.json').version;
     if(actualController!==expectedController || actualAdmin!==expectedAdmin || Number(process.versions.node.split('.')[0])!==24)
         throw new Error('unexpected_iobroker_versions');
+    const registeredAdmin=JSON.parse(fixedCommand('iobroker',['object','get','system.adapter.admin']));
+    if(registeredAdmin.common?.installedVersion!==expectedAdmin) throw new Error('registered_admin_version_mismatch');
+    const systemConfig=JSON.parse(fixedCommand('iobroker',['object','get','system.config']));
+    if([systemConfig.common?.defaultLogLevel,systemConfig.common?.logLevel]
+        .some(x=>typeof x==='string' && ['debug','silly'].includes(x.toLowerCase()))) throw new Error('unsafe_global_loglevel');
+    for(const [name,expected] of Object.entries(expectedTransitive)) {
+        const pkgPath=require.resolve(name+'/package.json',{paths:['/opt/iobroker/node_modules/iobroker.admin']});
+        if(require(pkgPath).version!==expected) throw new Error('transitive_version_mismatch');
+    }
     const uid=Number(fixedCommand('/usr/bin/id',['-u','iobroker']).trim());
     const gid=Number(fixedCommand('/usr/bin/id',['-g','iobroker']).trim());
     if(process.getuid()!==uid || process.getgid()!==gid) throw new Error('unexpected_service_identity');
@@ -79,6 +95,13 @@ async function main() {
     command('stop');
     // Negative control in this isolated disposable container only: deliberately turn
     // authentication off and prove the exact same state is then readable on WebSocket.
+    requireIsolated();
+    const finalJournal=JSON.parse(fs.readFileSync(path.join(dir,'pilot-journal.json'),'utf8'));
+    const testObject=JSON.parse(fixedCommand('iobroker',['object','get','system.adapter.admin.17']));
+    if(finalJournal.phase!=='stop_observed_entries_retained' || finalJournal.p?.id!==id
+        || testObject.native?.pilotId!==id || testObject.native?.auth!==true || testObject.native?.secure!==true
+        || testObject.native?.bind!=='127.0.0.1' || testObject.native?.port!==port
+        || testObject.common?.enabled!==false) throw new Error('negative_control_ownership_unverified');
     fixedCommand('iobroker',['object','set','system.adapter.admin.17','native.auth=false']);
     fixedCommand('iobroker',['start','admin.17']);
     await waitTls(p,certPem);
