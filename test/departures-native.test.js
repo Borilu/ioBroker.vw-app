@@ -108,6 +108,24 @@ test('targeted activity dumps with or without TASK, CRLF and UTF-8 buffers have 
     }
 });
 
+test('Android 16 internal-display metadata is accepted only with matching task and activity', () => {
+    const text = dump()
+        .replace('id=17 userId=0', 'id=17 userId=0 displayId=0(type=INTERNAL)')
+        .replace('abc1 pid=4321', 'abc1 pid=4321 userId=0 uid=10123 displayId=0(type=INTERNAL)');
+    assert.deepEqual(extractActiveDepartureNative(text), record());
+    for (const bad of [
+        text.replace('uid=10123', 'uid=missing'),
+        text.replace('pid=4321 userId=0', 'pid=4321 userId=1'),
+        text.replace('uid=10123 displayId=0', 'uid=10123 displayId=1'),
+        text.replace('displayId=0(type=INTERNAL)', 'displayId=0(type=EXTERNAL)'),
+        text.replace('uid=10123 displayId=0(type=INTERNAL)', 'uid=10123 displayId=0(type=EXTERNAL)'),
+        text.replace('userId=0 displayId=0(type=INTERNAL)', 'userId=0'),
+        text.replace(' userId=0 uid=10123 displayId=0(type=INTERNAL)', ''),
+        text.replace('uid=10123', 'uid=10123 extra=unexpected'),
+        text.replace('mResumed=true', 'mResumed=false'),
+    ]) invalid(() => extractActiveDepartureNative(bad));
+});
+
 test('a single resumed Volkswagen activity is mandatory and other activity/task prefixes are rejected', () => {
     const text = dump();
     for (const bad of [

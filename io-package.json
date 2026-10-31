@@ -1,7 +1,7 @@
 {
   "common": {
     "name": "vw-app",
-    "version": "0.11.5",
+    "version": "0.12.0-beta.1",
     "news": {
       "0.11.5": {
         "en": "Find a changed Android connection port using mDNS or a direct query to the configured phone, with identity verification before use.",
@@ -181,15 +181,20 @@
   },
   "encryptedNative": [
     "sPin",
-    "_pairCode"
+    "_pairCode",
+    "guardianSecret"
   ],
   "protectedNative": [
     "sPin",
-    "_pairCode"
+    "_pairCode",
+    "guardianSecret"
   ],
   "native": {
     "hostIp": "",
     "connectPort": 0,
+    "guardianPortDiscovery": false,
+    "guardianPort": 37457,
+    "guardianSecret": "",
     "approvedAppVersion": "",
     "vehicleMarker": "",
     "modeTitles": "Klimatisierung|Air conditioning",

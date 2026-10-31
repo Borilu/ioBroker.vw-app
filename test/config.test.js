@@ -138,8 +138,8 @@ test('missing or invalid stored PIN values do not disable unrelated configuratio
 });
 
 test('the persistent masked S-PIN is encrypted and protected by native metadata', () => {
-    assert.deepEqual(ioPackage.encryptedNative, ['sPin', '_pairCode']);
-    assert.deepEqual(ioPackage.protectedNative, ['sPin', '_pairCode']);
+    assert.deepEqual(ioPackage.encryptedNative, ['sPin', '_pairCode', 'guardianSecret']);
+    assert.deepEqual(ioPackage.protectedNative, ['sPin', '_pairCode', 'guardianSecret']);
     assert.equal(nativeDefaults.sPin, '');
     assert.equal(admin.sPin.type, 'password');
     assert.equal(admin.sPin.visible, false);
@@ -154,6 +154,27 @@ test('the persistent masked S-PIN is encrypted and protected by native metadata'
             assert.equal(JSON.stringify(item[key] ?? null).includes('sPin'), false);
         }
     }
+});
+
+test('Guardian is disabled by default and its shared secret is protected without entering normalized settings', () => {
+    const synthetic = 'ab'.repeat(32);
+    assert.equal(nativeDefaults.guardianPortDiscovery, false);
+    assert.equal(nativeDefaults.guardianPort, 37457);
+    assert.equal(nativeDefaults.guardianSecret, '');
+    assert.ok(ioPackage.encryptedNative.includes('guardianSecret'));
+    assert.ok(ioPackage.protectedNative.includes('guardianSecret'));
+    assert.equal(admin.guardianSecret.type, 'password');
+    assert.equal(admin.guardianSecret.visible, false);
+    assert.equal(admin.guardianSecret.validatorNoSaveOnError, true);
+    const config = normalizeConfig({ guardianPortDiscovery: true, guardianPort: 37457, guardianSecret: synthetic });
+    assert.equal(config.guardianPortDiscovery, true);
+    assert.equal(config.guardianPort, 37457);
+    assert.equal(Object.hasOwn(config, 'guardianSecret'), false);
+    assert.equal(JSON.stringify(config).includes(synthetic), false);
+    const malformed = normalizeConfig({ guardianPortDiscovery: true, guardianPort: 'broken', guardianSecret: 'invalid' });
+    assert.equal(malformed.guardianPort, null);
+    assert.equal(Object.hasOwn(malformed, 'guardianSecret'), false);
+    assert.equal(normalizeConfig({ guardianPortDiscovery: 'not-a-boolean' }).guardianPortDiscovery, false);
 });
 
 test('Admin PIN validation accepts empty configuration and agrees with exact four-digit backend validation', () => {

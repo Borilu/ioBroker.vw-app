@@ -77,9 +77,11 @@ function fakeClock(start = Date.parse('2026-10-24T19:00:00.000Z')) {
         }, settle };
 }
 class RecordingScheduler {
-    constructor(options) { this.options = options; this.requests = []; this.available = 0; this.started = false; }
+    constructor(options) { this.options = options; this.requests = []; this.available = 0; this.started = false; this.paused = false; }
     start() { this.started = true; }
     stop() { this.started = false; }
+    pause() { this.paused = true; }
+    resume() { this.paused = false; }
     notifyAvailable() { this.available++; }
     request(domain, options) { this.requests.push({ domain, ...options }); return this.started; }
     snapshot() { return { runningDomain: null, estimatedCycleMs: this.options.domains.length * 37500, domains: {} }; }
@@ -247,6 +249,11 @@ async function fixture(t, options = {}) {
 
     const utils = { Adapter: FakeAdapter, getAbsoluteInstanceDataDir: () => root };
     const Adapter = createAdapterClass(utils, { Runtime: FakeRuntime, Phone: options.Phone || FakePhone, Store: FakeStore, Lease: FakeLease,
+        ...(options.GuardianQuery ? { GuardianQuery: options.GuardianQuery } : {}),
+        ...(options.GuardianAssets ? { GuardianAssets: options.GuardianAssets } : {}),
+        ...(options.GuardianVmRoute ? { GuardianVmRoute: options.GuardianVmRoute } : {}),
+        ...(options.GuardianBinderTest ? { GuardianBinderTest: options.GuardianBinderTest } : {}),
+        ...(options.GuardianPermissionGrant ? { GuardianPermissionGrant: options.GuardianPermissionGrant } : {}),
         ...(options.clock ? { now: options.clock.now } : {}),
         ...(options.RefreshScheduler ? { RefreshScheduler: options.RefreshScheduler } : {}),
         ...(options.fakeController ? { Controller: FakeController } : {}) });
@@ -271,6 +278,220 @@ async function fixture(t, options = {}) {
 }
 
 function enrolled() { return { deviceId: DEVICE, profile: { appVersion: '4.8.1', vehicleMarker: VEHICLE } }; }
+
+test('maintenance drains the current read without cancelling and blocks new phone jobs', async t => {
+    const entered = deferred(), release = deferred();
+    const f = await fixture(t, { enrollment: enrolled(), fakeController: true, cooperativeHandoff: true,
+        RefreshScheduler: RecordingScheduler, config: { pollIntervalSeconds: 15 }, controllerExecute: async action => {
+            assert.equal(action, 'refreshVehicleAccess'); entered.resolve(); await release.promise; return vehicleAccessResult();
+        } });
+    t.after(() => release.resolve());
+    const running = f.adapter.scheduler.options.run('vehicleAccess'); await entered.promise;
+    assert.equal((await f.message('maintenanceStart')).result, 'maintenance_draining');
+    assert.equal(f.adapter.scheduler.paused, true);
+    assert.equal(f.records.controllers[0].cancelled, undefined);
+    assert.equal(f.records.controllers[0].handoffRequested, undefined);
+    await rejectsCode(f.adapter.command('chargingStatus'), 'maintenance_active');
+    await rejectsCode(f.adapter.scheduler.options.run('climate'), 'busy');
+    assert.match((await f.message('maintenanceResume')).error, /^busy:/);
+    release.resolve(); await running; await Promise.resolve();
+    assert.equal((await f.message('maintenanceStatus')).result, 'maintenance_ready');
+    assert.equal(f.adapter.scheduler.paused, true);
+    assert.equal((await f.message('maintenanceResume')).result, 'maintenance_idle');
+    assert.equal(f.adapter.scheduler.paused, false);
+    assert.equal(f.records.controllerCalls.length, 1);
+});
+
+test('maintenance fails closed after an error or without a known completed phone operation', async t => {
+    const entered = deferred(), release = deferred();
+    const f = await fixture(t, { enrollment: enrolled(), fakeController: true, RefreshScheduler: RecordingScheduler,
+        config: { pollIntervalSeconds: 15 }, controllerExecute: async () => {
+            entered.resolve(); await release.promise; throw new BridgeError('unsaved_settings', 'Editor uncertain.');
+        } });
+    t.after(() => release.resolve());
+    const running = f.adapter.scheduler.options.run('vehicleAccess');
+    const rejection = rejectsCode(running, 'unsaved_settings'); await entered.promise;
+    assert.equal((await f.message('maintenanceStart')).result, 'maintenance_draining');
+    release.resolve(); await rejection; await Promise.resolve();
+    assert.equal((await f.message('maintenanceStatus')).result, 'maintenance_blocked');
+    assert.equal(f.adapter.scheduler.paused, true);
+    assert.equal((await f.message('maintenanceResume')).result, 'maintenance_idle');
+    assert.equal((await f.message('maintenanceStart')).result, 'maintenance_blocked');
+});
+
+test('maintenance commands reject non-Admin senders and do not overtake reserved manual work', async t => {
+    const f = await fixture(t, { RefreshScheduler: RecordingScheduler, config: { pollIntervalSeconds: 15 } });
+    await f.adapter.onMessage({ from: 'system.adapter.other.0', command: 'maintenanceStart', message: {}, callback: { id: 8 } });
+    assert.match(f.adapter.responses.at(-1).message.error, /^invalid_action:/);
+    assert.equal(f.adapter.maintenanceState, 'idle');
+    f.adapter.pendingManual = true;
+    assert.match((await f.message('maintenanceStart')).error, /^busy:/);
+    assert.equal(f.adapter.scheduler.started, true);
+    f.adapter.pendingManual = false;
+});
+
+test('a phone-job finalization failure cannot make a later maintenance start ready', async t => {
+    let failFinalization = false;
+    const f = await fixture(t, { enrollment: enrolled(), fakeController: true, RefreshScheduler: RecordingScheduler,
+        config: { pollIntervalSeconds: 15 }, stateWrite: async (id, value) => {
+            if (failFinalization && id === 'refresh.autoBusy' && value?.val === false) throw new Error('synthetic finalization error');
+        } });
+    failFinalization = true;
+    await assert.rejects(f.adapter.scheduler.options.run('vehicleAccess'));
+    assert.equal(f.adapter.lastPhoneOperationOutcome, 'uncertain');
+    assert.equal((await f.message('maintenanceStart')).result, 'maintenance_blocked');
+});
+
+test('connection-source diagnostics log only known fixed categories and mark a cached endpoint', async t => {
+    const f = await fixture(t, { enrollment: enrolled() });
+    const configuredEndpoint = HOST + ':' + PORT;
+    f.adapter.verifiedPhoneEndpoint = { configuredEndpoint, endpoint: HOST + ':45678', deviceId: DEVICE };
+    const phone = await f.adapter.phone();
+    assert.equal(phone.settings.initialEndpointSource, 'cache');
+    const before = f.adapter.logs.length;
+    phone.settings.onConnectionSource('guardian');
+    phone.settings.onConnectionSource('bogus user data');
+    phone.settings.onConnectionSource('cache');
+    assert.deepEqual(f.adapter.logs.slice(before), [{ level: 'info', message: 'Wireless debugging port discovery verified: guardian' }]);
+});
+
+test('Guardian protected-settings grant is Admin-only, consented, serialized and journalled separately', async t => {
+    let calls = 0;
+    const entered = deferred(), release = deferred();
+    const f = await fixture(t, { enrollment: enrolled(), GuardianPermissionGrant: async ({ phone, userConfirmed, journal, signal }) => {
+        calls++; assert.equal(userConfirmed, true); assert.ok(phone); assert.equal(signal.aborted, false);
+        assert.equal(await journal.read(), null); await journal.write({ status: 'attempting' });
+        entered.resolve(); await release.promise; await journal.write({ status: 'confirmed' });
+        return { result: 'guardian_permission_granted' };
+    } });
+    t.after(() => release.resolve());
+    await f.adapter.onMessage({ from: 'system.adapter.other.0', command: 'guardianPermissionGrant', message: { confirm: true }, callback: { id: 1 } });
+    assert.match(f.adapter.responses.at(-1).message.error, /^invalid_action:/); assert.equal(calls, 0);
+    assert.match((await f.message('guardianPermissionGrant')).error, /^guardian_permission_consent_required:/);
+    assert.equal(calls, 0);
+    const granting = f.message('guardianPermissionGrant', { confirm: true }); await entered.promise;
+    assert.deepEqual(f.memory['guardian-permission-state'], { status: 'attempting' });
+    await rejectsCode(f.adapter.command('chargingStatus'), 'busy');
+    release.resolve();
+    assert.deepEqual(await granting, { result: 'guardian_permission_granted', native: {} });
+    assert.deepEqual(f.memory['guardian-permission-state'], { status: 'confirmed' });
+});
+
+test('Guardian recovery is fail-closed until both actual instance protections are present', async t => {
+    const secret = 'ab'.repeat(32); // Synthetic fixture only.
+    let queries = 0;
+    const f = await fixture(t, { config: { guardianPortDiscovery: true, guardianSecret: secret }, enrollment: enrolled(),
+        memory: { 'guardian-pair-state': { status: 'android_verified_host_not_enabled' } },
+        GuardianQuery: async (_host, options) => { queries++; assert.equal(options.getSecret(), secret); return 45678; } });
+    const id = 'system.adapter.' + f.adapter.namespace;
+    assert.equal(await f.adapter.guardianProtectionReady(), false);
+    let phone = await f.adapter.phone();
+    assert.equal(phone.settings.guardianDiscovery, null);
+    f.adapter.foreignObjects.set(id, { encryptedNative: ['guardianSecret'], protectedNative: [] });
+    assert.equal(await f.adapter.guardianProtectionReady(), false);
+    phone = await f.adapter.phone();
+    assert.equal(phone.settings.guardianDiscovery, null);
+    f.adapter.foreignObjects.set(id, { encryptedNative: ['guardianSecret'], protectedNative: ['guardianSecret'] });
+    assert.equal(await f.adapter.guardianProtectionReady(), true);
+    phone = await f.adapter.phone();
+    assert.equal(typeof phone.settings.guardianDiscovery, 'function');
+    assert.equal(await phone.settings.guardianDiscovery(HOST, {}), 45678);
+    assert.equal(queries, 1);
+    assert.deepEqual(f.memory['guardian-pair-state'], { status: 'android_verified_host_not_enabled' });
+    assert.equal(JSON.stringify(f.adapter.settings).includes(secret), false);
+    assert.equal(JSON.stringify(f.adapter.logs).includes(secret), false);
+    const unpinned = await f.adapter.phone({}, { allowUnpinned: true });
+    assert.equal(unpinned.settings.guardianDiscovery, null);
+});
+
+test('Guardian Admin setup gates secret entry on a fresh per-instance protection check without returning native values', async t => {
+    const secret = 'ab'.repeat(32); // Synthetic fixture only.
+    const f = await fixture(t, { config: { guardianSecret: secret }, enrollment: enrolled() });
+    const id = 'system.adapter.' + f.adapter.namespace;
+    const message = () => f.message('guardianProtectionCheck');
+    assert.deepEqual(await message(), { native: { _guardianProtectionVerified: false } });
+    f.adapter.foreignObjects.set(id, { encryptedNative: ['guardianSecret'], protectedNative: [], native: { guardianSecret: secret } });
+    assert.deepEqual(await message(), { native: { _guardianProtectionVerified: false } });
+    f.adapter.foreignObjects.set(id, { encryptedNative: ['sPin', 'guardianSecret'], protectedNative: ['sPin', 'guardianSecret'], native: { guardianSecret: secret } });
+    assert.deepEqual(await message(), { native: { _guardianProtectionVerified: true } });
+    assert.equal(JSON.stringify(f.adapter.responses).includes(secret), false);
+    assert.equal(JSON.stringify(f.adapter.logs).includes(secret), false);
+    await f.adapter.onMessage({ from: 'system.adapter.example.0', command: 'guardianProtectionCheck', message: {}, callback: { id: 2 } });
+    assert.deepEqual(f.adapter.responses.at(-1).message, { native: { _guardianProtectionVerified: false } });
+    f.adapter.getForeignObjectAsync = async () => { throw new Error('synthetic object read failure'); };
+    assert.deepEqual(await message(), { native: { _guardianProtectionVerified: false } });
+    assert.equal(ADMIN.items._guardianProtectionCheck.onLoaded, true);
+    assert.equal(ADMIN.items._guardianProtectionCheck.disabled, true);
+    assert.equal(ADMIN.items._guardianProtectionVerified.doNotSave, true);
+    assert.equal(ADMIN.items._guardianProtectionVerified.hidden, true);
+    assert.equal(ADMIN.items.guardianSecret.disabled, 'data._guardianProtectionVerified !== true');
+});
+test('automatic Guardian pairing is Admin-only and refuses missing per-instance encryption before any phone access', async t => {
+    const fakePin = '0012'; // Synthetic only; never emitted or transferred.
+    const f = await fixture(t, { config: { sPin: fakePin }, enrollment: enrolled() });
+    await f.adapter.onMessage({ from: 'system.adapter.example.0', command: 'guardianBinderPrepare', message: {}, callback: { id: 5 } });
+    assert.match(f.adapter.responses.at(-1).message.error, /^invalid_action:/);
+    assert.equal(f.records.phones.length, 0);
+    const response = await f.message('guardianBinderPrepare', { sPin: 'untrusted', guardianSecret: 'untrusted' });
+    assert.match(response.error, /^guardian_pair_not_empty:/);
+    assert.equal(f.records.phones.length, 0);
+    assert.equal(JSON.stringify(f.adapter.responses).includes(fakePin), false);
+    assert.equal(JSON.stringify(f.adapter.logs).includes(fakePin), false);
+    assert.equal(ADMIN.items._guardianBinderPrepare.useNative, true);
+    assert.deepEqual(ADMIN.items._guardianBinderPrepare.data, {});
+    assert.equal(ADMIN.items._guardianBinderPrepare.disabled, 'data._guardianProtectionVerified !== true');
+});
+test('Guardian verification requires its signed result and the exact pinned phone with no fallback or secret output', async t => {
+    const secret = 'ab'.repeat(32); let calls = 0;
+    const GuardianQuery = async (_host, options) => { calls++; assert.equal(options.getSecret(), secret); return 45678; };
+    const f = await fixture(t, { config: { guardianPortDiscovery: true, guardianSecret: secret }, enrollment: enrolled(), GuardianQuery,
+        memory: { 'guardian-pair-state': { status: 'android_verified_host_not_enabled' } } });
+    f.adapter.foreignObjects.set('system.adapter.' + f.adapter.namespace,
+        { encryptedNative: ['guardianSecret'], protectedNative: ['guardianSecret'] });
+    assert.deepEqual(await f.message('guardianPairVerify'), { result: 'guardian_pair_verified', native: {} });
+    assert.equal(calls, 1); assert.equal(f.records.phones.length, 1);
+    assert.equal(f.records.phones[0].settings.discoverPort, false);
+    assert.equal(f.records.phones[0].settings.endpoint, HOST + ':45678');
+    assert.equal(JSON.stringify(f.adapter.responses).includes(secret), false);
+    assert.equal(JSON.stringify(f.adapter.responses).includes('45678'), false);
+    assert.equal(JSON.stringify(f.adapter.logs).includes(secret), false);
+    await f.adapter.onMessage({ from: 'system.adapter.example.0', command: 'guardianPairVerify', message: {}, callback: { id: 7 } });
+    assert.match(f.adapter.responses.at(-1).message.error, /^invalid_action:/);
+    assert.equal(calls, 1);
+    assert.equal(ADMIN.items._guardianPairVerify.useNative, true);
+    assert.deepEqual(ADMIN.items._guardianPairVerify.data, {});
+});
+test('Guardian verification rejects missing signed response and wrong phone without app access', async t => {
+    for (const options of [{ GuardianQuery: async () => null }, { GuardianQuery: async () => 45678, deviceId:'serial:OTHER' }]) {
+        const f = await fixture(t, { config: { guardianPortDiscovery: true, guardianSecret: 'ab'.repeat(32) }, enrollment: enrolled(), ...options });
+        f.adapter.foreignObjects.set('system.adapter.' + f.adapter.namespace,
+            { encryptedNative: ['guardianSecret'], protectedNative: ['guardianSecret'] });
+        const reply = await f.message('guardianPairVerify');
+        assert.match(reply.error, /^(guardian_verify_failed|wifi_wrong_device):/);
+        assert.equal(f.ctas().length, 0);
+    }
+});
+test('synthetic Guardian transport test is Admin-only, pinned and never queries or stores a real Guardian key', async t => {
+    let called = 0;
+    const f = await fixture(t, { enrollment: enrolled(), config: { guardianPortDiscovery: true, guardianSecret:'ab'.repeat(32) },
+        GuardianAssets: async () => ({ approvedApkHash:'a'.repeat(64), relayHash:'b'.repeat(64), relayFile:'synthetic' }),
+        GuardianVmRoute: async () => '192.168.100.33',
+        GuardianQuery: async () => { throw Error('A real Guardian key must never be queried'); },
+        GuardianBinderTest: async ({ phone }) => { called++; await phone.connect(); return { result: 'guardian_binder_test_ok' }; } });
+    await f.adapter.onMessage({ from: 'system.adapter.example.0', command: 'guardianBinderTest', message: {}, callback: { id: 6 } });
+    assert.match(f.adapter.responses.at(-1).message.error, /^invalid_action:/);
+    assert.equal(called, 0);
+    assert.deepEqual(await f.message('guardianBinderTest', { guardianSecret:'untrusted' }),
+        { result: 'guardian_binder_test_ok', native:{} });
+    assert.equal(called, 1); assert.equal(f.records.phones.length, 1);
+    assert.equal(f.records.phones[0].settings.guardianDiscovery, undefined);
+    assert.equal(f.records.phones[0].settings.deviceId, DEVICE);
+    assert.equal(f.records.phones[0].settings.discoverPort, true);
+    assert.equal(JSON.stringify(f.adapter.responses).includes('ab'.repeat(32)), false);
+    assert.equal(JSON.stringify(f.adapter.logs).includes('ab'.repeat(32)), false);
+    assert.equal(ADMIN.items._guardianBinderTest.useNative, true);
+    assert.deepEqual(ADMIN.items._guardianBinderTest.data, {});
+});
 function departureTimer(id, profileId = null) {
     return { id, enabled: false, time: '07:30', days: ['mon', 'wed'], repeat: true, date: null,
         vehicleOffset: '+02:00', isLocalVehicleTime: false, source: 'editor_initial_snapshot',

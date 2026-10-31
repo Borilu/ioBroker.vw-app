@@ -1,0 +1,14 @@
+plugins { id 'com.android.application' }
+
+android {
+    namespace 'de.borilu.wirelessguardian'
+    compileSdk 36
+
+    defaultConfig {
+        applicationId 'de.borilu.wirelessguardian'
+        minSdk 31
+        targetSdk 36
+        versionCode 7
+        versionName '0.6.0-binder-pair-prototype'
+    }
+}

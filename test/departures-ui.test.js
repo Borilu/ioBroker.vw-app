@@ -181,11 +181,84 @@ test('three location timers require the exact expected private name and map veri
     invalid(() => view.overviewTimer('4'));
 });
 
-test('anonymous switch copies must be nested, coincident, enabled and consistent', () => {
+test('a complete non-scrollable charging-location settings page is read-only', () => {
+    const fixture = gear();
+    fixture.body.attrs.scrollable = 'false';
+    fixture.body.attrs['a11y-actions'] = '[64]';
+    const view = screen(fixture);
+    assert.equal(view.kind(), 'locationSettings');
+    assert.equal(view.gearSettings().name, 'Testort Gamma');
+    assert.deepEqual(view.preferredNavTarget(), { x: 350, y: 1610 });
+    assert.deepEqual(view.headerTarget('back'), { x: 90, y: 140 });
+    invalid(() => view.gearToggleTarget('reducedAcCurrent', false));
+    invalid(() => view.gearToggleTarget('autoUnlockAc', true));
+    invalid(() => view.saveTarget());
+    const dirty = gear({ dirty: true });
+    dirty.body.attrs.scrollable = 'false'; dirty.body.attrs['a11y-actions'] = '[64]';
+    invalid(() => screen(dirty).saveTarget());
+});
+
+test('non-scrollable settings require complete content, no scroll action and unobstructed navigation', () => {
+    for (const edit of [
+        f => { delete f.body.attrs['a11y-actions']; },
+        f => { f.body.attrs['a11y-actions'] = '[64,4096]'; },
+        f => { f.body.attrs['a11y-actions'] = '[64,8192]'; },
+        f => { f.preferredLabel.attrs.text = 'unrecognized'; },
+        f => { f.body.children.push(text('Bevorzugte Zeiten', '[50,1400][400,1450]')); },
+        f => { f.name.attrs.bounds = '[0,0][0,0]'; },
+    ]) {
+        const fixture = gear(); fixture.body.attrs.scrollable = 'false'; fixture.body.attrs['a11y-actions'] = '[64]'; edit(fixture);
+        invalid(() => screen(fixture).gearSettings());
+    }
+    const covered = gear(); covered.body.attrs.scrollable = 'false'; covered.body.attrs['a11y-actions'] = '[64]';
+    covered.body.children.push(node({ clickable: 'true', bounds: '[300,1590][400,1650]' }));
+    invalid(() => screen(covered).preferredNavTarget());
+    const clickableParent = gear(); clickableParent.body.attrs.scrollable = 'false';
+    clickableParent.body.attrs['a11y-actions'] = '[64]'; clickableParent.body.attrs.clickable = 'true';
+    invalid(() => screen(clickableParent).preferredNavTarget());
+    const outside = gear(); outside.body.attrs.scrollable = 'false'; outside.body.attrs['a11y-actions'] = '[64]';
+    const overlay = render(node({ clickable: 'true', bounds: '[300,1590][400,1650]' }));
+    invalid(() => new DepartureScreen(outside.xml().replace('</hierarchy>', overlay + '</hierarchy>')).preferredNavTarget());
+    const unbounded = render(node({ clickable: 'true', bounds: '[0,0][0,0]' }));
+    invalid(() => new DepartureScreen(outside.xml().replace('</hierarchy>', unbounded + '</hierarchy>')).preferredNavTarget());
+});
+
+test('slightly shifted switch semantics can be observed but cannot be switched', () => {
+    const fixture = overview();
+    fixture.timers[0].inner.attrs.bounds = '[803,523][933,643]';
+    const view = screen(fixture);
+    assert.equal(view.departuresOverview().climateTimers[0].enabled, true);
+    assert.deepEqual(view.overviewTimer('1', 'editor'), { x: 165, y: 560 });
+    invalid(() => view.overviewTimer('1', 'enabled'));
+
+    const timerEditor = editor();
+    timerEditor.repeat.inner.attrs.bounds = '[803,1113][933,1233]';
+    invalid(() => screen(timerEditor).repeatTarget(false));
+    const settings = gear();
+    settings.reduced.inner.attrs.bounds = '[803,1083][933,1203]';
+    invalid(() => screen(settings).gearToggleTarget('reducedAcCurrent', false));
+    const windows = preferred();
+    windows.slots[0].inner.attrs.bounds = '[803,553][933,673]';
+    invalid(() => screen(windows).preferredToggleTarget('1', false));
+});
+
+test('timer editor target must avoid every shifted switch rectangle', () => {
+    const fixture = overview();
+    fixture.timers[0].inner.attrs.bounds = '[805,520][935,640]';
+    fixture.timers[0].label.attrs.bounds = '[795,530][809,590]';
+    invalid(() => screen(fixture).departuresOverview());
+    invalid(() => screen(fixture).overviewTimer('1', 'editor'));
+});
+
+test('anonymous switch copies must be nested, tightly aligned, enabled and consistent', () => {
     for (const edit of [
         f => { f.timers[0].inner.attrs.checked = 'false'; },
         f => { f.timers[0].inner.attrs.enabled = 'false'; },
         f => { f.timers[0].inner.attrs.bounds = '[790,520][920,640]'; },
+        f => { f.timers[0].inner.attrs.bounds = '[810,520][940,640]'; },
+        f => { f.timers[0].inner.attrs.bounds = '[803,523][930,640]'; },
+        f => { f.timers[0].inner.attrs.class = 'android.widget.Button'; },
+        f => { f.timers[0].inner.attrs.clickable = 'false'; },
         f => { f.timers[0].row.children.push(node({ checkable: 'true', checked: 'true', clickable: 'true', bounds: '[800,520][930,640]' })); },
     ]) {
         const fixture = overview(); edit(fixture);
